@@ -1,0 +1,13 @@
+[package]
+description = "Rust tools for the nand2tetris course"
+name = "nand2tetris"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ashdnazg/nand2tetris"
+readme = "README.md"
+version = "0.0.1"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sdl2 = "0.35"
