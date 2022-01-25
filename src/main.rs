@@ -1,7 +1,7 @@
 extern crate sdl2;
 
 use sdl2::event::Event;
-use sdl2::keyboard::{Keycode, Scancode, Mod};
+use sdl2::keyboard::{Scancode, Mod};
 use sdl2::pixels::Color;
 use std::time::{Duration, Instant};
 use sdl2::rect::Point;
@@ -264,28 +264,69 @@ impl Hardware {
     }
 
     fn get_pixel(&self, x: usize, y: usize) -> bool {
-        (self.ram[y * 32 + x / 16] & (1 << (x % 16))) != 0
+        (self.ram[16384 + y * 32 + x / 16] & (1 << (x % 16))) != 0
     }
 
     fn set_pixel(&mut self, x: usize, y: usize, value: bool) {
-        self.ram[y * 32 + x / 16] |= 1 << (x % 16);
-        self.ram[y * 32 + x / 16] ^= (!value as u16) << (x % 16);
+        self.ram[16384 + y * 32 + x / 16] |= 1 << (x % 16);
+        self.ram[16384 + y * 32 + x / 16] ^= (!value as u16) << (x % 16);
     }
 
-    fn set_keyboard(&mut self, value: u8) {
-        self.ram[24576] = value as u16;
-        println!("{}", value);
+    fn set_keyboard(&mut self, value: u16) {
+        self.ram[24576] = value;
+    }
+}
+
+fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> u16 {
+    match scancode {
+        Scancode::Return => 128,
+        Scancode::Backspace => 129,
+        Scancode::Left => 130,
+        Scancode::Up => 131,
+        Scancode::Right => 132,
+        Scancode::Down => 133,
+        Scancode::Home => 134,
+        Scancode::End => 135,
+        Scancode::PageUp => 136,
+        Scancode::PageDown => 137,
+        Scancode::Insert => 138,
+        Scancode::Delete => 139,
+        Scancode::Escape => 140,
+        Scancode::F1 => 141,
+        Scancode::F2 => 142,
+        Scancode::F3 => 143,
+        Scancode::F4 => 144,
+        Scancode::F5 => 145,
+        Scancode::F6 => 146,
+        Scancode::F7 => 147,
+        Scancode::F8 => 148,
+        Scancode::F9 => 149,
+        Scancode::F10 => 150,
+        Scancode::F11 => 151,
+        Scancode::F12 => 152,
+        _ => {
+            let name = scancode.name();
+            if name.len() == 1 && name.is_ascii() {
+                let mut value = name.as_bytes()[0];
+                if !keymod.contains(Mod::LSHIFTMOD) && !keymod.contains(Mod::RSHIFTMOD) {
+                    value.make_ascii_lowercase();
+                }
+                value as u16
+            } else {
+                0
+            }
+        }
     }
 }
 
 fn main() -> Result<(), String>{
     let mut hardware = Hardware::default();
+
+    let program: [u16; 29] = [16384,60432,16,58248,17,60040,24576,64528,12,58114,17,61064,17,64528,16,65000,58120,24576,60560,16,62672,4,58115,16384,60432,16,58248,4,60039];
+    hardware.load_program(program.iter().map(|raw| Instruction { raw: *raw }));
+
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
-
-    for x in (0..256) {
-        hardware.set_pixel(x, x, true);
-    }
 
     let window = video_subsystem
         .window("rust-sdl2 demo: Video", 512, 256)
@@ -298,44 +339,48 @@ fn main() -> Result<(), String>{
 
     let mut event_pump = sdl_context.event_pump()?;
 
+    let mut last_frame_time = Instant::now();
+    let mut steps_ran = 0;
+    let mut points: Vec<Point> = vec![];
     'running: loop {
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. } => break 'running,
-                Event::KeyDown { scancode: Some(scancode), keymod, .. } => {
-                    if scancode == Scancode::Escape {
-                        break 'running;
+        let current_time = Instant::now();
+        if (current_time - last_frame_time).as_secs_f64() * 60.0 > 1.0 {
+            println!("{:?}, {}", current_time, steps_ran);
+            steps_ran = 0;
+            last_frame_time = current_time;
+            canvas.set_draw_color(Color::RGB(255, 255, 255));
+            canvas.clear();
+
+            canvas.set_draw_color(Color::RGB(0, 0, 0));
+            points.clear();
+            for x in 0..512 {
+                for y in 0..256 {
+                    if hardware.get_pixel(x, y) {
+                        points.push(Point::new(x as i32, y as i32))
                     }
-                    let name = scancode.name();
-                    if name.len() == 1 && name.is_ascii() {
-                        let mut value = name.as_bytes()[0];
-                        if !keymod.contains(Mod::LSHIFTMOD) && !keymod.contains(Mod::RSHIFTMOD) {
-                            value.make_ascii_lowercase();
-                        }
-                        hardware.set_keyboard(value);
-                    }
-                },
-                _ => {}
+                }
             }
-        }
+            if !points.is_empty() {
+                canvas.draw_points(points.as_slice())?;
+            }
+            canvas.present();
 
-        canvas.set_draw_color(Color::RGB(255, 255, 255));
-        canvas.clear();
-
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        for x in (0..512) {
-            for y in (0..256) {
-                if hardware.get_pixel(x, y) {
-                    canvas.draw_point(Point::new(x as i32, y as i32))?;
+            for event in event_pump.poll_iter() {
+                match event {
+                    Event::Quit { .. } => break 'running,
+                    Event::KeyDown { scancode: Some(scancode), keymod, .. } => {
+                        let keyboard_value = keyboard_value_from_scancode(scancode, keymod);
+                        hardware.set_keyboard(keyboard_value);
+                    },
+                    Event::KeyUp { .. } => {
+                        hardware.set_keyboard(0);
+                    },
+                    _ => {}
                 }
             }
         }
-
-        canvas.present();
-
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 30));
-        // The rest of the game loop goes here...
-
+        hardware.step();
+        steps_ran += 1;
     }
 
     Ok(())
