@@ -9,6 +9,9 @@ use sdl2::rect::Point;
 mod hardware;
 use hardware::*;
 
+mod vm;
+use vm::*;
+
 fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> u16 {
     match scancode {
         Scancode::Return => 128,
