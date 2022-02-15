@@ -1,10 +1,10 @@
 extern crate sdl2;
 
 use sdl2::event::Event;
-use sdl2::keyboard::{Scancode, Mod};
+use sdl2::keyboard::{Mod, Scancode};
 use sdl2::pixels::Color;
-use std::time::{Instant};
 use sdl2::rect::Point;
+use std::time::Instant;
 
 mod hardware;
 use hardware::*;
@@ -54,10 +54,13 @@ fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> u16 {
     }
 }
 
-fn main() -> Result<(), String>{
+fn main() -> Result<(), String> {
     let mut hardware = Hardware::default();
 
-    let program: [u16; 29] = [16384,60432,16,58248,17,60040,24576,64528,12,58114,17,61064,17,64528,16,65000,58120,24576,60560,16,62672,4,58115,16384,60432,16,58248,4,60039];
+    let program: [u16; 29] = [
+        16384, 60432, 16, 58248, 17, 60040, 24576, 64528, 12, 58114, 17, 61064, 17, 64528, 16,
+        65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
+    ];
     hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
     let sdl_context = sdl2::init()?;
@@ -84,7 +87,7 @@ fn main() -> Result<(), String>{
     'running: loop {
         let current_time = Instant::now();
         if (current_time - last_frame_time).as_secs_f64() * 60.0 > 1.0 {
-            let hardware_time = (Instant::now() - pre_hardware).as_secs_f64();;
+            let hardware_time = (Instant::now() - pre_hardware).as_secs_f64();
             println!("steps_ran: {}, present_time: {}, polling_time: {}, hardware_time: {}, num_events: {}", steps_ran, present_time, polling_time, hardware_time, num_events);
             steps_ran = 0;
             last_frame_time = current_time;
@@ -113,13 +116,17 @@ fn main() -> Result<(), String>{
                 num_events += 1;
                 match event {
                     Event::Quit { .. } => break 'running,
-                    Event::KeyDown { scancode: Some(scancode), keymod, .. } => {
+                    Event::KeyDown {
+                        scancode: Some(scancode),
+                        keymod,
+                        ..
+                    } => {
                         let keyboard_value = keyboard_value_from_scancode(scancode, keymod);
                         hardware.set_keyboard(keyboard_value);
-                    },
+                    }
                     Event::KeyUp { .. } => {
                         hardware.set_keyboard(0);
-                    },
+                    }
                     _ => {}
                 }
             }

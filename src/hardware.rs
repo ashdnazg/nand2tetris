@@ -214,12 +214,8 @@ impl Hardware {
         }
 
         let computation_result = match instruction.operator() {
-            Operator::And => {
-                x & y
-            }
-            Operator::Add => {
-                x.wrapping_add(y)
-            }
+            Operator::And => x & y,
+            Operator::Add => x.wrapping_add(y),
         };
 
         if instruction.negate_out() {
@@ -248,7 +244,7 @@ impl Hardware {
         }
     }
 
-    pub fn load_program<I: Iterator<Item=Instruction>>(&mut self, program: I) {
+    pub fn load_program<I: Iterator<Item = Instruction>>(&mut self, program: I) {
         self.rom = [Instruction { raw: 0 }; 32 * 1024];
         for (i, instruction) in program.enumerate() {
             self.rom[i] = instruction;
