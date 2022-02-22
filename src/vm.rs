@@ -8,6 +8,7 @@ pub struct VM {
     files: HashMap<String, File>,
     ram: RAM,
     file_name_to_static_segment: HashMap<String, usize>,
+    call_stack: Vec<Frame>,
 }
 
 impl VM {
@@ -23,6 +24,7 @@ impl VM {
             files: files.into_iter().collect(),
             ram: ram,
             file_name_to_static_segment: file_name_to_static_segment,
+            call_stack: Vec::new(),
         }
     }
 
@@ -50,9 +52,7 @@ impl VM {
         }
         return map;
     }
-}
 
-impl VM {
     fn push(ram: &mut RAM, value: u16) {
         ram[ram[0] as usize] = value;
         ram[0] += 1;
@@ -166,7 +166,7 @@ impl VM {
             }
             VMCommand::Neg => {
                 let y = Self::stack_top(&mut self.ram);
-                *y = -(*y as i16) as u16
+                *y = -(*y as i16) as u16;
             }
             VMCommand::Eq => {
                 let y = Self::pop(&mut self.ram);
@@ -194,24 +194,114 @@ impl VM {
             VMCommand::Not => {
                 *Self::stack_top(&mut self.ram) ^= 0xFFFF;
             }
-            VMCommand::Label { name } => todo!(),
-            VMCommand::Goto { label_name } => todo!(),
-            VMCommand::IfGoto { label_name } => todo!(),
+            VMCommand::Label { name: _ } => {}
+            VMCommand::Goto { label_name } => {
+                Self::goto(
+                    &mut self.current_command_index,
+                    &self.current_file_name,
+                    &self.files,
+                    label_name,
+                );
+            }
+            VMCommand::IfGoto { label_name } => {
+                let value = Self::pop(&mut self.ram);
+                if value != 0 {
+                    Self::goto(
+                        &mut self.current_command_index,
+                        &self.current_file_name,
+                        &self.files,
+                        label_name,
+                    );
+                }
+            }
             VMCommand::Function {
-                name,
+                name: _,
                 local_var_count,
-            } => todo!(),
+            } => {
+                for _ in 0..*local_var_count {
+                    Self::push(&mut self.ram, 0);
+                }
+            }
             VMCommand::Call {
                 function_name,
                 argument_count,
-            } => todo!(),
+            } => {
+                let argument_segment = self.ram[0] - argument_count;
+                Self::push(&mut self.ram, self.current_command_index as u16);
+                for i in 1..=4 {
+                    let value = self.ram[i];
+                    Self::push(&mut self.ram, value);
+                }
+                let (file_name, actual_function_name) = function_name.split_once(".").unwrap();
+                self.call_stack.push(Frame {
+                    file_name: file_name.to_owned(),
+                    function_name: actual_function_name.to_owned(),
+                });
+                let local_segment = self.ram[0];
+                self.ram[1] = argument_segment;
+                self.ram[2] = local_segment;
+            }
             VMCommand::Return => todo!(),
         }
     }
+
+    fn goto(
+        current_command_index: &mut usize,
+        current_file_name: &String,
+        files: &HashMap<String, File>,
+        label_name: &String,
+    ) {
+        *current_command_index = files[current_file_name].label_name_to_command_index[label_name];
+    }
+}
+
+struct Frame {
+    file_name: String,
+    function_name: String,
 }
 
 pub struct File {
     commands: Vec<VMCommand>,
+    label_name_to_command_index: HashMap<String, usize>,
+    function_name_to_command_index: HashMap<String, usize>,
+}
+
+impl File {
+    fn new(commands: Vec<VMCommand>) -> Self {
+        let label_name_to_command_index = commands
+            .iter()
+            .enumerate()
+            .filter_map(|(i, command)| {
+                if let VMCommand::Label { name } = command {
+                    Some((name.clone(), i))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let function_name_to_command_index = commands
+            .iter()
+            .enumerate()
+            .filter_map(|(i, command)| {
+                if let VMCommand::Function {
+                    name,
+                    local_var_count: _,
+                } = command
+                {
+                    Some((name.clone(), i))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        File {
+            commands: Vec::new(),
+            label_name_to_command_index: label_name_to_command_index,
+            function_name_to_command_index: function_name_to_command_index,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -251,6 +341,21 @@ enum VMCommand {
         argument_count: u16,
     },
     Return,
+}
+
+impl VMCommand {
+    fn is_nop(&self) -> bool {
+        if let VMCommand::Label { name: _ }
+        | VMCommand::Function {
+            name: _,
+            local_var_count: _,
+        } = self
+        {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -314,33 +419,29 @@ mod tests {
         let files = vec![
             (
                 "a".to_owned(),
-                File {
-                    commands: vec![
-                        VMCommand::Push {
-                            segment: PushSegment::Static,
-                            offset: 0,
-                        },
-                        VMCommand::Pop {
-                            segment: PopSegment::Static,
-                            offset: 1,
-                        },
-                    ],
-                },
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Static,
+                        offset: 0,
+                    },
+                    VMCommand::Pop {
+                        segment: PopSegment::Static,
+                        offset: 1,
+                    },
+                ]),
             ),
             (
                 "b".to_owned(),
-                File {
-                    commands: vec![
-                        VMCommand::Push {
-                            segment: PushSegment::Static,
-                            offset: 1,
-                        },
-                        VMCommand::Pop {
-                            segment: PopSegment::Static,
-                            offset: 0,
-                        },
-                    ],
-                },
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Static,
+                        offset: 1,
+                    },
+                    VMCommand::Pop {
+                        segment: PopSegment::Static,
+                        offset: 0,
+                    },
+                ]),
             ),
         ];
 
