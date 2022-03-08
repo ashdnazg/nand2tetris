@@ -22,8 +22,8 @@ impl VM {
             current_file_name: "".to_string(),
             current_command_index: 0,
             files: files.into_iter().collect(),
-            ram: ram,
-            file_name_to_static_segment: file_name_to_static_segment,
+            ram,
+            file_name_to_static_segment,
             call_stack: Vec::new(),
         }
     }
@@ -44,7 +44,7 @@ impl VM {
                     | VMCommand::Pop {
                         segment: PopSegment::Static,
                         offset,
-                    } => Some(*offset as u8),
+                    } => Some((*offset + 1) as u8),
                     _ => None,
                 })
                 .collect();
@@ -138,6 +138,7 @@ impl VM {
             VMCommand::Add => {
                 let y = Self::pop(&mut self.ram);
                 *Self::stack_top(&mut self.ram) += y;
+                self.current_command_index += 1;
             }
             VMCommand::Push { segment, offset } => {
                 let value = Self::get(
@@ -148,6 +149,7 @@ impl VM {
                     *offset,
                 );
                 Self::push(&mut self.ram, value);
+                self.current_command_index += 1;
             }
             VMCommand::Pop { segment, offset } => {
                 let value = Self::pop(&mut self.ram);
@@ -159,42 +161,53 @@ impl VM {
                     *offset,
                     value,
                 );
+                self.current_command_index += 1;
             }
             VMCommand::Sub => {
                 let y = Self::pop(&mut self.ram);
                 *Self::stack_top(&mut self.ram) -= y;
+                self.current_command_index += 1;
             }
             VMCommand::Neg => {
                 let y = Self::stack_top(&mut self.ram);
                 *y = -(*y as i16) as u16;
+                self.current_command_index += 1;
             }
             VMCommand::Eq => {
                 let y = Self::pop(&mut self.ram);
                 let x = Self::stack_top(&mut self.ram);
                 *x = (*x == y) as u16 * 0xFFFF;
+                self.current_command_index += 1;
             }
             VMCommand::Gt => {
                 let y = Self::pop(&mut self.ram);
                 let x = Self::stack_top(&mut self.ram);
                 *x = (*x > y) as u16 * 0xFFFF;
+                self.current_command_index += 1;
             }
             VMCommand::Lt => {
                 let y = Self::pop(&mut self.ram);
                 let x = Self::stack_top(&mut self.ram);
                 *x = (*x < y) as u16 * 0xFFFF;
+                self.current_command_index += 1;
             }
             VMCommand::And => {
                 let y = Self::pop(&mut self.ram);
                 *Self::stack_top(&mut self.ram) &= y;
+                self.current_command_index += 1;
             }
             VMCommand::Or => {
                 let y = Self::pop(&mut self.ram);
                 *Self::stack_top(&mut self.ram) |= y;
+                self.current_command_index += 1;
             }
             VMCommand::Not => {
                 *Self::stack_top(&mut self.ram) ^= 0xFFFF;
+                self.current_command_index += 1;
             }
-            VMCommand::Label { name: _ } => {}
+            VMCommand::Label { name: _ } => {
+                self.current_command_index += 1;
+            }
             VMCommand::Goto { label_name } => {
                 Self::goto(
                     &mut self.current_command_index,
@@ -212,6 +225,8 @@ impl VM {
                         &self.files,
                         label_name,
                     );
+                } else {
+                    self.current_command_index += 1;
                 }
             }
             VMCommand::Function {
@@ -221,6 +236,7 @@ impl VM {
                 for _ in 0..*local_var_count {
                     Self::push(&mut self.ram, 0);
                 }
+                self.current_command_index += 1;
             }
             VMCommand::Call {
                 function_name,
@@ -260,6 +276,7 @@ struct Frame {
     function_name: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct File {
     commands: Vec<VMCommand>,
     label_name_to_command_index: HashMap<String, usize>,
@@ -297,9 +314,9 @@ impl File {
             .collect();
 
         File {
-            commands: Vec::new(),
-            label_name_to_command_index: label_name_to_command_index,
-            function_name_to_command_index: function_name_to_command_index,
+            commands,
+            label_name_to_command_index,
+            function_name_to_command_index,
         }
     }
 }
@@ -539,5 +556,362 @@ mod tests {
         assert_eq!(vm.ram[3], 1337);
         assert_eq!(vm.test_get(PushSegment::Pointer, 1), 2337);
         assert_eq!(vm.ram[4], 2337);
+    }
+
+    #[test]
+    fn test_add() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Add,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 1337 + 2337);
+    }
+
+    #[test]
+    fn test_sub() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Sub,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 2337 - 1337);
+    }
+
+    #[test]
+    fn test_neg() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Neg,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 64199);
+    }
+
+    #[test]
+    fn test_eq() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Eq,
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Eq,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 0);
+
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 0xFFFF);
+    }
+
+    #[test]
+    fn test_gt() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Gt,
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Gt,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 0);
+
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 0xFFFF);
+    }
+
+    #[test]
+    fn test_lt() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Lt,
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Lt,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 0);
+
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 0xFFFF);
+    }
+
+    #[test]
+    fn test_and() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::And,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 1337 & 2337);
+    }
+
+    #[test]
+    fn test_or() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 2337,
+                    },
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Or,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 1337 | 2337);
+    }
+
+    #[test]
+    fn test_not() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push {
+                        segment: PushSegment::Constant,
+                        offset: 1337,
+                    },
+                    VMCommand::Not,
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+
+        assert_eq!(*VM::stack_top(&mut vm.ram), 64198);
+    }
+
+    #[test]
+    fn test_label() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Label { name: "foo".to_string() },
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files.clone());
+        let vm2 = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+
+        assert_eq!(vm.ram, vm2.ram);
+    }
+
+    #[test]
+    fn test_goto() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Goto { label_name: "foo".to_string() },
+                    VMCommand::Label { name: "bar".to_string() },
+                    VMCommand::Label { name: "foo".to_string() },
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files.clone());
+        let vm2 = VM::new(files);
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+
+        assert_eq!(vm.ram, vm2.ram);
+        assert_eq!(vm.current_command_index, 2);
+    }
+
+    #[test]
+    fn test_if_goto() {
+        let files = vec![
+            (
+                "a".to_owned(),
+                File::new(vec![
+                    VMCommand::Push { segment: PushSegment::Constant, offset: 0 },
+                    VMCommand::IfGoto { label_name: "bar".to_string() },
+                    VMCommand::Push { segment: PushSegment::Constant, offset:1 },
+                    VMCommand::IfGoto { label_name: "foo".to_string() },
+                    VMCommand::Label { name: "bar".to_string() },
+                    VMCommand::Label { name: "foo".to_string() },
+                ]),
+            ),
+        ];
+
+        let mut vm = VM::new(files.clone());
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+
+        assert_eq!(vm.current_command_index, 2);
+
+        vm.step();
+        vm.step();
+
+        assert_eq!(vm.current_command_index, 5);
     }
 }
