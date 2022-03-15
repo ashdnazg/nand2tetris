@@ -54,6 +54,7 @@ impl VM {
     }
 
     fn push(ram: &mut RAM, value: u16) {
+        println!("pushed {:?} to {:?}", value, ram[0]);
         ram[ram[0] as usize] = value;
         ram[0] += 1;
     }
@@ -85,6 +86,7 @@ impl VM {
                 ram[(ram[1] + offset) as usize] = value;
             }
             PopSegment::Argument => {
+                println!("{:?}", ram[2] + offset);
                 ram[(ram[2] + offset) as usize] = value;
             }
             PopSegment::This => {
@@ -243,7 +245,7 @@ impl VM {
                 argument_count,
             } => {
                 let argument_segment = self.ram[0] - argument_count;
-                Self::push(&mut self.ram, self.current_command_index as u16);
+                Self::push(&mut self.ram, (self.current_command_index + 1) as u16);
                 for i in 1..=4 {
                     let value = self.ram[i];
                     Self::push(&mut self.ram, value);
@@ -254,10 +256,33 @@ impl VM {
                     function_name: actual_function_name.to_owned(),
                 });
                 let local_segment = self.ram[0];
-                self.ram[1] = argument_segment;
-                self.ram[2] = local_segment;
+                println!("argument segment: {:?}", argument_segment);
+                self.ram[1] = local_segment;
+                self.ram[2] = argument_segment;
+                self.current_file_name = file_name.to_owned();
+                self.current_command_index =
+                    self.files[file_name].function_name_to_command_index[function_name];
             }
-            VMCommand::Return => todo!(),
+            VMCommand::Return => {
+                let frame = self.ram[1] as usize;
+                self.current_command_index = self.ram[frame - 5] as usize;
+                let return_value = Self::pop(&mut self.ram);
+                println!("return value: {:?}", return_value);
+                Self::set(
+                    &mut self.ram,
+                    &self.file_name_to_static_segment,
+                    &self.current_file_name,
+                    PopSegment::Argument,
+                    0,
+                    return_value,
+                );
+                self.ram[0] = self.ram[2] + 1;
+                for i in 1..=4 {
+                    self.ram[i] = self.ram[frame - 5 + i];
+                }
+                self.call_stack.pop();
+                self.current_file_name = self.call_stack.last().unwrap().file_name.clone();
+            }
         }
     }
 
@@ -560,22 +585,20 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Add,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Add,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -588,22 +611,20 @@ mod tests {
 
     #[test]
     fn test_sub() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Sub,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Sub,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -616,18 +637,16 @@ mod tests {
 
     #[test]
     fn test_neg() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Neg,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Neg,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -639,31 +658,29 @@ mod tests {
 
     #[test]
     fn test_eq() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Eq,
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Eq,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Eq,
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Eq,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -682,31 +699,29 @@ mod tests {
 
     #[test]
     fn test_gt() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Gt,
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Gt,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Gt,
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Gt,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -725,31 +740,29 @@ mod tests {
 
     #[test]
     fn test_lt() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Lt,
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Lt,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Lt,
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Lt,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -768,22 +781,20 @@ mod tests {
 
     #[test]
     fn test_and() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::And,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::And,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -796,22 +807,20 @@ mod tests {
 
     #[test]
     fn test_or() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 2337,
-                    },
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Or,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Or,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -824,18 +833,16 @@ mod tests {
 
     #[test]
     fn test_not() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push {
-                        segment: PushSegment::Constant,
-                        offset: 1337,
-                    },
-                    VMCommand::Not,
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Not,
+            ]),
+        )];
 
         let mut vm = VM::new(files);
         vm.current_file_name = "a".to_owned();
@@ -847,14 +854,12 @@ mod tests {
 
     #[test]
     fn test_label() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Label { name: "foo".to_string() },
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![VMCommand::Label {
+                name: "foo".to_string(),
+            }]),
+        )];
 
         let mut vm = VM::new(files.clone());
         let vm2 = VM::new(files);
@@ -866,16 +871,20 @@ mod tests {
 
     #[test]
     fn test_goto() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Goto { label_name: "foo".to_string() },
-                    VMCommand::Label { name: "bar".to_string() },
-                    VMCommand::Label { name: "foo".to_string() },
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Goto {
+                    label_name: "foo".to_string(),
+                },
+                VMCommand::Label {
+                    name: "bar".to_string(),
+                },
+                VMCommand::Label {
+                    name: "foo".to_string(),
+                },
+            ]),
+        )];
 
         let mut vm = VM::new(files.clone());
         let vm2 = VM::new(files);
@@ -888,19 +897,31 @@ mod tests {
 
     #[test]
     fn test_if_goto() {
-        let files = vec![
-            (
-                "a".to_owned(),
-                File::new(vec![
-                    VMCommand::Push { segment: PushSegment::Constant, offset: 0 },
-                    VMCommand::IfGoto { label_name: "bar".to_string() },
-                    VMCommand::Push { segment: PushSegment::Constant, offset:1 },
-                    VMCommand::IfGoto { label_name: "foo".to_string() },
-                    VMCommand::Label { name: "bar".to_string() },
-                    VMCommand::Label { name: "foo".to_string() },
-                ]),
-            ),
-        ];
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 0,
+                },
+                VMCommand::IfGoto {
+                    label_name: "bar".to_string(),
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1,
+                },
+                VMCommand::IfGoto {
+                    label_name: "foo".to_string(),
+                },
+                VMCommand::Label {
+                    name: "bar".to_string(),
+                },
+                VMCommand::Label {
+                    name: "foo".to_string(),
+                },
+            ]),
+        )];
 
         let mut vm = VM::new(files.clone());
         vm.current_file_name = "a".to_owned();
@@ -913,5 +934,49 @@ mod tests {
         vm.step();
 
         assert_eq!(vm.current_command_index, 5);
+    }
+
+    #[test]
+    fn test_call_return() {
+        let files = vec![(
+            "a".to_owned(),
+            File::new(vec![
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 1337,
+                },
+                VMCommand::Call {
+                    function_name: "a.foo".to_owned(),
+                    argument_count: 1,
+                },
+                VMCommand::Label {
+                    name: "nop".to_owned(),
+                },
+                VMCommand::Function {
+                    name: "a.foo".to_owned(),
+                    local_var_count: 1,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 2337,
+                },
+                VMCommand::Return,
+            ]),
+        )];
+
+        let mut vm = VM::new(files.clone());
+        vm.call_stack.push(Frame {
+            file_name: "a".to_owned(),
+            function_name: "bar".to_owned(),
+        });
+        vm.current_file_name = "a".to_owned();
+        vm.step();
+        vm.step();
+        vm.step();
+        vm.step();
+        vm.step();
+
+        assert_eq!(vm.current_command_index, 2);
+        assert_eq!(*VM::stack_top(&mut vm.ram), 2337);
     }
 }
