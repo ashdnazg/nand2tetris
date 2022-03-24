@@ -10,6 +10,7 @@ mod hardware;
 use hardware::*;
 
 mod vm;
+mod vm_parse;
 
 fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> u16 {
     match scancode {

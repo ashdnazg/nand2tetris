@@ -38,7 +38,9 @@ impl IndexMut<Register> for RAM {
 
 impl RAM {
     fn new() -> Self {
-        let mut instance = Self { contents: [0; 32 * 1024] };
+        let mut instance = Self {
+            contents: [0; 32 * 1024],
+        };
         instance[Register::SP] = 256;
 
         instance
@@ -131,7 +133,7 @@ impl VM {
         let file_name_to_static_segment = Self::create_file_name_to_static_segment(&files);
 
         Self {
-            current_file_name: "".to_string(),
+            current_file_name: "".to_owned(),
             current_command_index: 0,
             files: files.into_iter().collect(),
             ram: RAM::new(),
@@ -162,7 +164,7 @@ impl VM {
                 .collect();
             index += *static_vars.iter().max().unwrap_or(&0);
         }
-        return map;
+        map
     }
 
     fn step(&mut self) {
@@ -278,7 +280,7 @@ impl VM {
                     let value = self.ram[i];
                     self.ram.push(value);
                 }
-                let (file_name, actual_function_name) = function_name.split_once(".").unwrap();
+                let (file_name, actual_function_name) = function_name.split_once('.').unwrap();
                 self.call_stack.push(Frame {
                     file_name: file_name.to_owned(),
                     function_name: actual_function_name.to_owned(),
@@ -889,7 +891,7 @@ mod tests {
         let files = vec![(
             "a".to_owned(),
             File::new(vec![VMCommand::Label {
-                name: "foo".to_string(),
+                name: "foo".to_owned(),
             }]),
         )];
 
@@ -907,13 +909,13 @@ mod tests {
             "a".to_owned(),
             File::new(vec![
                 VMCommand::Goto {
-                    label_name: "foo".to_string(),
+                    label_name: "foo".to_owned(),
                 },
                 VMCommand::Label {
-                    name: "bar".to_string(),
+                    name: "bar".to_owned(),
                 },
                 VMCommand::Label {
-                    name: "foo".to_string(),
+                    name: "foo".to_owned(),
                 },
             ]),
         )];
@@ -937,20 +939,20 @@ mod tests {
                     offset: 0,
                 },
                 VMCommand::IfGoto {
-                    label_name: "bar".to_string(),
+                    label_name: "bar".to_owned(),
                 },
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 1,
                 },
                 VMCommand::IfGoto {
-                    label_name: "foo".to_string(),
+                    label_name: "foo".to_owned(),
                 },
                 VMCommand::Label {
-                    name: "bar".to_string(),
+                    name: "bar".to_owned(),
                 },
                 VMCommand::Label {
-                    name: "foo".to_string(),
+                    name: "foo".to_owned(),
                 },
             ]),
         )];
