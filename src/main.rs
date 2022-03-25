@@ -15,8 +15,9 @@ mod vm_parse;
 use vm::*;
 use vm_parse::*;
 
-fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> u16 {
+fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> i16 {
     match scancode {
+        Scancode::Space => 32,
         Scancode::Return => 128,
         Scancode::Backspace => 129,
         Scancode::Left => 130,
@@ -49,7 +50,7 @@ fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> u16 {
                 if !keymod.contains(Mod::LSHIFTMOD) && !keymod.contains(Mod::RSHIFTMOD) {
                     value.make_ascii_lowercase();
                 }
-                value as u16
+                value as i16
             } else {
                 0
             }
@@ -144,11 +145,27 @@ fn run_hardware() -> Result<(), String> {
 }
 
 fn run_vm() -> Result<(), String> {
-    let paths = fs::read_dir("../vm").unwrap();
+    let paths = fs::read_dir("../hackenstein3DVM").unwrap();
     let files: Vec<(String, File)> = paths
         .map(|path| path.unwrap())
         .filter(|path| path.file_name().to_str().unwrap().ends_with(".vm"))
-        .map(|path| (path.file_name().to_str().unwrap().split_once('.').unwrap().0.to_owned(), File::new(commands(fs::read_to_string(path.path()).unwrap().as_str()).unwrap().1))).collect();
+        .map(|path| {
+            (
+                path.file_name()
+                    .to_str()
+                    .unwrap()
+                    .split_once('.')
+                    .unwrap()
+                    .0
+                    .to_owned(),
+                File::new(
+                    commands(fs::read_to_string(path.path()).unwrap().as_str())
+                        .unwrap()
+                        .1,
+                ),
+            )
+        })
+        .collect();
 
     let mut vm = VM::new(files);
 
@@ -177,7 +194,7 @@ fn run_vm() -> Result<(), String> {
         let current_time = Instant::now();
         if (current_time - last_frame_time).as_secs_f64() * 60.0 > 1.0 {
             let hardware_time = (Instant::now() - pre_hardware).as_secs_f64();
-            // println!("steps_ran: {}, present_time: {}, polling_time: {}, hardware_time: {}, num_events: {}", steps_ran, present_time, polling_time, hardware_time, num_events);
+            println!("steps_ran: {}, present_time: {}, polling_time: {}, hardware_time: {}, num_events: {}", steps_ran, present_time, polling_time, hardware_time, num_events);
             steps_ran = 0;
             last_frame_time = current_time;
             canvas.set_draw_color(Color::RGB(255, 255, 255));
@@ -223,8 +240,10 @@ fn run_vm() -> Result<(), String> {
             pre_hardware = Instant::now();
         }
 
-        vm.step();
-        steps_ran += 1;
+        for _ in 0..1000 {
+            vm.step();
+        }
+        steps_ran += 1000;
     }
 
     Ok(())
@@ -232,6 +251,7 @@ fn run_vm() -> Result<(), String> {
 
 fn main() -> Result<(), String> {
     run_vm();
+    // run_hardware();
 
     Ok(())
 }

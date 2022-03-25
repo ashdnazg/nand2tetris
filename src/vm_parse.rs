@@ -3,7 +3,7 @@ use crate::vm::*;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
-    character::complete::{alphanumeric1, line_ending, space0, space1, u16},
+    character::complete::{alphanumeric1, i16, line_ending, space0, space1},
     combinator::{all_consuming, eof, map, opt, recognize, value},
     error::VerboseError,
     multi::{many1_count, separated_list1},
@@ -41,14 +41,14 @@ fn identifier(input: &str) -> IResult<&str, &str> {
     recognize(many1_count(alt((alphanumeric1, tag("_"), tag(".")))))(input)
 }
 
-fn create_pop(args: (PopSegment, u16)) -> VMCommand {
+fn create_pop(args: (PopSegment, i16)) -> VMCommand {
     VMCommand::Pop {
         segment: args.0,
         offset: args.1,
     }
 }
 
-fn create_push(args: (PushSegment, u16)) -> VMCommand {
+fn create_push(args: (PushSegment, i16)) -> VMCommand {
     VMCommand::Push {
         segment: args.0,
         offset: args.1,
@@ -73,14 +73,14 @@ fn create_label(name: &str) -> VMCommand {
     }
 }
 
-fn create_function(args: (&str, u16)) -> VMCommand {
+fn create_function(args: (&str, i16)) -> VMCommand {
     VMCommand::Function {
         name: args.0.to_owned(),
         local_var_count: args.1,
     }
 }
 
-fn create_call(args: (&str, u16)) -> VMCommand {
+fn create_call(args: (&str, i16)) -> VMCommand {
     VMCommand::Call {
         function_name: args.0.to_owned(),
         argument_count: args.1,
@@ -90,10 +90,10 @@ fn create_call(args: (&str, u16)) -> VMCommand {
 fn command_two_args<'a, A>(
     keyword: &'a str,
     arg1_parser: impl FnMut(&'a str) -> IResult<&'a str, A>,
-) -> impl FnMut(&'a str) -> IResult<&'a str, (A, u16)> {
+) -> impl FnMut(&'a str) -> IResult<&'a str, (A, i16)> {
     preceded(
         pair(tag(keyword), space1),
-        separated_pair(arg1_parser, space1, u16),
+        separated_pair(arg1_parser, space1, i16),
     )
 }
 

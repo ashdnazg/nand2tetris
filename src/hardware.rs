@@ -99,8 +99,8 @@ impl Instruction {
         self.flag(3)
     }
 
-    fn loaded_value(&self) -> u16 {
-        self.raw & 0x7FFF
+    fn loaded_value(&self) -> i16 {
+        self.raw as i16
     }
 
     fn jump_condition(&self) -> JumpCondition {
@@ -119,16 +119,15 @@ impl Instruction {
 }
 
 impl JumpCondition {
-    fn is_true(&self, value: u16) -> bool {
-        let signed_value = value as i16;
+    fn is_true(&self, value: i16) -> bool {
         match self {
             JumpCondition::NoJump => false,
-            JumpCondition::JGT => signed_value > 0,
-            JumpCondition::JEQ => signed_value == 0,
-            JumpCondition::JGE => signed_value >= 0,
-            JumpCondition::JLT => signed_value < 0,
-            JumpCondition::JNE => signed_value != 0,
-            JumpCondition::JLE => signed_value <= 0,
+            JumpCondition::JGT => value > 0,
+            JumpCondition::JEQ => value == 0,
+            JumpCondition::JGE => value >= 0,
+            JumpCondition::JLT => value < 0,
+            JumpCondition::JNE => value != 0,
+            JumpCondition::JLE => value <= 0,
             JumpCondition::JMP => true,
         }
     }
@@ -136,46 +135,44 @@ impl JumpCondition {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RAM {
-    pub contents: [u16; 32 * 1024],
+    pub contents: [i16; 32 * 1024],
 }
 
-impl Index<u16> for RAM {
-    type Output = u16;
+impl Index<i16> for RAM {
+    type Output = i16;
 
-    fn index(&self, index: u16) -> &Self::Output {
+    fn index(&self, index: i16) -> &Self::Output {
         &self.contents[index as usize]
     }
 }
 
-impl IndexMut<u16> for RAM {
-    fn index_mut(&mut self, index: u16) -> &mut Self::Output {
+impl IndexMut<i16> for RAM {
+    fn index_mut(&mut self, index: i16) -> &mut Self::Output {
         &mut self.contents[index as usize]
     }
 }
 
 impl RAM {
-    const SCREEN: u16 = 0x4000;
-    const KBD: u16 = 0x6000;
+    const SCREEN: i16 = 0x4000;
+    const KBD: i16 = 0x6000;
+    const SCREEN_ROW_LENGTH: i16 = 32;
 
-    pub fn get_pixel(&self, x: u16, y: u16) -> bool {
-        (self[Self::SCREEN + y * 32 + x / 16] & (1 << (x % 16))) != 0
+    pub fn get_pixel(&self, x: i16, y: i16) -> bool {
+        (self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (i16::BITS as i16)]
+            & (1 << (x % (i16::BITS as i16))))
+            != 0
     }
 
-    // pub fn set_pixel(&mut self, x: u16, y: u16, value: bool) {
-    //     self[Self::SCREEN + y * 32 + x / 16] |= 1 << (x % 16);
-    //     self[Self::SCREEN + y * 32 + x / 16] ^= (!value as u16) << (x % 16);
-    // }
-
-    pub fn set_keyboard(&mut self, value: u16) {
+    pub fn set_keyboard(&mut self, value: i16) {
         self[Self::KBD] = value;
     }
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Hardware {
-    pub a: u16,
-    pub d: u16,
-    pub pc: u16,
+    pub a: i16,
+    pub d: i16,
+    pub pc: i16,
     pub rom: [Instruction; 32 * 1024],
     pub ram: RAM,
 }
@@ -207,11 +204,11 @@ impl std::fmt::Debug for Hardware {
 }
 
 impl Hardware {
-    fn m_mut(&mut self) -> &mut u16 {
+    fn m_mut(&mut self) -> &mut i16 {
         &mut self.ram[self.a]
     }
 
-    fn m(&self) -> &u16 {
+    fn m(&self) -> &i16 {
         &self.ram[self.a]
     }
 
@@ -219,7 +216,7 @@ impl Hardware {
         &self.rom[self.pc as usize]
     }
 
-    fn set(&mut self, instruction: Instruction, value: u16) {
+    fn set(&mut self, instruction: Instruction, value: i16) {
         if instruction.dst_has_m() {
             *self.m_mut() = value;
         }
@@ -231,14 +228,14 @@ impl Hardware {
         }
     }
 
-    fn y_register_value(&self, y_register: YRegister) -> u16 {
+    fn y_register_value(&self, y_register: YRegister) -> i16 {
         match y_register {
             YRegister::A => self.a,
             YRegister::M => *self.m(),
         }
     }
 
-    fn compute(&self, instruction: Instruction) -> u16 {
+    fn compute(&self, instruction: Instruction) -> i16 {
         let mut x = self.d;
         let mut y = self.y_register_value(instruction.y_register());
         if instruction.zero_x() {

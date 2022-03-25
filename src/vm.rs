@@ -6,7 +6,7 @@ use std::{
 use crate::hardware::RAM;
 
 impl Index<Register> for RAM {
-    type Output = u16;
+    type Output = i16;
 
     fn index(&self, index: Register) -> &Self::Output {
         &self[index.address()]
@@ -29,29 +29,29 @@ impl RAM {
         instance
     }
 
-    fn push(&mut self, value: u16) {
+    fn push(&mut self, value: i16) {
         let sp = self[Register::SP];
         self[sp] = value;
         self[Register::SP] += 1;
     }
 
-    fn pop(&mut self) -> u16 {
+    fn pop(&mut self) -> i16 {
         self[Register::SP] -= 1;
         self[self[Register::SP]]
     }
 
-    fn stack_top(&mut self) -> &mut u16 {
+    fn stack_top(&mut self) -> &mut i16 {
         let sp = self[Register::SP];
         &mut self[sp - 1]
     }
 
     fn set(
         &mut self,
-        file_name_to_static_segment: &HashMap<String, u16>,
+        file_name_to_static_segment: &HashMap<String, i16>,
         current_file_name: &String,
         segment: PopSegment,
-        offset: u16,
-        value: u16,
+        offset: i16,
+        value: i16,
     ) {
         match segment {
             PopSegment::Static => {
@@ -84,11 +84,11 @@ impl RAM {
 
     fn get(
         &self,
-        file_name_to_static_segment: &HashMap<String, u16>,
+        file_name_to_static_segment: &HashMap<String, i16>,
         current_file_name: &String,
         segment: PushSegment,
-        offset: u16,
-    ) -> u16 {
+        offset: i16,
+    ) -> i16 {
         match segment {
             PushSegment::Constant => offset,
             PushSegment::Static => self[file_name_to_static_segment[current_file_name] + offset],
@@ -107,7 +107,7 @@ pub struct VM {
     pub current_command_index: usize,
     pub files: HashMap<String, File>,
     pub ram: RAM,
-    pub file_name_to_static_segment: HashMap<String, u16>,
+    pub file_name_to_static_segment: HashMap<String, i16>,
     call_stack: Vec<Frame>,
 }
 
@@ -128,12 +128,12 @@ impl VM {
         }
     }
 
-    fn create_file_name_to_static_segment(files: &Vec<(String, File)>) -> HashMap<String, u16> {
-        let mut map: HashMap<String, u16> = HashMap::new();
-        let mut index = 16u16;
+    fn create_file_name_to_static_segment(files: &Vec<(String, File)>) -> HashMap<String, i16> {
+        let mut map: HashMap<String, i16> = HashMap::new();
+        let mut index = 16i16;
         for (file_name, file) in files {
             map.insert(file_name.clone(), index);
-            let static_vars: HashSet<u16> = file
+            let static_vars: HashSet<i16> = file
                 .commands
                 .iter()
                 .filter_map(|cmd| match cmd {
@@ -154,13 +154,13 @@ impl VM {
     }
 
     pub fn step(&mut self) {
-        if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
-            // println!(
-            //     "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",
-            //     self.files[&self.current_file_name].commands[self.current_command_index],
-            //     self.ram[self.ram[Register::LCL] + 1], self.ram[self.ram[Register::SP] -1], self.ram[self.ram[Register::SP] - 2], self.ram[Register::SP], self.ram[Register::LCL], self.ram[Register::ARG], self.ram[Register::THIS], self.ram[Register::THAT]
-            // );
-        }
+        // if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
+        //     println!(
+        //         "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",
+        //         self.files[&self.current_file_name].commands[self.current_command_index],
+        //         self.ram[self.ram[Register::LCL] + 1], self.ram[self.ram[Register::SP] -1], self.ram[self.ram[Register::SP] - 2], self.ram[Register::SP], self.ram[Register::LCL], self.ram[Register::ARG], self.ram[Register::THIS], self.ram[Register::THAT]
+        //     );
+        // }
         match &self.files[&self.current_file_name].commands[self.current_command_index] {
             VMCommand::Add => {
                 let y = self.ram.pop();
@@ -195,27 +195,27 @@ impl VM {
             }
             VMCommand::Neg => {
                 let y = self.ram.stack_top();
-                *y = -(*y as i16) as u16;
+                *y = -*y;
                 self.current_command_index += 1;
             }
             VMCommand::Eq => {
                 let y = self.ram.pop();
                 let x = self.ram.stack_top();
-                *x = (*x == y) as u16 * u16::MAX;
+                *x = (*x == y) as i16 * -1i16;
                 self.current_command_index += 1;
             }
             VMCommand::Gt => {
                 let y = self.ram.pop();
                 let x = self.ram.stack_top();
-                *x = ((*x as i16) > (y as i16)) as u16 * u16::MAX;
+                *x = (*x > y) as i16 * -1i16;
                 self.current_command_index += 1;
             }
             VMCommand::Lt => {
                 let y = self.ram.pop();
-                let (this, that, wat) = (self.ram[Register::THIS], self.ram[Register::THAT], self.ram[self.ram[Register::THAT]]);
+                // let (this, that, wat) = (self.ram[Register::THIS], self.ram[Register::THAT], self.ram[self.ram[Register::THAT]]);
                 let x = self.ram.stack_top();
                 // println!("x:{:?} y: {:?} this: {:?} that: {:?}, ram[THAT]: {:?} ", x, y, this, that, wat);
-                *x = ((*x as i16) < (y as i16)) as u16 * u16::MAX;
+                *x = (*x < y) as i16 * -1i16;
                 self.current_command_index += 1;
             }
             VMCommand::And => {
@@ -229,7 +229,7 @@ impl VM {
                 self.current_command_index += 1;
             }
             VMCommand::Not => {
-                *self.ram.stack_top() ^= u16::MAX;
+                *self.ram.stack_top() ^= -1;
                 self.current_command_index += 1;
             }
             VMCommand::Label { name: _ } => {
@@ -272,7 +272,7 @@ impl VM {
                 argument_count,
             } => {
                 let argument_segment = self.ram[Register::SP] - argument_count;
-                self.ram.push((self.current_command_index + 1) as u16);
+                self.ram.push((self.current_command_index + 1) as i16);
                 for i in 1..=4 {
                     let value = self.ram[i];
                     self.ram.push(value);
@@ -375,11 +375,11 @@ pub enum VMCommand {
     Add,
     Push {
         segment: PushSegment,
-        offset: u16,
+        offset: i16,
     },
     Pop {
         segment: PopSegment,
-        offset: u16,
+        offset: i16,
     },
     Sub,
     Neg,
@@ -400,11 +400,11 @@ pub enum VMCommand {
     },
     Function {
         name: String,
-        local_var_count: u16,
+        local_var_count: i16,
     },
     Call {
         function_name: String,
-        argument_count: u16,
+        argument_count: i16,
     },
     Return,
 }
@@ -415,11 +415,11 @@ enum Register {
     ARG,
     THIS,
     THAT,
-    TEMP(u16),
+    TEMP(i16),
 }
 
 impl Register {
-    fn address(&self) -> u16 {
+    fn address(&self) -> i16 {
         match self {
             Register::SP => 0,
             Register::LCL => 1,
@@ -458,7 +458,7 @@ mod tests {
     use super::*;
 
     impl VM {
-        fn test_get(&self, segment: PushSegment, offset: u16) -> u16 {
+        fn test_get(&self, segment: PushSegment, offset: i16) -> i16 {
             self.ram.get(
                 &self.file_name_to_static_segment,
                 &self.current_file_name,
@@ -467,7 +467,7 @@ mod tests {
             )
         }
 
-        fn test_set(&mut self, segment: PopSegment, offset: u16, value: u16) {
+        fn test_set(&mut self, segment: PopSegment, offset: i16, value: i16) {
             self.ram.set(
                 &self.file_name_to_static_segment,
                 &self.current_file_name,
@@ -682,7 +682,7 @@ mod tests {
         vm.step();
         vm.step();
 
-        assert_eq!(*vm.ram.stack_top(), 64199);
+        assert_eq!(*vm.ram.stack_top(), -1337);
     }
 
     #[test]
@@ -723,7 +723,7 @@ mod tests {
         vm.step();
         vm.step();
 
-        assert_eq!(*vm.ram.stack_top(), 0xFFFF);
+        assert_eq!(*vm.ram.stack_top(), -1);
     }
 
     #[test]
@@ -764,7 +764,7 @@ mod tests {
         vm.step();
         vm.step();
 
-        assert_eq!(*vm.ram.stack_top(), 0xFFFF);
+        assert_eq!(*vm.ram.stack_top(), -1);
     }
 
     #[test]
@@ -805,7 +805,7 @@ mod tests {
         vm.step();
         vm.step();
 
-        assert_eq!(*vm.ram.stack_top(), 0xFFFF);
+        assert_eq!(*vm.ram.stack_top(), -1);
     }
 
     #[test]
@@ -878,7 +878,7 @@ mod tests {
         vm.step();
         vm.step();
 
-        assert_eq!(*vm.ram.stack_top(), 64198);
+        assert_eq!(*vm.ram.stack_top(), -1338);
     }
 
     #[test]
