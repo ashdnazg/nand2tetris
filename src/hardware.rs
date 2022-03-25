@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Instruction {
     raw: u16,
@@ -132,13 +134,50 @@ impl JumpCondition {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RAM {
+    pub contents: [u16; 32 * 1024],
+}
+
+impl Index<u16> for RAM {
+    type Output = u16;
+
+    fn index(&self, index: u16) -> &Self::Output {
+        &self.contents[index as usize]
+    }
+}
+
+impl IndexMut<u16> for RAM {
+    fn index_mut(&mut self, index: u16) -> &mut Self::Output {
+        &mut self.contents[index as usize]
+    }
+}
+
+impl RAM {
+    const SCREEN: u16 = 0x4000;
+    const KBD: u16 = 0x6000;
+
+    pub fn get_pixel(&self, x: u16, y: u16) -> bool {
+        (self[Self::SCREEN + y * 32 + x / 16] & (1 << (x % 16))) != 0
+    }
+
+    // pub fn set_pixel(&mut self, x: u16, y: u16, value: bool) {
+    //     self[Self::SCREEN + y * 32 + x / 16] |= 1 << (x % 16);
+    //     self[Self::SCREEN + y * 32 + x / 16] ^= (!value as u16) << (x % 16);
+    // }
+
+    pub fn set_keyboard(&mut self, value: u16) {
+        self[Self::KBD] = value;
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Hardware {
-    a: u16,
-    d: u16,
-    pc: u16,
-    rom: [Instruction; 32 * 1024],
-    ram: [u16; 32 * 1024],
+    pub a: u16,
+    pub d: u16,
+    pub pc: u16,
+    pub rom: [Instruction; 32 * 1024],
+    pub ram: RAM,
 }
 
 impl Default for Hardware {
@@ -148,7 +187,9 @@ impl Default for Hardware {
             d: 0,
             pc: 0,
             rom: [Instruction { raw: 0 }; 32 * 1024],
-            ram: [0; 32 * 1024],
+            ram: RAM {
+                contents: [0; 32 * 1024],
+            },
         }
     }
 }
@@ -167,11 +208,11 @@ impl std::fmt::Debug for Hardware {
 
 impl Hardware {
     fn m_mut(&mut self) -> &mut u16 {
-        &mut self.ram[self.a as usize]
+        &mut self.ram[self.a]
     }
 
     fn m(&self) -> &u16 {
-        &self.ram[self.a as usize]
+        &self.ram[self.a]
     }
 
     fn current_instruction(&self) -> &Instruction {
@@ -255,19 +296,6 @@ impl Hardware {
         while (self.pc as usize) < program_length - 1 {
             self.step();
         }
-    }
-
-    pub fn get_pixel(&self, x: usize, y: usize) -> bool {
-        (self.ram[16384 + y * 32 + x / 16] & (1 << (x % 16))) != 0
-    }
-
-    fn set_pixel(&mut self, x: usize, y: usize, value: bool) {
-        self.ram[16384 + y * 32 + x / 16] |= 1 << (x % 16);
-        self.ram[16384 + y * 32 + x / 16] ^= (!value as u16) << (x % 16);
-    }
-
-    pub fn set_keyboard(&mut self, value: u16) {
-        self.ram[24576] = value;
     }
 }
 

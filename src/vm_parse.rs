@@ -5,10 +5,12 @@ use nom::{
     bytes::complete::{is_not, tag},
     character::complete::{alphanumeric1, line_ending, space0, space1, u16},
     combinator::{all_consuming, eof, map, opt, recognize, value},
+    error::VerboseError,
     multi::{many1_count, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair, tuple},
-    IResult,
 };
+
+type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;
 
 fn pop_segment(input: &str) -> IResult<&str, PopSegment> {
     alt((
@@ -141,7 +143,7 @@ fn non_command_lines(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
-fn commands(input: &str) -> IResult<&str, Vec<VMCommand>> {
+pub fn commands(input: &str) -> IResult<&str, Vec<VMCommand>> {
     all_consuming(delimited(
         opt(non_command_lines),
         separated_list1(non_command_lines, command),
@@ -217,39 +219,40 @@ mod tests {
 
     #[test]
     fn test_integration() {
+        let code = r#"
+        function Array.new 0
+        push argument 0
+        push constant 0
+        gt
+        not
+        if-goto IF_TRUE0
+        // Comment
+        //
+
+        goto IF_FALSE0
+        label IF_TRUE0
+        push constant 2 // inline comment
+        call Sys.error 1
+        pop temp 0
+        label IF_FALSE0
+        push argument 0
+        call Memory.alloc 1
+        return
+
+        function Array.dispose 0
+        push argument 0
+        pop pointer 0
+        push pointer 0
+
+        // Another comment
+        call Memory.deAlloc 1
+        pop temp 0
+        push constant 0
+        return               "#;
+        let result = commands(code);
+
         assert_eq!(
-            commands(
-                r#"
-                    function Array.new 0
-                    push argument 0
-                    push constant 0
-                    gt
-                    not
-                    if-goto IF_TRUE0
-                    // Comment
-                    //
-
-                    goto IF_FALSE0
-                    label IF_TRUE0
-                    push constant 2 // inline comment
-                    call Sys.error 1
-                    pop temp 0
-                    label IF_FALSE0
-                    push argument 0
-                    call Memory.alloc 1
-                    return
-
-                    function Array.dispose 0
-                    push argument 0
-                    pop pointer 0
-                    push pointer 0
-
-                    // Another comment
-                    call Memory.deAlloc 1
-                    pop temp 0
-                    push constant 0
-                    return                "#
-            ),
+            result,
             Ok((
                 "",
                 vec![

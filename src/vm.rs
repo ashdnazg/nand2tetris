@@ -3,36 +3,19 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct RAM {
-    contents: [u16; 32 * 1024],
-}
-
-impl Index<u16> for RAM {
-    type Output = u16;
-
-    fn index(&self, index: u16) -> &Self::Output {
-        &self.contents[index as usize]
-    }
-}
-
-impl IndexMut<u16> for RAM {
-    fn index_mut(&mut self, index: u16) -> &mut Self::Output {
-        &mut self.contents[index as usize]
-    }
-}
+use crate::hardware::RAM;
 
 impl Index<Register> for RAM {
     type Output = u16;
 
     fn index(&self, index: Register) -> &Self::Output {
-        &self.contents[index.address() as usize]
+        &self[index.address()]
     }
 }
 
 impl IndexMut<Register> for RAM {
     fn index_mut(&mut self, index: Register) -> &mut Self::Output {
-        &mut self.contents[index.address() as usize]
+        &mut self[index.address()]
     }
 }
 
@@ -120,11 +103,11 @@ impl RAM {
 }
 
 pub struct VM {
-    current_file_name: String,
-    current_command_index: usize,
-    files: HashMap<String, File>,
-    ram: RAM,
-    file_name_to_static_segment: HashMap<String, u16>,
+    pub current_file_name: String,
+    pub current_command_index: usize,
+    pub files: HashMap<String, File>,
+    pub ram: RAM,
+    pub file_name_to_static_segment: HashMap<String, u16>,
     call_stack: Vec<Frame>,
 }
 
@@ -133,18 +116,21 @@ impl VM {
         let file_name_to_static_segment = Self::create_file_name_to_static_segment(&files);
 
         Self {
-            current_file_name: "".to_owned(),
+            current_file_name: "Sys".to_owned(),
             current_command_index: 0,
             files: files.into_iter().collect(),
             ram: RAM::new(),
             file_name_to_static_segment,
-            call_stack: Vec::new(),
+            call_stack: vec![Frame {
+                file_name: "Sys".to_owned(),
+                function_name: "Sys.init".to_owned(),
+            }],
         }
     }
 
     fn create_file_name_to_static_segment(files: &Vec<(String, File)>) -> HashMap<String, u16> {
         let mut map: HashMap<String, u16> = HashMap::new();
-        let mut index = 0u16;
+        let mut index = 16u16;
         for (file_name, file) in files {
             map.insert(file_name.clone(), index);
             let static_vars: HashSet<u16> = file
@@ -167,11 +153,18 @@ impl VM {
         map
     }
 
-    fn step(&mut self) {
+    pub fn step(&mut self) {
+        if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
+            // println!(
+            //     "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",
+            //     self.files[&self.current_file_name].commands[self.current_command_index],
+            //     self.ram[self.ram[Register::LCL] + 1], self.ram[self.ram[Register::SP] -1], self.ram[self.ram[Register::SP] - 2], self.ram[Register::SP], self.ram[Register::LCL], self.ram[Register::ARG], self.ram[Register::THIS], self.ram[Register::THAT]
+            // );
+        }
         match &self.files[&self.current_file_name].commands[self.current_command_index] {
             VMCommand::Add => {
                 let y = self.ram.pop();
-                *self.ram.stack_top() += y;
+                *self.ram.stack_top() = self.ram.stack_top().wrapping_add(y);
                 self.current_command_index += 1;
             }
             VMCommand::Push { segment, offset } => {
@@ -197,7 +190,7 @@ impl VM {
             }
             VMCommand::Sub => {
                 let y = self.ram.pop();
-                *self.ram.stack_top() -= y;
+                *self.ram.stack_top() = self.ram.stack_top().wrapping_sub(y);
                 self.current_command_index += 1;
             }
             VMCommand::Neg => {
@@ -214,13 +207,15 @@ impl VM {
             VMCommand::Gt => {
                 let y = self.ram.pop();
                 let x = self.ram.stack_top();
-                *x = (*x > y) as u16 * u16::MAX;
+                *x = ((*x as i16) > (y as i16)) as u16 * u16::MAX;
                 self.current_command_index += 1;
             }
             VMCommand::Lt => {
                 let y = self.ram.pop();
+                let (this, that, wat) = (self.ram[Register::THIS], self.ram[Register::THAT], self.ram[self.ram[Register::THAT]]);
                 let x = self.ram.stack_top();
-                *x = (*x < y) as u16 * u16::MAX;
+                // println!("x:{:?} y: {:?} this: {:?} that: {:?}, ram[THAT]: {:?} ", x, y, this, that, wat);
+                *x = ((*x as i16) < (y as i16)) as u16 * u16::MAX;
                 self.current_command_index += 1;
             }
             VMCommand::And => {
@@ -245,6 +240,7 @@ impl VM {
                     &mut self.current_command_index,
                     &self.current_file_name,
                     &self.files,
+                    &self.call_stack,
                     label_name,
                 );
             }
@@ -255,6 +251,7 @@ impl VM {
                         &mut self.current_command_index,
                         &self.current_file_name,
                         &self.files,
+                        &self.call_stack,
                         label_name,
                     );
                 } else {
@@ -280,13 +277,15 @@ impl VM {
                     let value = self.ram[i];
                     self.ram.push(value);
                 }
-                let (file_name, actual_function_name) = function_name.split_once('.').unwrap();
+
+                let (file_name, _) = function_name.split_once('.').unwrap();
                 self.call_stack.push(Frame {
                     file_name: file_name.to_owned(),
-                    function_name: actual_function_name.to_owned(),
+                    function_name: function_name.to_owned(),
                 });
+                // println!("{function_name}");
+
                 let local_segment = self.ram[Register::SP];
-                println!("argument segment: {:?}", argument_segment);
                 self.ram[Register::LCL] = local_segment;
                 self.ram[Register::ARG] = argument_segment;
                 self.current_file_name = file_name.to_owned();
@@ -294,10 +293,10 @@ impl VM {
                     self.files[file_name].function_name_to_command_index[function_name];
             }
             VMCommand::Return => {
+                // println!("return");
                 let frame = self.ram[Register::LCL];
                 self.current_command_index = self.ram[frame - 5] as usize;
                 let return_value = self.ram.pop();
-                println!("return value: {:?}", return_value);
                 self.ram.set(
                     &self.file_name_to_static_segment,
                     &self.current_file_name,
@@ -319,9 +318,13 @@ impl VM {
         current_command_index: &mut usize,
         current_file_name: &String,
         files: &HashMap<String, File>,
+        call_stack: &Vec<Frame>,
         label_name: &String,
     ) {
-        *current_command_index = files[current_file_name].label_name_to_command_index[label_name];
+        *current_command_index = files[current_file_name].label_name_to_command_index[&(
+            call_stack.last().unwrap().function_name.clone(),
+            label_name.clone(),
+        )];
     }
 }
 
@@ -333,39 +336,31 @@ struct Frame {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct File {
     commands: Vec<VMCommand>,
-    label_name_to_command_index: HashMap<String, usize>,
+    label_name_to_command_index: HashMap<(String, String), usize>,
     function_name_to_command_index: HashMap<String, usize>,
 }
 
 impl File {
-    fn new(commands: Vec<VMCommand>) -> Self {
-        let label_name_to_command_index = commands
-            .iter()
-            .enumerate()
-            .filter_map(|(i, command)| {
-                if let VMCommand::Label { name } = command {
-                    Some((name.clone(), i))
-                } else {
-                    None
+    pub fn new(commands: Vec<VMCommand>) -> Self {
+        let mut current_function: Option<String> = None;
+        let mut label_name_to_command_index: HashMap<(String, String), usize> = HashMap::new();
+        let mut function_name_to_command_index: HashMap<String, usize> = HashMap::new();
+        for (i, command) in commands.iter().enumerate() {
+            match command {
+                VMCommand::Label { name } => {
+                    label_name_to_command_index
+                        .insert((current_function.clone().unwrap(), name.clone()), i);
                 }
-            })
-            .collect();
-
-        let function_name_to_command_index = commands
-            .iter()
-            .enumerate()
-            .filter_map(|(i, command)| {
-                if let VMCommand::Function {
+                VMCommand::Function {
                     name,
                     local_var_count: _,
-                } = command
-                {
-                    Some((name.clone(), i))
-                } else {
-                    None
+                } => {
+                    current_function = Some(name.clone());
+                    function_name_to_command_index.insert(name.clone(), i);
                 }
-            })
-            .collect();
+                _ => {}
+            }
+        }
 
         File {
             commands,
@@ -889,15 +884,21 @@ mod tests {
     #[test]
     fn test_label() {
         let files = vec![(
-            "a".to_owned(),
-            File::new(vec![VMCommand::Label {
-                name: "foo".to_owned(),
-            }]),
+            "Sys".to_owned(),
+            File::new(vec![
+                VMCommand::Function {
+                    name: "Sys.init".to_owned(),
+                    local_var_count: 0,
+                },
+                VMCommand::Label {
+                    name: "foo".to_owned(),
+                },
+            ]),
         )];
 
         let mut vm = VM::new(files.clone());
         let vm2 = VM::new(files);
-        vm.current_file_name = "a".to_owned();
+        vm.step();
         vm.step();
 
         assert_eq!(vm.ram, vm2.ram);
@@ -906,8 +907,12 @@ mod tests {
     #[test]
     fn test_goto() {
         let files = vec![(
-            "a".to_owned(),
+            "Sys".to_owned(),
             File::new(vec![
+                VMCommand::Function {
+                    name: "Sys.init".to_owned(),
+                    local_var_count: 0,
+                },
                 VMCommand::Goto {
                     label_name: "foo".to_owned(),
                 },
@@ -922,18 +927,22 @@ mod tests {
 
         let mut vm = VM::new(files.clone());
         let vm2 = VM::new(files);
-        vm.current_file_name = "a".to_owned();
+        vm.step();
         vm.step();
 
         assert_eq!(vm.ram, vm2.ram);
-        assert_eq!(vm.current_command_index, 2);
+        assert_eq!(vm.current_command_index, 3);
     }
 
     #[test]
     fn test_if_goto() {
         let files = vec![(
-            "a".to_owned(),
+            "Sys".to_owned(),
             File::new(vec![
+                VMCommand::Function {
+                    name: "Sys.init".to_owned(),
+                    local_var_count: 0,
+                },
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 0,
@@ -958,36 +967,40 @@ mod tests {
         )];
 
         let mut vm = VM::new(files.clone());
-        vm.current_file_name = "a".to_owned();
         vm.step();
-        vm.step();
-
-        assert_eq!(vm.current_command_index, 2);
-
         vm.step();
         vm.step();
 
-        assert_eq!(vm.current_command_index, 5);
+        assert_eq!(vm.current_command_index, 3);
+
+        vm.step();
+        vm.step();
+
+        assert_eq!(vm.current_command_index, 6);
     }
 
     #[test]
     fn test_call_return() {
         let files = vec![(
-            "a".to_owned(),
+            "Sys".to_owned(),
             File::new(vec![
+                VMCommand::Function {
+                    name: "Sys.init".to_owned(),
+                    local_var_count: 0,
+                },
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 1337,
                 },
                 VMCommand::Call {
-                    function_name: "a.foo".to_owned(),
+                    function_name: "Sys.foo".to_owned(),
                     argument_count: 1,
                 },
                 VMCommand::Label {
                     name: "nop".to_owned(),
                 },
                 VMCommand::Function {
-                    name: "a.foo".to_owned(),
+                    name: "Sys.foo".to_owned(),
                     local_var_count: 1,
                 },
                 VMCommand::Push {
@@ -999,18 +1012,14 @@ mod tests {
         )];
 
         let mut vm = VM::new(files.clone());
-        vm.call_stack.push(Frame {
-            file_name: "a".to_owned(),
-            function_name: "bar".to_owned(),
-        });
-        vm.current_file_name = "a".to_owned();
+        vm.step();
         vm.step();
         vm.step();
         vm.step();
         vm.step();
         vm.step();
 
-        assert_eq!(vm.current_command_index, 2);
+        assert_eq!(vm.current_command_index, 3);
         assert_eq!(*vm.ram.stack_top(), 2337);
     }
 }
