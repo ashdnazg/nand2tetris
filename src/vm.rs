@@ -1,7 +1,7 @@
 use std::{
-    collections::{HashMap, HashSet},
     ops::{Index, IndexMut},
 };
+use hashbrown::{HashMap, HashSet};
 
 use crate::hardware::RAM;
 
@@ -201,13 +201,13 @@ impl VM {
             VMCommand::Eq => {
                 let y = self.ram.pop();
                 let x = self.ram.stack_top();
-                *x = (*x == y) as i16 * -1i16;
+                *x = -((*x == y) as i16);
                 self.current_command_index += 1;
             }
             VMCommand::Gt => {
                 let y = self.ram.pop();
                 let x = self.ram.stack_top();
-                *x = (*x > y) as i16 * -1i16;
+                *x = -((*x > y) as i16);
                 self.current_command_index += 1;
             }
             VMCommand::Lt => {
@@ -215,7 +215,7 @@ impl VM {
                 // let (this, that, wat) = (self.ram[Register::THIS], self.ram[Register::THAT], self.ram[self.ram[Register::THAT]]);
                 let x = self.ram.stack_top();
                 // println!("x:{:?} y: {:?} this: {:?} that: {:?}, ram[THAT]: {:?} ", x, y, this, that, wat);
-                *x = (*x < y) as i16 * -1i16;
+                *x = -((*x < y) as i16);
                 self.current_command_index += 1;
             }
             VMCommand::And => {
@@ -318,12 +318,12 @@ impl VM {
         current_command_index: &mut usize,
         current_file_name: &String,
         files: &HashMap<String, File>,
-        call_stack: &Vec<Frame>,
-        label_name: &String,
+        call_stack: &[Frame],
+        label_name: &str,
     ) {
         *current_command_index = files[current_file_name].label_name_to_command_index[&(
             call_stack.last().unwrap().function_name.clone(),
-            label_name.clone(),
+            label_name.to_owned(),
         )];
     }
 }
@@ -409,6 +409,7 @@ pub enum VMCommand {
     Return,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 enum Register {
     SP,
     LCL,
@@ -454,6 +455,7 @@ pub enum PopSegment {
     Pointer,
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

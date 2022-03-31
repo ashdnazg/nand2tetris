@@ -151,6 +151,7 @@ pub fn commands(input: &str) -> IResult<&str, Vec<VMCommand>> {
     ))(input)
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

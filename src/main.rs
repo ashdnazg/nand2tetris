@@ -137,15 +137,17 @@ fn run_hardware() -> Result<(), String> {
             polling_time = (Instant::now() - pre_polling).as_secs_f64();
             pre_hardware = Instant::now();
         }
-        hardware.step();
-        steps_ran += 1;
+        for _ in 0..1000 {
+            hardware.step();
+        }
+        steps_ran += 1000;
     }
 
     Ok(())
 }
 
 fn run_vm() -> Result<(), String> {
-    let paths = fs::read_dir("../hackenstein3DVM").unwrap();
+    let paths = fs::read_dir("../vm").unwrap();
     let files: Vec<(String, File)> = paths
         .map(|path| path.unwrap())
         .filter(|path| path.file_name().to_str().unwrap().ends_with(".vm"))
@@ -250,8 +252,8 @@ fn run_vm() -> Result<(), String> {
 }
 
 fn main() -> Result<(), String> {
-    run_vm();
-    // run_hardware();
+    run_vm()?;
+    // run_hardware()?;
 
     Ok(())
 }

@@ -7,7 +7,7 @@ pub struct Instruction {
 
 impl Instruction {
     pub fn new(raw: u16) -> Instruction {
-        Instruction { raw: raw }
+        Instruction { raw }
     }
 }
 
@@ -27,6 +27,7 @@ enum InstructionType {
     C,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 enum JumpCondition {
     NoJump,
     JGT,
@@ -133,6 +134,7 @@ impl JumpCondition {
     }
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RAM {
     pub contents: [i16; 32 * 1024],

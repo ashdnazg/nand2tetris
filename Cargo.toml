@@ -12,6 +12,7 @@ edition = "2021"
 [dependencies]
 sdl2 = "0.35"
 nom = "7.1.1"
+hashbrown = "0.12"
 
 [profile.release]
 debug = true
