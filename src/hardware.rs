@@ -291,7 +291,7 @@ impl Hardware {
         }
     }
 
-    fn run_program(&mut self, program_length: usize) {
+    pub fn run_program(&mut self, program_length: usize) {
         while (self.pc as usize) < program_length - 1 {
             self.step();
         }
