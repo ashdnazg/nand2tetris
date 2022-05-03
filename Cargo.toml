@@ -19,10 +19,9 @@ hashbrown = "0.12"
 debug = true
 
 [features]
-default = ["legacy_emulators", "emulators"]
+default = ["legacy_emulators", "emulator"]
 legacy_emulators = ["dep:sdl2"]
-emulators = ["dep:eframe"]
-
+emulator = ["dep:eframe"]
 
 [[bin]]
 name = "legacy_hardware_emulator"
@@ -33,5 +32,5 @@ name = "legacy_vm_emulator"
 required-features = ["legacy_emulators"]
 
 [[bin]]
-name = "vm_emulator"
-required-features = ["emulators"]
+name = "emulator"
+required-features = ["emulator"]

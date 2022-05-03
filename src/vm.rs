@@ -1,7 +1,5 @@
-use std::{
-    ops::{Index, IndexMut},
-};
 use hashbrown::{HashMap, HashSet};
+use std::ops::{Index, IndexMut};
 
 use crate::hardware::RAM;
 
