@@ -5,6 +5,9 @@
 
 use std::ops::Range;
 
+use eframe::egui::Layout;
+use eframe::emath::Align;
+use eframe::epaint::Vec2;
 use eframe::epi::App;
 use eframe::{egui, epi};
 
@@ -33,6 +36,11 @@ impl Default for AppState {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Action {
+    Quit,
+}
+
 pub struct EmulatorApp {
     // Example stuff:
     label: String,
@@ -55,32 +63,55 @@ impl Default for EmulatorApp {
     }
 }
 
-fn draw_shared(ctx: &egui::Context, frame: &epi::Frame) {
+fn draw_shared(ctx: &egui::Context, action: &mut Option<Action>) {
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Quit").clicked() {
-                    frame.quit();
+                    *action = Some(Action::Quit);
                 }
             });
         });
     });
 }
 
-fn draw_hardware(state: &HardwareState, ctx: &egui::Context, frame: &epi::Frame) {
-    egui::CentralPanel::default().show(ctx, |ui| {
-        ui.memory_grid("bob", &state.hardware.ram, 100..200);
+fn draw_hardware(state: &HardwareState, ctx: &egui::Context, action: &mut Option<Action>) {
+    egui::SidePanel::right("right_panel").show(ctx, |ui| {
+        let mut max_rect = ui.max_rect();
+        max_rect.set_height(max_rect.height() / 2.0);
+        max_rect = max_rect.translate(Vec2 {
+            x: 0.0,
+            y: max_rect.height(),
+        });
+        let mut bottom_right_ui = ui.child_ui(max_rect, Layout::left_to_right());
+        bottom_right_ui.horizontal_top(|bottom_right_ui| {
+            bottom_right_ui.memory_grid(
+                "ram",
+                &state.hardware.ram,
+                0..100,
+            );
+            bottom_right_ui.memory_grid("stack", &state.hardware.ram, 256..1024);
+        });
     });
 }
 
-fn draw_vm(state: &VMState, ctx: &egui::Context, frame: &epi::Frame) {
-    egui::CentralPanel::default().show(ctx, |ui| {
-        ui.memory_grid("bob2", &state.vm.ram, 0..100);
+fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
+    egui::SidePanel::right("right_panel").show(ctx, |ui| {
+        let mut max_rect = ui.max_rect();
+        max_rect.set_height(max_rect.height() / 2.0);
+        ui.child_ui(max_rect, Layout::top_down(Align::LEFT))
+            .memory_grid("bob2", &state.vm.ram, 0..100);
     });
 }
 
-fn draw_start(ctx: &egui::Context, frame: &epi::Frame) {}
+fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
+
+fn reduce(state: &mut AppState, action: &Action) {
+    match action {
+        _ => {}
+    }
+}
 
 trait EmulatorWidgets {
     fn memory_grid(&mut self, id_source: impl std::hash::Hash, ram: &RAM, range: Range<i16>);
@@ -90,8 +121,8 @@ impl EmulatorWidgets for egui::Ui {
     fn memory_grid(&mut self, id_source: impl std::hash::Hash, ram: &RAM, range: Range<i16>) {
         let text_style = egui::TextStyle::Body;
         let row_height = self.text_style_height(&text_style);
-        egui::ScrollArea::vertical().show_rows(self, row_height, range.len(), |ui, row_range| {
-            egui::Grid::new(id_source).striped(true).show(ui, |ui| {
+        egui::ScrollArea::vertical().id_source(&id_source).show_rows(self, row_height, range.len(), |ui, row_range| {
+            egui::Grid::new(&id_source).striped(true).show(ui, |ui| {
                 for i in row_range {
                     let address = i as i16 + range.start;
                     ui.label(address.to_string());
@@ -140,12 +171,22 @@ impl epi::App for EmulatorApp {
         // Tip: a good default choice is to just keep the `CentralPanel`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        draw_shared(ctx, frame);
+        let mut action = None;
+        draw_shared(ctx, &mut action);
 
         match &self.state {
-            AppState::Hardware(state) => draw_hardware(state, ctx, frame),
-            AppState::VM(state) => draw_vm(state, ctx, frame),
-            AppState::Start => draw_start(ctx, frame),
+            AppState::Hardware(state) => draw_hardware(state, ctx, &mut action),
+            AppState::VM(state) => draw_vm(state, ctx, &mut action),
+            AppState::Start => draw_start(ctx, &mut action),
+        };
+
+        if action == Some(Action::Quit) {
+            frame.quit();
+            return;
+        }
+
+        if let Some(action) = action {
+            reduce(&mut self.state, &action);
         }
     }
 }
