@@ -11,7 +11,8 @@ edition = "2021"
 
 [dependencies]
 sdl2 = { version = "0.35", optional = true }
-eframe = { version = "0.17.0", optional = true }
+eframe = { version = "0.18.0", optional = true }
+egui_extras = { version = "0.18.0", optional = true }
 nom = "7.1.1"
 hashbrown = "0.12"
 
@@ -21,7 +22,7 @@ debug = true
 [features]
 default = ["legacy_emulators", "emulator"]
 legacy_emulators = ["dep:sdl2"]
-emulator = ["dep:eframe"]
+emulator = ["dep:eframe", "dep:egui_extras"]
 
 [[bin]]
 name = "legacy_hardware_emulator"

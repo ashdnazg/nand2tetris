@@ -8,8 +8,7 @@ use std::ops::Range;
 use eframe::egui::Layout;
 use eframe::emath::Align;
 use eframe::epaint::Vec2;
-use eframe::epi::App;
-use eframe::{egui, epi};
+use eframe::egui;
 
 use nand2tetris::hardware::*;
 use nand2tetris::vm::*;
@@ -134,26 +133,7 @@ impl EmulatorWidgets for egui::Ui {
     }
 }
 
-impl epi::App for EmulatorApp {
-    fn name(&self) -> &str {
-        "eframe template"
-    }
-
-    /// Called once before the first frame.
-    fn setup(
-        &mut self,
-        _ctx: &egui::Context,
-        _frame: &epi::Frame,
-        _storage: Option<&dyn epi::Storage>,
-    ) {
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        #[cfg(feature = "persistence")]
-        if let Some(storage) = _storage {
-            *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
-        }
-    }
-
+impl eframe::App for EmulatorApp {
     /// Called by the frame work to save state before shutdown.
     /// Note that you must enable the `persistence` feature for this to work.
     #[cfg(feature = "persistence")]
@@ -163,7 +143,7 @@ impl epi::App for EmulatorApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         ctx.set_visuals(egui::Visuals::dark());
 
         // Examples of how to create different panels and windows.
@@ -194,7 +174,10 @@ impl epi::App for EmulatorApp {
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    let app = EmulatorApp::default();
     let native_options = eframe::NativeOptions::default();
-    eframe::run_native(Box::new(app), native_options);
+    eframe::run_native(
+        "Emulator",
+        native_options,
+        Box::new(|_| Box::new(EmulatorApp::default())),
+    );
 }
