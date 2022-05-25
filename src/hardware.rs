@@ -11,6 +11,50 @@ impl Instruction {
     }
 }
 
+impl std::fmt::Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.instruction_type() {
+            InstructionType::A => write!(f, "@{}", self.raw),
+            InstructionType::C => {
+                let op = match (self.raw >> 6) & 0x01FF {
+                    0x01AA => "0",
+                    0x01BF => "1",
+                    0x01BA => "-1",
+                    0x018C => "D",
+                    0x01B0 => "A",
+                    0x01F0 => "M",
+                    0x018D => "!D",
+                    0x01B1 => "!A",
+                    0x01F1 => "!M",
+                    0x018F => "-D",
+                    0x01B3 => "-A",
+                    0x01F3 => "-M",
+                    0x019F => "D+1",
+                    0x01B7 => "A+1",
+                    0x01F7 => "M+1",
+                    0x018E => "D-1",
+                    0x01B2 => "A-1",
+                    0x01F2 => "M-1",
+                    0x0182 => "A+D",
+                    0x01C2 => "D+M",
+                    0x0193 => "D-A",
+                    0x0187 => "A-D",
+                    0x01D3 => "D-M",
+                    0x01C7 => "M-D",
+                    0x0180 => "A&D",
+                    0x01C0 => "D&M",
+                    0x0195 => "A|D",
+                    0x01D5 => "D|M",
+                    _ => "???",
+                };
+                let dst = ["", "M = ","D = ", "MD = ", "A = ", "AM = ", "AD = ", "AMD = "][((self.raw >> 3) & 7) as usize];
+                let jmp = ["", ";JGT", ";JEQ", ";JGE", ";JLT", ";JNE", ";JLE", ";JMP"][(self.raw & 7) as usize];
+                write!(f, "{}{}{}", dst, op, jmp)
+            }
+        }
+    }
+}
+
 enum YRegister {
     A,
     M,
@@ -364,7 +408,7 @@ mod tests {
         let program: [u16; 16] = [
             15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039, 15, 60039,
         ];
-        hardware.load_program(program.iter().map(|raw| Instruction { raw: *raw }));
+        hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
         hardware.ram[13] = 34;
         hardware.ram[14] = 12;

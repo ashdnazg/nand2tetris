@@ -5,10 +5,12 @@
 
 use std::ops::Range;
 
-use eframe::egui::Layout;
-use eframe::emath::Align;
-use eframe::epaint::Vec2;
 use eframe::egui;
+use eframe::emath::Rect;
+use eframe::epaint::Color32;
+use eframe::epaint::Vec2;
+
+use egui_extras::{Size, StripBuilder};
 
 use nand2tetris::hardware::*;
 use nand2tetris::vm::*;
@@ -29,9 +31,13 @@ enum AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        AppState::Hardware(HardwareState {
-            hardware: Default::default(),
-        })
+        let mut hardware = Hardware::default();
+        let program: [u16; 16] = [
+            15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039, 15, 60039,
+        ];
+        hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
+
+        AppState::Hardware(HardwareState { hardware: hardware })
     }
 }
 
@@ -41,22 +47,12 @@ enum Action {
 }
 
 pub struct EmulatorApp {
-    // Example stuff:
-    label: String,
-
-    // this how you opt-out of serialization of a member
-    #[cfg_attr(feature = "persistence", serde(skip))]
-    value: f32,
-
     state: AppState,
 }
 
 impl Default for EmulatorApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
             state: Default::default(),
         }
     }
@@ -76,31 +72,89 @@ fn draw_shared(ctx: &egui::Context, action: &mut Option<Action>) {
 }
 
 fn draw_hardware(state: &HardwareState, ctx: &egui::Context, action: &mut Option<Action>) {
-    egui::SidePanel::right("right_panel").show(ctx, |ui| {
-        let mut max_rect = ui.max_rect();
-        max_rect.set_height(max_rect.height() / 2.0);
-        max_rect = max_rect.translate(Vec2 {
-            x: 0.0,
-            y: max_rect.height(),
-        });
-        let mut bottom_right_ui = ui.child_ui(max_rect, Layout::left_to_right());
-        bottom_right_ui.horizontal_top(|bottom_right_ui| {
-            bottom_right_ui.memory_grid(
-                "ram",
-                &state.hardware.ram,
-                0..100,
-            );
-            bottom_right_ui.memory_grid("stack", &state.hardware.ram, 256..1024);
-        });
+    egui::CentralPanel::default().show(ctx, |ui| {
+        StripBuilder::new(ui)
+            .size(Size::relative(0.5))
+            .size(Size::remainder())
+            .horizontal(|mut strip| {
+                strip.strip(|builder| {
+                    builder
+                        .size(Size::relative(0.5))
+                        .size(Size::remainder())
+                        .horizontal(|mut strip| {
+                            strip.cell(|ui| {
+                                ui.rom_grid("ROM", &state.hardware.rom, 0..i16::MAX, 1);
+                            });
+                            strip.cell(|ui| {
+                                ui.ram_grid("RAM", &state.hardware.ram, 0..i16::MAX);
+                            });
+                        });
+                });
+            });
     });
 }
 
 fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
-    egui::SidePanel::right("right_panel").show(ctx, |ui| {
-        let mut max_rect = ui.max_rect();
-        max_rect.set_height(max_rect.height() / 2.0);
-        ui.child_ui(max_rect, Layout::top_down(Align::LEFT))
-            .memory_grid("bob2", &state.vm.ram, 0..100);
+    egui::CentralPanel::default().show(ctx, |ui| {
+        StripBuilder::new(ui)
+            .size(Size::relative(0.5))
+            .size(Size::remainder())
+            .horizontal(|mut strip| {
+                strip.strip(|builder| {
+                    builder
+                        .size(Size::relative(0.5))
+                        .size(Size::remainder())
+                        .horizontal(|mut strip| {
+                            strip.cell(|ui| {});
+                            strip.strip(|builder| {
+                                builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
+                                    |mut strip| {
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("Static", &state.vm.ram, 0..5);
+                                        });
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("Local", &state.vm.ram, 0..5);
+                                        });
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("Argument", &state.vm.ram, 0..5);
+                                        });
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("This", &state.vm.ram, 0..5);
+                                        });
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("That", &state.vm.ram, 0..5);
+                                        });
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("Temp", &state.vm.ram, 0..5);
+                                        });
+                                    },
+                                );
+                            });
+                        });
+                });
+
+                strip.strip(|builder| {
+                    builder
+                        .size(Size::relative(0.5))
+                        .size(Size::remainder())
+                        .vertical(|mut strip| {
+                            strip.cell(|ui| {});
+                            strip.strip(|builder| {
+                                builder
+                                    .size(Size::relative(0.5))
+                                    .size(Size::remainder())
+                                    .horizontal(|mut strip| {
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("Global Stack", &state.vm.ram, 256..1024);
+                                        });
+                                        strip.cell(|ui| {
+                                            ui.ram_grid("RAM", &state.vm.ram, 0..i16::MAX);
+                                        });
+                                    });
+                            });
+                        });
+                });
+            });
     });
 }
 
@@ -113,34 +167,68 @@ fn reduce(state: &mut AppState, action: &Action) {
 }
 
 trait EmulatorWidgets {
-    fn memory_grid(&mut self, id_source: impl std::hash::Hash, ram: &RAM, range: Range<i16>);
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: Range<i16>);
+    fn rom_grid(&mut self, caption: &str, rom: &[Instruction; 32 * 1024], range: Range<i16>, highlight_address: i16);
 }
 
 impl EmulatorWidgets for egui::Ui {
-    fn memory_grid(&mut self, id_source: impl std::hash::Hash, ram: &RAM, range: Range<i16>) {
-        let text_style = egui::TextStyle::Body;
-        let row_height = self.text_style_height(&text_style);
-        egui::ScrollArea::vertical().id_source(&id_source).show_rows(self, row_height, range.len(), |ui, row_range| {
-            egui::Grid::new(&id_source).striped(true).show(ui, |ui| {
-                for i in row_range {
-                    let address = i as i16 + range.start;
-                    ui.label(address.to_string());
-                    ui.label(ram[address].to_string());
-                    ui.end_row();
-                }
-            });
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: Range<i16>) {
+        self.vertical(|ui| {
+            ui.label(caption);
+            let text_style = egui::TextStyle::Body;
+            let row_height = ui.text_style_height(&text_style);
+            egui::ScrollArea::vertical().auto_shrink([false; 2]).id_source(&caption).show_rows(
+                ui,
+                row_height,
+                range.len() + 1,
+                |ui, row_range| {
+                    egui::Grid::new(&caption).num_columns(2).striped(true).show(ui, |ui| {
+                        for i in row_range {
+                            let address = i as i16 + range.start;
+                            ui.label(address.to_string());
+                            ui.label(ram[address].to_string());
+                            ui.end_row();
+                        }
+                    });
+                },
+            );
+        });
+    }
+
+    fn rom_grid(&mut self, caption: &str, rom: &[Instruction; 32 * 1024], range: Range<i16>, highlight_address: i16) {
+        self.vertical(|ui| {
+            ui.label(caption);
+            let text_style = egui::TextStyle::Body;
+            let row_height = ui.text_style_height(&text_style);
+            let width = ui.available_width();
+            egui::ScrollArea::vertical().auto_shrink([false; 2]).id_source(&caption).show_rows(
+                ui,
+                row_height,
+                range.len() + 1,
+                |ui, row_range| {
+                    egui::Grid::new(&caption).num_columns(2).striped(true).show(ui, |ui| {
+                        for i in row_range {
+                            let address = i as i16 + range.start;
+                            if highlight_address == address {
+                                let size = Vec2::new(width, row_height);
+                                let rect = Rect::from_min_size(ui.cursor().min, size);
+                                // let rect = rect.expand2(0.5 * ui.spacing(). * Vec2::Y);
+                                let rect = rect.expand2(2.0 * Vec2::X); // HACK: just looks better with some spacing on the sides
+
+                                ui.painter().rect_filled(rect, 2.0, Color32::YELLOW);
+                            }
+                            ui.label(address.to_string());
+                            ui.label(rom[address as usize].to_string());
+                            ui.end_row();
+                        }
+                    });
+                },
+            );
         });
     }
 }
 
 impl eframe::App for EmulatorApp {
-    /// Called by the frame work to save state before shutdown.
-    /// Note that you must enable the `persistence` feature for this to work.
-    #[cfg(feature = "persistence")]
-    fn save(&mut self, storage: &mut dyn epi::Storage) {
-        epi::set_value(storage, epi::APP_KEY, self);
-    }
-
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
@@ -174,10 +262,14 @@ impl eframe::App for EmulatorApp {
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    let native_options = eframe::NativeOptions::default();
+    let mut native_options = eframe::NativeOptions::default();
+    native_options.initial_window_size = Some(Vec2::new(1600.0, 1200.0));
     eframe::run_native(
         "Emulator",
         native_options,
-        Box::new(|_| Box::new(EmulatorApp::default())),
+        Box::new(|cc| {
+            cc.egui_ctx.set_pixels_per_point(2.0);
+            Box::new(EmulatorApp::default())
+        }),
     );
 }
