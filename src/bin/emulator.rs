@@ -12,6 +12,7 @@ use eframe::epaint::Vec2;
 use egui_extras::{Size, StripBuilder};
 
 use glow::NativeTexture;
+use glow::PixelUnpackData;
 use nand2tetris::hardware::*;
 use nand2tetris::vm::*;
 
@@ -19,9 +20,9 @@ use egui::mutex::Mutex;
 use std::sync::Arc;
 
 struct Screen {
-     program: glow::Program,
-     vertex_array: glow::VertexArray,
-     texture: glow::NativeTexture,
+    program: glow::Program,
+    vertex_array: glow::VertexArray,
+    texture: glow::NativeTexture,
 }
 
 impl Screen {
@@ -49,7 +50,7 @@ impl Screen {
                     out vec2 v_pos;
                     void main() {
                         gl_Position = vec4(verts[gl_VertexID], 0.0, 1.0);
-                        v_pos = gl_Position.xy;
+                        v_pos = gl_Position.xy * vec2(1.0, -1.0);
                     }
                 "#,
                 r#"
@@ -58,7 +59,9 @@ impl Screen {
                     in vec2 v_pos;
                     out vec4 out_color;
                     void main() {
-                        out_color = vec4(vec3(texture(u_screen, (v_pos + 1.0) * 0.5).r) / 255.0, 1.0);
+                        ivec2 coord = ivec2((v_pos + 1) * vec2(128.0, 128.0));
+                        uint i_color = (texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & 1;
+                        out_color = vec4(vec3(i_color), 1.0);
                     }
                 "#,
             );
@@ -98,10 +101,10 @@ impl Screen {
                 .create_vertex_array()
                 .expect("Cannot create vertex array");
 
-            let mut buffer = vec![0u8;300 * 300];
-            for i in 0..300 {
-                for j in 0..300 {
-                    buffer[i * 300 + j] = (j * 255 / 300) as u8;
+            let mut buffer = vec![0u8; 64 * 256];
+            for i in 0..256 {
+                for j in 0..64 {
+                    buffer[i * 64 + j] = (i & j) as u8;
                 }
             }
             let texture = gl.create_texture().unwrap();
@@ -110,8 +113,8 @@ impl Screen {
                 glow::TEXTURE_2D,
                 0,
                 glow::R8UI as i32,
-                300,
-                300,
+                64,
+                256,
                 0,
                 glow::RED_INTEGER,
                 glow::UNSIGNED_BYTE,
@@ -119,12 +122,19 @@ impl Screen {
             );
             println!("{}", gl.get_error());
 
-            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
-            gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MIN_FILTER,
+                glow::NEAREST as i32,
+            );
+            gl.tex_parameter_i32(
+                glow::TEXTURE_2D,
+                glow::TEXTURE_MAG_FILTER,
+                glow::NEAREST as i32,
+            );
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_T, glow::REPEAT as i32);
             gl.bind_texture(glow::TEXTURE_2D, None);
-
 
             Self {
                 program,
@@ -143,14 +153,14 @@ impl Screen {
         }
     }
 
-    fn paint(&self, gl: &glow::Context) {
+    fn paint(&self, gl: &glow::Context, screen_buffer: &[i16]) {
         use glow::HasContext as _;
         unsafe {
             // println!("start");
             // println!("{}", gl.get_error());
-            gl.clear_color(0.0, 0.0, 0.0, 1.0);
-            // println!("{}", gl.get_error());
-            gl.clear(glow::COLOR_BUFFER_BIT);
+            // gl.clear_color(0.0, 0.0, 0.0, 1.0);
+            // // println!("{}", gl.get_error());
+            // gl.clear(glow::COLOR_BUFFER_BIT);
             // println!("{}", gl.get_error());
             gl.use_program(Some(self.program));
             // println!("{}", gl.get_error());
@@ -158,7 +168,22 @@ impl Screen {
             // println!("{}", gl.get_error());
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
             // println!("{}", gl.get_error());
-            gl.uniform_1_i32(gl.get_uniform_location(self.program, "u_screen").as_ref(), 0);
+            gl.tex_image_2d(
+                glow::TEXTURE_2D,
+                0,
+                glow::R8UI as i32,
+                64,
+                256,
+                0,
+                glow::RED_INTEGER,
+                glow::UNSIGNED_BYTE,
+                Some(screen_buffer.align_to::<u8>().1),
+            );
+            // println!("{}", gl.get_error());
+            gl.uniform_1_i32(
+                gl.get_uniform_location(self.program, "u_screen").as_ref(),
+                0,
+            );
             // println!("{}", gl.get_error());
             gl.bind_vertex_array(Some(self.vertex_array));
             // println!("{}", gl.get_error());
@@ -170,7 +195,7 @@ impl Screen {
 }
 
 struct HardwareState {
-    hardware: Hardware
+    hardware: Hardware,
 }
 
 struct VMState {
@@ -186,8 +211,9 @@ enum AppState {
 impl Default for AppState {
     fn default() -> Self {
         let mut hardware = Hardware::default();
-        let program: [u16; 16] = [
-            15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039, 15, 60039,
+        let program: [u16; 29] = [
+            16384, 60432, 16, 58248, 17, 60040, 24576, 64528, 12, 58114, 17, 61064, 17, 64528, 16,
+            65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
         ];
         hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
@@ -209,24 +235,25 @@ impl EmulatorApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         Self {
             state: Default::default(),
-            screen: Arc::new(Mutex::new(Screen::new(&cc.gl)))
+            screen: Arc::new(Mutex::new(Screen::new(&cc.gl))),
         }
     }
 }
 
 fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM) {
-    let (rect, _) =
-        ui.allocate_exact_size(egui::Vec2::splat(300.0), egui::Sense::drag());
+    let (rect, _) = ui.allocate_exact_size(egui::Vec2::new(512.0, 256.0), egui::Sense::drag());
 
     // Clone locals so we can move them into the paint callback:
-    let angle = 0.0;
     let screen = screen.clone();
+    let screen_buffer: Vec<i16> = ram.contents
+        [RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize]
+        .into();
 
     let callback = egui::PaintCallback {
         rect,
         callback: std::sync::Arc::new(move |_info, render_ctx| {
             if let Some(painter) = render_ctx.downcast_ref::<egui_glow::Painter>() {
-                screen.lock().paint(painter.gl());
+                screen.lock().paint(painter.gl(), &screen_buffer);
             } else {
                 eprintln!("Can't do custom painting because we are not using a glow context");
             }
@@ -248,7 +275,12 @@ fn draw_shared(ctx: &egui::Context, action: &mut Option<Action>) {
     });
 }
 
-fn draw_hardware(state: &HardwareState, ctx: &egui::Context, action: &mut Option<Action>, screen: &Arc<Mutex<Screen>>) {
+fn draw_hardware(
+    state: &HardwareState,
+    ctx: &egui::Context,
+    action: &mut Option<Action>,
+    screen: &Arc<Mutex<Screen>>,
+) {
     egui::CentralPanel::default().show(ctx, |ui| {
         StripBuilder::new(ui)
             .size(Size::relative(0.5))
@@ -350,7 +382,13 @@ fn reduce(state: &mut AppState, action: &Action) {
 
 trait EmulatorWidgets {
     fn ram_grid(&mut self, caption: &str, ram: &RAM, range: Range<i16>);
-    fn rom_grid(&mut self, caption: &str, rom: &[Instruction; 32 * 1024], range: Range<i16>, highlight_address: i16);
+    fn rom_grid(
+        &mut self,
+        caption: &str,
+        rom: &[Instruction; 32 * 1024],
+        range: Range<i16>,
+        highlight_address: i16,
+    );
 }
 
 impl EmulatorWidgets for egui::Ui {
@@ -359,53 +397,61 @@ impl EmulatorWidgets for egui::Ui {
             ui.label(caption);
             let text_style = egui::TextStyle::Body;
             let row_height = ui.text_style_height(&text_style);
-            egui::ScrollArea::vertical().auto_shrink([false; 2]).id_source(&caption).show_rows(
-                ui,
-                row_height,
-                range.len() + 1,
-                |ui, row_range| {
-                    egui::Grid::new(&caption).num_columns(2).striped(true).show(ui, |ui| {
-                        for i in row_range {
-                            let address = i as i16 + range.start;
-                            ui.label(address.to_string());
-                            ui.label(ram[address].to_string());
-                            ui.end_row();
-                        }
-                    });
-                },
-            );
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .id_source(&caption)
+                .show_rows(ui, row_height, range.len() + 1, |ui, row_range| {
+                    egui::Grid::new(&caption)
+                        .num_columns(2)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            for i in row_range {
+                                let address = i as i16 + range.start;
+                                ui.label(address.to_string());
+                                ui.label(ram[address].to_string());
+                                ui.end_row();
+                            }
+                        });
+                });
         });
     }
 
-    fn rom_grid(&mut self, caption: &str, rom: &[Instruction; 32 * 1024], range: Range<i16>, highlight_address: i16) {
+    fn rom_grid(
+        &mut self,
+        caption: &str,
+        rom: &[Instruction; 32 * 1024],
+        range: Range<i16>,
+        highlight_address: i16,
+    ) {
         self.vertical(|ui| {
             ui.label(caption);
             let text_style = egui::TextStyle::Body;
             let row_height = ui.text_style_height(&text_style);
             let width = ui.available_width();
-            egui::ScrollArea::vertical().auto_shrink([false; 2]).id_source(&caption).show_rows(
-                ui,
-                row_height,
-                range.len() + 1,
-                |ui, row_range| {
-                    egui::Grid::new(&caption).num_columns(2).striped(true).show(ui, |ui| {
-                        for i in row_range {
-                            let address = i as i16 + range.start;
-                            if highlight_address == address {
-                                let size = Vec2::new(width, row_height);
-                                let rect = Rect::from_min_size(ui.cursor().min, size);
-                                // let rect = rect.expand2(0.5 * ui.spacing(). * Vec2::Y);
-                                let rect = rect.expand2(2.0 * Vec2::X); // HACK: just looks better with some spacing on the sides
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .id_source(&caption)
+                .show_rows(ui, row_height, range.len() + 1, |ui, row_range| {
+                    egui::Grid::new(&caption)
+                        .num_columns(2)
+                        .striped(true)
+                        .show(ui, |ui| {
+                            for i in row_range {
+                                let address = i as i16 + range.start;
+                                if highlight_address == address {
+                                    let size = Vec2::new(width, row_height);
+                                    let rect = Rect::from_min_size(ui.cursor().min, size);
+                                    // let rect = rect.expand2(0.5 * ui.spacing(). * Vec2::Y);
+                                    let rect = rect.expand2(2.0 * Vec2::X); // HACK: just looks better with some spacing on the sides
 
-                                ui.painter().rect_filled(rect, 2.0, Color32::YELLOW);
+                                    ui.painter().rect_filled(rect, 2.0, Color32::YELLOW);
+                                }
+                                ui.label(address.to_string());
+                                ui.label(rom[address as usize].to_string());
+                                ui.end_row();
                             }
-                            ui.label(address.to_string());
-                            ui.label(rom[address as usize].to_string());
-                            ui.end_row();
-                        }
-                    });
-                },
-            );
+                        });
+                });
         });
     }
 }
@@ -414,15 +460,26 @@ impl eframe::App for EmulatorApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        ctx.set_visuals(egui::Visuals::dark());
-
         // Examples of how to create different panels and windows.
         // Pick whichever suits you.
         // Tip: a good default choice is to just keep the `CentralPanel`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-
         let mut action = None;
         draw_shared(ctx, &mut action);
+
+        match &mut self.state {
+            AppState::Hardware(state) => {
+                state.hardware.ram.set_keyboard(0);
+                ctx.input().keys_down.iter().take(1).for_each(|_| {
+                    state.hardware.ram.set_keyboard(32);
+                });
+                for _ in 0..1000 {
+                    state.hardware.step();
+                }
+            },
+            _ => {},
+        };
+        ctx.request_repaint();
 
         match &self.state {
             AppState::Hardware(state) => draw_hardware(state, ctx, &mut action, &self.screen),
@@ -455,6 +512,7 @@ fn main() {
         native_options,
         Box::new(|cc| {
             cc.egui_ctx.set_pixels_per_point(2.0);
+            cc.egui_ctx.set_visuals(egui::Visuals::dark());
             Box::new(EmulatorApp::new(&cc))
         }),
     );

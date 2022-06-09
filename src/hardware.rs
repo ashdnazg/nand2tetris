@@ -47,8 +47,11 @@ impl std::fmt::Display for Instruction {
                     0x01D5 => "D|M",
                     _ => "???",
                 };
-                let dst = ["", "M = ","D = ", "MD = ", "A = ", "AM = ", "AD = ", "AMD = "][((self.raw >> 3) & 7) as usize];
-                let jmp = ["", ";JGT", ";JEQ", ";JGE", ";JLT", ";JNE", ";JLE", ";JMP"][(self.raw & 7) as usize];
+                let dst = [
+                    "", "M = ", "D = ", "MD = ", "A = ", "AM = ", "AD = ", "AMD = ",
+                ][((self.raw >> 3) & 7) as usize];
+                let jmp = ["", ";JGT", ";JEQ", ";JGE", ";JLT", ";JNE", ";JLE", ";JMP"]
+                    [(self.raw & 7) as usize];
                 write!(f, "{}{}{}", dst, op, jmp)
             }
         }
@@ -199,9 +202,9 @@ impl IndexMut<i16> for RAM {
 }
 
 impl RAM {
-    const SCREEN: i16 = 0x4000;
+    pub const SCREEN: i16 = 0x4000;
     const KBD: i16 = 0x6000;
-    const SCREEN_ROW_LENGTH: i16 = 32;
+    pub const SCREEN_ROW_LENGTH: i16 = 32;
 
     pub fn get_pixel(&self, x: i16, y: i16) -> bool {
         (self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (i16::BITS as i16)]
