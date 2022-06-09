@@ -788,6 +788,8 @@ version = "0.0.1"
 dependencies = [
  "eframe",
  "egui_extras",
+ "egui_glow",
+ "glow",
  "hashbrown",
  "nom",
  "sdl2",

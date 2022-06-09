@@ -39,10 +39,11 @@ impl Screen {
 
             let (vertex_shader_source, fragment_shader_source) = (
                 r#"
-                    const vec2 verts[3] = vec2[3](
-                        vec2(0.0, 1.0),
-                        vec2(-1.0, -1.0),
-                        vec2(1.0, -1.0)
+                    const vec2 verts[4] = vec2[4](
+                        vec2(1.0, 1.0),
+                        vec2(-1.0, 1.0),
+                        vec2(1.0, -1.0),
+                        vec2(-1.0, -1.0)
                     );
 
                     out vec2 v_pos;
@@ -53,11 +54,11 @@ impl Screen {
                 "#,
                 r#"
                     precision mediump float;
-                    uniform sampler2D u_screen;
+                    uniform usampler2D u_screen;
                     in vec2 v_pos;
                     out vec4 out_color;
                     void main() {
-                        out_color = texture2D(u_screen, (v_pos + 1.0) * 0.5); // + vec4(0.5);
+                        out_color = vec4(vec3(texture(u_screen, (v_pos + 1.0) * 0.5).r) / 255.0, 1.0);
                     }
                 "#,
             );
@@ -97,20 +98,27 @@ impl Screen {
                 .create_vertex_array()
                 .expect("Cannot create vertex array");
 
-            let buffer = vec![127u8;300 * 300 * 4];
+            let mut buffer = vec![0u8;300 * 300];
+            for i in 0..300 {
+                for j in 0..300 {
+                    buffer[i * 300 + j] = (j * 255 / 300) as u8;
+                }
+            }
             let texture = gl.create_texture().unwrap();
             gl.bind_texture(glow::TEXTURE_2D, Some(texture));
             gl.tex_image_2d(
                 glow::TEXTURE_2D,
                 0,
-                glow::RGBA as i32,
+                glow::R8UI as i32,
                 300,
                 300,
                 0,
-                glow::RGBA,
+                glow::RED_INTEGER,
                 glow::UNSIGNED_BYTE,
                 Some(&buffer),
             );
+            println!("{}", gl.get_error());
+
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MIN_FILTER, glow::NEAREST as i32);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_MAG_FILTER, glow::NEAREST as i32);
             gl.tex_parameter_i32(glow::TEXTURE_2D, glow::TEXTURE_WRAP_S, glow::REPEAT as i32);
@@ -138,13 +146,25 @@ impl Screen {
     fn paint(&self, gl: &glow::Context) {
         use glow::HasContext as _;
         unsafe {
-            gl.clear(glow::COLOR);
+            // println!("start");
+            // println!("{}", gl.get_error());
+            gl.clear_color(0.0, 0.0, 0.0, 1.0);
+            // println!("{}", gl.get_error());
+            gl.clear(glow::COLOR_BUFFER_BIT);
+            // println!("{}", gl.get_error());
             gl.use_program(Some(self.program));
+            // println!("{}", gl.get_error());
             gl.active_texture(glow::TEXTURE0);
+            // println!("{}", gl.get_error());
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
+            // println!("{}", gl.get_error());
             gl.uniform_1_i32(gl.get_uniform_location(self.program, "u_screen").as_ref(), 0);
+            // println!("{}", gl.get_error());
             gl.bind_vertex_array(Some(self.vertex_array));
-            gl.draw_arrays(glow::TRIANGLES, 0, 3);
+            // println!("{}", gl.get_error());
+            gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
+            // println!("{}", gl.get_error());
+            // println!("end");
         }
     }
 }
