@@ -60,7 +60,7 @@ impl Screen {
                     out vec4 out_color;
                     void main() {
                         ivec2 coord = ivec2((v_pos + 1) * vec2(128.0, 128.0));
-                        uint i_color = (texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & 1;
+                        uint i_color = 1 -((texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & 1);
                         out_color = vec4(vec3(i_color), 1.0);
                     }
                 "#,
@@ -101,26 +101,8 @@ impl Screen {
                 .create_vertex_array()
                 .expect("Cannot create vertex array");
 
-            let mut buffer = vec![0u8; 64 * 256];
-            for i in 0..256 {
-                for j in 0..64 {
-                    buffer[i * 64 + j] = (i & j) as u8;
-                }
-            }
             let texture = gl.create_texture().unwrap();
             gl.bind_texture(glow::TEXTURE_2D, Some(texture));
-            gl.tex_image_2d(
-                glow::TEXTURE_2D,
-                0,
-                glow::R8UI as i32,
-                64,
-                256,
-                0,
-                glow::RED_INTEGER,
-                glow::UNSIGNED_BYTE,
-                Some(&buffer),
-            );
-            println!("{}", gl.get_error());
 
             gl.tex_parameter_i32(
                 glow::TEXTURE_2D,
@@ -153,43 +135,19 @@ impl Screen {
         }
     }
 
-    fn paint(&self, gl: &glow::Context, screen_buffer: &[i16]) {
+    fn paint(&self, gl: &glow::Context) {
         use glow::HasContext as _;
         unsafe {
-            // println!("start");
-            // println!("{}", gl.get_error());
-            // gl.clear_color(0.0, 0.0, 0.0, 1.0);
-            // // println!("{}", gl.get_error());
-            // gl.clear(glow::COLOR_BUFFER_BIT);
-            // println!("{}", gl.get_error());
             gl.use_program(Some(self.program));
-            // println!("{}", gl.get_error());
             gl.active_texture(glow::TEXTURE0);
-            // println!("{}", gl.get_error());
             gl.bind_texture(glow::TEXTURE_2D, Some(self.texture));
-            // println!("{}", gl.get_error());
-            gl.tex_image_2d(
-                glow::TEXTURE_2D,
-                0,
-                glow::R8UI as i32,
-                64,
-                256,
-                0,
-                glow::RED_INTEGER,
-                glow::UNSIGNED_BYTE,
-                Some(screen_buffer.align_to::<u8>().1),
-            );
-            // println!("{}", gl.get_error());
             gl.uniform_1_i32(
                 gl.get_uniform_location(self.program, "u_screen").as_ref(),
                 0,
             );
-            // println!("{}", gl.get_error());
             gl.bind_vertex_array(Some(self.vertex_array));
-            // println!("{}", gl.get_error());
             gl.draw_arrays(glow::TRIANGLE_STRIP, 0, 4);
-            // println!("{}", gl.get_error());
-            // println!("end");
+            gl.bind_texture(glow::TEXTURE_2D, None);
         }
     }
 }
@@ -240,20 +198,40 @@ impl EmulatorApp {
     }
 }
 
-fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM) {
-    let (rect, _) = ui.allocate_exact_size(egui::Vec2::new(512.0, 256.0), egui::Sense::drag());
+fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame: &eframe::Frame) {
+    let rect = Rect::from_min_size(ui.cursor().min, egui::Vec2::new(512.0, 256.0));
 
     // Clone locals so we can move them into the paint callback:
     let screen = screen.clone();
     let screen_buffer: Vec<i16> = ram.contents
         [RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize]
         .into();
+    unsafe {
+        use glow::HasContext as _;
+        frame.gl().active_texture(glow::TEXTURE0);
+        let guard = screen.lock();
+        frame
+            .gl()
+            .bind_texture(glow::TEXTURE_2D, Some(guard.texture));
+        frame.gl().tex_image_2d(
+            glow::TEXTURE_2D,
+            0,
+            glow::R8UI as i32,
+            64,
+            256,
+            0,
+            glow::RED_INTEGER,
+            glow::UNSIGNED_BYTE,
+            Some(screen_buffer.align_to::<u8>().1),
+        );
+        frame.gl().bind_texture(glow::TEXTURE_2D, None);
+    }
 
     let callback = egui::PaintCallback {
         rect,
         callback: std::sync::Arc::new(move |_info, render_ctx| {
             if let Some(painter) = render_ctx.downcast_ref::<egui_glow::Painter>() {
-                screen.lock().paint(painter.gl(), &screen_buffer);
+                screen.lock().paint(painter.gl());
             } else {
                 eprintln!("Can't do custom painting because we are not using a glow context");
             }
@@ -280,11 +258,12 @@ fn draw_hardware(
     ctx: &egui::Context,
     action: &mut Option<Action>,
     screen: &Arc<Mutex<Screen>>,
+    frame: &eframe::Frame,
 ) {
     egui::CentralPanel::default().show(ctx, |ui| {
         StripBuilder::new(ui)
-            .size(Size::relative(0.5))
             .size(Size::remainder())
+            .size(Size::exact(512.0))
             .horizontal(|mut strip| {
                 strip.strip(|builder| {
                     builder
@@ -300,8 +279,10 @@ fn draw_hardware(
                         });
                 });
                 strip.cell(|ui| {
-                    egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                        draw_screen(ui, screen, &state.hardware.ram);
+                    ui.allocate_ui(Vec2::new(512.0, 256.0), |ui| {
+                        egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                            draw_screen(ui, screen, &state.hardware.ram, frame);
+                        });
                     });
                 });
             });
@@ -402,11 +383,12 @@ impl EmulatorWidgets for egui::Ui {
                 .id_source(&caption)
                 .show_rows(ui, row_height, range.len() + 1, |ui, row_range| {
                     egui::Grid::new(&caption)
+                        .start_row(range.start as usize)
                         .num_columns(2)
                         .striped(true)
                         .show(ui, |ui| {
                             for i in row_range {
-                                let address = i as i16 + range.start;
+                                let address = i as i16;
                                 ui.label(address.to_string());
                                 ui.label(ram[address].to_string());
                                 ui.end_row();
@@ -433,11 +415,12 @@ impl EmulatorWidgets for egui::Ui {
                 .id_source(&caption)
                 .show_rows(ui, row_height, range.len() + 1, |ui, row_range| {
                     egui::Grid::new(&caption)
+                        .start_row(range.start as usize)
                         .num_columns(2)
                         .striped(true)
                         .show(ui, |ui| {
                             for i in row_range {
-                                let address = i as i16 + range.start;
+                                let address = i as i16;
                                 if highlight_address == address {
                                     let size = Vec2::new(width, row_height);
                                     let rect = Rect::from_min_size(ui.cursor().min, size);
@@ -476,13 +459,15 @@ impl eframe::App for EmulatorApp {
                 for _ in 0..1000 {
                     state.hardware.step();
                 }
-            },
-            _ => {},
+            }
+            _ => {}
         };
         ctx.request_repaint();
 
         match &self.state {
-            AppState::Hardware(state) => draw_hardware(state, ctx, &mut action, &self.screen),
+            AppState::Hardware(state) => {
+                draw_hardware(state, ctx, &mut action, &self.screen, &frame)
+            }
             AppState::VM(state) => draw_vm(state, ctx, &mut action),
             AppState::Start => draw_start(ctx, &mut action),
         };
