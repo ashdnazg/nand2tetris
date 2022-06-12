@@ -60,7 +60,7 @@ impl Screen {
                     out vec4 out_color;
                     void main() {
                         ivec2 coord = ivec2((v_pos + 1) * vec2(128.0, 128.0));
-                        uint i_color = 1 -((texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & 1);
+                        uint i_color = 1 - ((texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & uint(1));
                         out_color = vec4(vec3(i_color), 1.0);
                     }
                 "#,
@@ -271,7 +271,7 @@ fn draw_hardware(
                         .size(Size::remainder())
                         .horizontal(|mut strip| {
                             strip.cell(|ui| {
-                                ui.rom_grid("ROM", &state.hardware.rom, 0..i16::MAX, 1);
+                                ui.rom_grid("ROM", &state.hardware.rom, 0..i16::MAX, state.hardware.pc);
                             });
                             strip.cell(|ui| {
                                 ui.ram_grid("RAM", &state.hardware.ram, 0..i16::MAX);
