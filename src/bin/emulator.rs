@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Hide console window in release builds on Windows, this blocks stdout.
 
 use std::ops::Range;
+use std::time::Instant;
 
 use eframe::egui;
 use eframe::emath::Rect;
@@ -11,8 +12,6 @@ use eframe::epaint::Vec2;
 
 use egui_extras::{Size, StripBuilder};
 
-use glow::NativeTexture;
-use glow::PixelUnpackData;
 use nand2tetris::hardware::*;
 use nand2tetris::vm::*;
 
@@ -152,7 +151,12 @@ impl Screen {
     }
 }
 
+struct SharedState {
+    desired_steps_per_second: u64,
+}
+
 struct HardwareState {
+    shared_state: SharedState,
     hardware: Hardware,
 }
 
@@ -175,7 +179,9 @@ impl Default for AppState {
         ];
         hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
-        AppState::Hardware(HardwareState { hardware: hardware })
+        let shared_state = SharedState { desired_steps_per_second: 1_000_000 };
+
+        AppState::Hardware(HardwareState { shared_state, hardware })
     }
 }
 
@@ -184,14 +190,23 @@ enum Action {
     Quit,
 }
 
+struct PerformanceData {
+    steps_during_last_frame: u64,
+    total_steps: u64,
+    run_start: Instant,
+}
+
 pub struct EmulatorApp {
+    performance_data: PerformanceData,
     state: AppState,
     screen: Arc<Mutex<Screen>>,
 }
 
 impl EmulatorApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let performance_data = PerformanceData { steps_during_last_frame: 0, total_steps: 0, run_start: Instant::now()};
         Self {
+            performance_data,
             state: Default::default(),
             screen: Arc::new(Mutex::new(Screen::new(&cc.gl))),
         }
@@ -203,9 +218,8 @@ fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame:
 
     // Clone locals so we can move them into the paint callback:
     let screen = screen.clone();
-    let screen_buffer: Vec<i16> = ram.contents
-        [RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize]
-        .into();
+    let screen_buffer: &[i16] = &ram.contents
+        [RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize];
     unsafe {
         use glow::HasContext as _;
         frame.gl().active_texture(glow::TEXTURE0);
@@ -439,14 +453,22 @@ impl EmulatorWidgets for egui::Ui {
     }
 }
 
+fn run_steps<F>(mut run_closure: F, desired_steps_per_second: u64, last_frame_time: f32, performance_data: &mut PerformanceData) where F: FnMut() {
+    let mut steps_to_run = ((desired_steps_per_second as f64) / 60.0) as u64;
+    if last_frame_time * 60.0 > 1.0 {
+        steps_to_run = ((performance_data.steps_during_last_frame as f64) / (last_frame_time as f64 * 60.0)) as u64;
+    }
+    performance_data.steps_during_last_frame = steps_to_run;
+    for _ in 0..steps_to_run {
+        run_closure();
+    }
+}
+
+
 impl eframe::App for EmulatorApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
         let mut action = None;
         draw_shared(ctx, &mut action);
 
@@ -456,9 +478,7 @@ impl eframe::App for EmulatorApp {
                 ctx.input().keys_down.iter().take(1).for_each(|_| {
                     state.hardware.ram.set_keyboard(32);
                 });
-                for _ in 0..1000 {
-                    state.hardware.step();
-                }
+                run_steps(|| state.hardware.step(), state.shared_state.desired_steps_per_second, frame.info().cpu_usage.unwrap_or(1.0 / 60.0), &mut self.performance_data);
             }
             _ => {}
         };
