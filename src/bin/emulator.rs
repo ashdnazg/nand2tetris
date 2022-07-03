@@ -2,14 +2,14 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Hide console window in release builds on Windows, this blocks stdout.
 
-use std::ops::Range;
+use std::ops::RangeInclusive;
 use std::time::Instant;
 
 use eframe::egui;
 use eframe::emath::Rect;
-use eframe::epaint::Color32;
 use eframe::epaint::Vec2;
 
+use egui_extras::TableBuilder;
 use egui_extras::{Size, StripBuilder};
 
 use nand2tetris::hardware::*;
@@ -153,6 +153,7 @@ impl Screen {
 
 struct SharedState {
     desired_steps_per_second: u64,
+    run_started: bool,
 }
 
 struct HardwareState {
@@ -161,6 +162,7 @@ struct HardwareState {
 }
 
 struct VMState {
+    shared_state: SharedState,
     vm: VM,
 }
 
@@ -168,6 +170,58 @@ enum AppState {
     Hardware(HardwareState),
     VM(VMState),
     Start,
+}
+
+trait CommonState {
+    fn step(&mut self);
+    fn shared_state(&self) -> &SharedState;
+    fn shared_state_mut(&mut self) -> &mut SharedState;
+    fn ram(&self) -> &RAM;
+    fn ram_mut(&mut self) -> &mut RAM;
+}
+
+impl CommonState for HardwareState {
+    fn step(&mut self) {
+        self.hardware.step();
+    }
+
+    fn shared_state(&self) -> &SharedState {
+        &self.shared_state
+    }
+
+    fn shared_state_mut(&mut self) -> &mut SharedState {
+        &mut self.shared_state
+    }
+
+    fn ram(&self) -> &RAM {
+        &self.hardware.ram
+    }
+
+    fn ram_mut(&mut self) -> &mut RAM {
+        &mut self.hardware.ram
+    }
+}
+
+impl CommonState for VMState {
+    fn step(&mut self) {
+        self.vm.step();
+    }
+
+    fn shared_state(&self) -> &SharedState {
+        &self.shared_state
+    }
+
+    fn shared_state_mut(&mut self) -> &mut SharedState {
+        &mut self.shared_state
+    }
+
+    fn ram(&self) -> &RAM {
+        &self.vm.ram
+    }
+
+    fn ram_mut(&mut self) -> &mut RAM {
+        &mut self.vm.ram
+    }
 }
 
 impl Default for AppState {
@@ -179,9 +233,15 @@ impl Default for AppState {
         ];
         hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
-        let shared_state = SharedState { desired_steps_per_second: 1_000_000 };
+        let shared_state = SharedState {
+            desired_steps_per_second: 1_000_000,
+            run_started: true,
+        };
 
-        AppState::Hardware(HardwareState { shared_state, hardware })
+        AppState::Hardware(HardwareState {
+            shared_state,
+            hardware,
+        })
     }
 }
 
@@ -204,7 +264,11 @@ pub struct EmulatorApp {
 
 impl EmulatorApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let performance_data = PerformanceData { steps_during_last_frame: 0, total_steps: 0, run_start: Instant::now()};
+        let performance_data = PerformanceData {
+            steps_during_last_frame: 0,
+            total_steps: 0,
+            run_start: Instant::now(),
+        };
         Self {
             performance_data,
             state: Default::default(),
@@ -218,8 +282,8 @@ fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame:
 
     // Clone locals so we can move them into the paint callback:
     let screen = screen.clone();
-    let screen_buffer: &[i16] = &ram.contents
-        [RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize];
+    let screen_buffer =
+        &ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize];
     unsafe {
         use glow::HasContext as _;
         frame.gl().active_texture(glow::TEXTURE0);
@@ -285,10 +349,15 @@ fn draw_hardware(
                         .size(Size::remainder())
                         .horizontal(|mut strip| {
                             strip.cell(|ui| {
-                                ui.rom_grid("ROM", &state.hardware.rom, 0..i16::MAX, state.hardware.pc);
+                                ui.rom_grid(
+                                    "ROM",
+                                    &state.hardware.rom,
+                                    0..=i16::MAX,
+                                    state.hardware.pc,
+                                );
                             });
                             strip.cell(|ui| {
-                                ui.ram_grid("RAM", &state.hardware.ram, 0..i16::MAX);
+                                ui.ram_grid("RAM", &state.hardware.ram, 0..=i16::MAX);
                             });
                         });
                 });
@@ -319,22 +388,22 @@ fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
                                 builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
                                     |mut strip| {
                                         strip.cell(|ui| {
-                                            ui.ram_grid("Static", &state.vm.ram, 0..5);
+                                            ui.ram_grid("Static", &state.vm.ram, 0..=5);
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("Local", &state.vm.ram, 0..5);
+                                            ui.ram_grid("Local", &state.vm.ram, 0..=5);
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("Argument", &state.vm.ram, 0..5);
+                                            ui.ram_grid("Argument", &state.vm.ram, 0..=5);
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("This", &state.vm.ram, 0..5);
+                                            ui.ram_grid("This", &state.vm.ram, 0..=5);
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("That", &state.vm.ram, 0..5);
+                                            ui.ram_grid("That", &state.vm.ram, 0..=5);
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("Temp", &state.vm.ram, 0..5);
+                                            ui.ram_grid("Temp", &state.vm.ram, 0..=5);
                                         });
                                     },
                                 );
@@ -354,10 +423,10 @@ fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
                                     .size(Size::remainder())
                                     .horizontal(|mut strip| {
                                         strip.cell(|ui| {
-                                            ui.ram_grid("Global Stack", &state.vm.ram, 256..1024);
+                                            ui.ram_grid("Global Stack", &state.vm.ram, 256..=1024);
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("RAM", &state.vm.ram, 0..i16::MAX);
+                                            ui.ram_grid("RAM", &state.vm.ram, 0..=i16::MAX);
                                         });
                                     });
                             });
@@ -376,38 +445,45 @@ fn reduce(state: &mut AppState, action: &Action) {
 }
 
 trait EmulatorWidgets {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: Range<i16>);
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>);
     fn rom_grid(
         &mut self,
         caption: &str,
         rom: &[Instruction; 32 * 1024],
-        range: Range<i16>,
+        range: RangeInclusive<i16>,
         highlight_address: i16,
     );
 }
 
 impl EmulatorWidgets for egui::Ui {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: Range<i16>) {
-        self.vertical(|ui| {
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>) {
+        self.push_id(caption, |ui| {
             ui.label(caption);
             let text_style = egui::TextStyle::Body;
-            let row_height = ui.text_style_height(&text_style);
-            egui::ScrollArea::vertical()
-                .auto_shrink([false; 2])
-                .id_source(&caption)
-                .show_rows(ui, row_height, range.len() + 1, |ui, row_range| {
-                    egui::Grid::new(&caption)
-                        .start_row(range.start as usize)
-                        .num_columns(2)
-                        .striped(true)
-                        .show(ui, |ui| {
-                            for i in row_range {
-                                let address = i as i16;
-                                ui.label(address.to_string());
-                                ui.label(ram[address].to_string());
-                                ui.end_row();
-                            }
+            let text_height = ui.text_style_height(&text_style);
+
+            TableBuilder::new(ui)
+                .striped(true)
+                .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+                .column(Size::initial(45.0).at_least(45.0))
+                .column(Size::remainder().at_least(40.0))
+                .header(text_height, |mut header| {
+                    header.col(|ui| {
+                        ui.label("Address");
+                    });
+                    header.col(|ui| {
+                        ui.label("Value");
+                    });
+                })
+                .body(|body| {
+                    body.rows(text_height, range.len(), |row_index, mut row| {
+                        row.col(|ui| {
+                            ui.label(row_index.to_string());
                         });
+                        row.col(|ui| {
+                            ui.label(ram[row_index as i16].to_string());
+                        });
+                    });
                 });
         });
     }
@@ -416,54 +492,92 @@ impl EmulatorWidgets for egui::Ui {
         &mut self,
         caption: &str,
         rom: &[Instruction; 32 * 1024],
-        range: Range<i16>,
+        range: RangeInclusive<i16>,
         highlight_address: i16,
     ) {
-        self.vertical(|ui| {
+        self.push_id(caption, |ui| {
             ui.label(caption);
             let text_style = egui::TextStyle::Body;
-            let row_height = ui.text_style_height(&text_style);
-            let width = ui.available_width();
-            egui::ScrollArea::vertical()
-                .auto_shrink([false; 2])
-                .id_source(&caption)
-                .show_rows(ui, row_height, range.len() + 1, |ui, row_range| {
-                    egui::Grid::new(&caption)
-                        .start_row(range.start as usize)
-                        .num_columns(2)
-                        .striped(true)
-                        .show(ui, |ui| {
-                            for i in row_range {
-                                let address = i as i16;
-                                if highlight_address == address {
-                                    let size = Vec2::new(width, row_height);
-                                    let rect = Rect::from_min_size(ui.cursor().min, size);
-                                    // let rect = rect.expand2(0.5 * ui.spacing(). * Vec2::Y);
-                                    let rect = rect.expand2(2.0 * Vec2::X); // HACK: just looks better with some spacing on the sides
+            let text_height = ui.text_style_height(&text_style);
 
-                                    ui.painter().rect_filled(rect, 2.0, Color32::YELLOW);
-                                }
-                                ui.label(address.to_string());
-                                ui.label(rom[address as usize].to_string());
-                                ui.end_row();
+            TableBuilder::new(ui)
+                .striped(true)
+                .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+                .column(Size::initial(45.0).at_least(45.0))
+                .column(Size::remainder().at_least(60.0))
+                .header(text_height, |mut header| {
+                    header.col(|ui| {
+                        ui.label("Address");
+                    });
+                    header.col(|ui| {
+                        ui.label("Instruction");
+                    });
+                })
+                .body(|body| {
+                    body.rows(text_height, range.len(), |row_index, mut row| {
+                        row.col(|ui| {
+                            if row_index == highlight_address as usize {
+                                let rect = ui.max_rect();
+                                let rect = rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
+
+                                ui
+                                    .painter()
+                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
                             }
+                            ui.label(row_index.to_string());
                         });
+                        row.col(|ui| {
+                            if row_index == highlight_address as usize {
+                                let rect = ui.max_rect();
+                                let rect = rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
+
+                                ui
+                                    .painter()
+                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
+                            }
+                            ui.label(rom[row_index].to_string());
+                        });
+                    });
                 });
         });
     }
 }
 
-fn run_steps<F>(mut run_closure: F, desired_steps_per_second: u64, last_frame_time: f32, performance_data: &mut PerformanceData) where F: FnMut() {
-    let mut steps_to_run = ((desired_steps_per_second as f64) / 60.0) as u64;
-    if last_frame_time * 60.0 > 1.0 {
-        steps_to_run = ((performance_data.steps_during_last_frame as f64) / (last_frame_time as f64 * 60.0)) as u64;
+fn run_steps(
+    desired_steps_per_second: u64,
+    last_frame_time: f32,
+    performance_data: &mut PerformanceData,
+    state: &mut impl CommonState,
+    ctx: &egui::Context,
+) {
+    if !state.shared_state().run_started {
+        return;
     }
+
+    state.ram_mut().set_keyboard(0);
+    ctx.input().keys_down.iter().take(1).for_each(|_| {
+        state.ram_mut().set_keyboard(32);
+    });
+
+    let run_time = (Instant::now() - performance_data.run_start).as_secs_f64();
+    let wanted_steps = (desired_steps_per_second as f64 * run_time) as u64;
+    let mut steps_to_run = wanted_steps - performance_data.total_steps;
+
+    if performance_data.steps_during_last_frame > 0 {
+        steps_to_run = u64::min(
+            steps_to_run,
+            ((performance_data.steps_during_last_frame as f64) / (last_frame_time as f64 * 60.0))
+                as u64,
+        );
+    }
+
     performance_data.steps_during_last_frame = steps_to_run;
+    performance_data.total_steps += steps_to_run;
+
     for _ in 0..steps_to_run {
-        run_closure();
+        state.step();
     }
 }
-
 
 impl eframe::App for EmulatorApp {
     /// Called each time the UI needs repainting, which may be many times per second.
@@ -474,11 +588,22 @@ impl eframe::App for EmulatorApp {
 
         match &mut self.state {
             AppState::Hardware(state) => {
-                state.hardware.ram.set_keyboard(0);
-                ctx.input().keys_down.iter().take(1).for_each(|_| {
-                    state.hardware.ram.set_keyboard(32);
-                });
-                run_steps(|| state.hardware.step(), state.shared_state.desired_steps_per_second, frame.info().cpu_usage.unwrap_or(1.0 / 60.0), &mut self.performance_data);
+                run_steps(
+                    state.shared_state.desired_steps_per_second,
+                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
+                    &mut self.performance_data,
+                    state,
+                    ctx,
+                );
+            }
+            AppState::VM(state) => {
+                run_steps(
+                    state.shared_state.desired_steps_per_second,
+                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
+                    &mut self.performance_data,
+                    state,
+                    ctx,
+                );
             }
             _ => {}
         };
