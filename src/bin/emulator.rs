@@ -5,7 +5,7 @@
 use std::ops::RangeInclusive;
 use std::time::Instant;
 
-use eframe::egui;
+use eframe::egui::{self, Key};
 use eframe::emath::Rect;
 use eframe::epaint::Vec2;
 
@@ -235,7 +235,7 @@ impl Default for AppState {
 
         let shared_state = SharedState {
             desired_steps_per_second: 1_000_000,
-            run_started: true,
+            run_started: false,
         };
 
         AppState::Hardware(HardwareState {
@@ -246,14 +246,21 @@ impl Default for AppState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+enum CommonAction {
+    StepClicked,
+    RunClicked,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Action {
+    Common(CommonAction),
     Quit,
 }
 
 struct PerformanceData {
     steps_during_last_frame: u64,
     total_steps: u64,
-    run_start: Instant,
+    run_start: Option<Instant>,
 }
 
 pub struct EmulatorApp {
@@ -267,7 +274,7 @@ impl EmulatorApp {
         let performance_data = PerformanceData {
             steps_during_last_frame: 0,
             total_steps: 0,
-            run_start: Instant::now(),
+            run_start: None,
         };
         Self {
             performance_data,
@@ -328,6 +335,15 @@ fn draw_shared(ctx: &egui::Context, action: &mut Option<Action>) {
                 }
             });
         });
+        ui.separator();
+        ui.horizontal(|ui| {
+            if ui.button("Step").clicked() {
+                *action = Some(Action::Common(CommonAction::StepClicked));
+            }
+            if ui.button("Run").clicked() {
+                *action = Some(Action::Common(CommonAction::RunClicked));
+            }
+        });
     });
 }
 
@@ -345,8 +361,8 @@ fn draw_hardware(
             .horizontal(|mut strip| {
                 strip.strip(|builder| {
                     builder
-                        .size(Size::relative(0.5))
-                        .size(Size::remainder())
+                        .size(Size::initial(140.0).at_least(140.0))
+                        .size(Size::initial(110.0).at_least(110.0))
                         .horizontal(|mut strip| {
                             strip.cell(|ui| {
                                 ui.rom_grid(
@@ -438,9 +454,28 @@ fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
 
 fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
 
+fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
+    match action {
+        CommonAction::StepClicked => {
+            state.step();
+        }
+        CommonAction::RunClicked => {
+            state.shared_state_mut().run_started = true;
+        }
+    }
+}
+
 fn reduce(state: &mut AppState, action: &Action) {
     match action {
-        _ => {}
+        Action::Common(common_action) => match state {
+            AppState::Hardware(hardware_state) => reduce_common(hardware_state, common_action),
+            AppState::VM(vm_state) => reduce_common(vm_state, common_action),
+            AppState::Start => panic!(
+                "Received common action {:?} when in state AppState::Start",
+                common_action
+            ),
+        },
+        Action::Quit => todo!(),
     }
 }
 
@@ -459,15 +494,15 @@ impl EmulatorWidgets for egui::Ui {
     fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>) {
         self.push_id(caption, |ui| {
             ui.label(caption);
-            let text_style = egui::TextStyle::Body;
-            let text_height = ui.text_style_height(&text_style);
+            let header_height = ui.text_style_height(&egui::TextStyle::Body);
+            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
             TableBuilder::new(ui)
                 .striped(true)
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
                 .column(Size::initial(45.0).at_least(45.0))
                 .column(Size::remainder().at_least(40.0))
-                .header(text_height, |mut header| {
+                .header(header_height, |mut header| {
                     header.col(|ui| {
                         ui.label("Address");
                     });
@@ -476,12 +511,12 @@ impl EmulatorWidgets for egui::Ui {
                     });
                 })
                 .body(|body| {
-                    body.rows(text_height, range.len(), |row_index, mut row| {
+                    body.rows(row_height, range.len(), |row_index, mut row| {
                         row.col(|ui| {
-                            ui.label(row_index.to_string());
+                            ui.monospace(row_index.to_string());
                         });
                         row.col(|ui| {
-                            ui.label(ram[row_index as i16].to_string());
+                            ui.monospace(ram[row_index as i16].to_string());
                         });
                     });
                 });
@@ -497,15 +532,15 @@ impl EmulatorWidgets for egui::Ui {
     ) {
         self.push_id(caption, |ui| {
             ui.label(caption);
-            let text_style = egui::TextStyle::Body;
-            let text_height = ui.text_style_height(&text_style);
+            let header_height = ui.text_style_height(&egui::TextStyle::Body);
+            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
             TableBuilder::new(ui)
                 .striped(true)
                 .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
                 .column(Size::initial(45.0).at_least(45.0))
-                .column(Size::remainder().at_least(60.0))
-                .header(text_height, |mut header| {
+                .column(Size::remainder().at_least(70.0))
+                .header(header_height, |mut header| {
                     header.col(|ui| {
                         ui.label("Address");
                     });
@@ -514,28 +549,28 @@ impl EmulatorWidgets for egui::Ui {
                     });
                 })
                 .body(|body| {
-                    body.rows(text_height, range.len(), |row_index, mut row| {
+                    body.rows(row_height, range.len(), |row_index, mut row| {
                         row.col(|ui| {
                             if row_index == highlight_address as usize {
                                 let rect = ui.max_rect();
-                                let rect = rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
+                                let rect =
+                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
 
-                                ui
-                                    .painter()
+                                ui.painter()
                                     .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
                             }
-                            ui.label(row_index.to_string());
+                            ui.monospace(row_index.to_string());
                         });
                         row.col(|ui| {
                             if row_index == highlight_address as usize {
                                 let rect = ui.max_rect();
-                                let rect = rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
+                                let rect =
+                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
 
-                                ui
-                                    .painter()
+                                ui.painter()
                                     .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
                             }
-                            ui.label(rom[row_index].to_string());
+                            ui.monospace(rom[row_index].to_string());
                         });
                     });
                 });
@@ -543,23 +578,23 @@ impl EmulatorWidgets for egui::Ui {
     }
 }
 
-fn run_steps(
+fn steps_to_run(
     desired_steps_per_second: u64,
     last_frame_time: f32,
     performance_data: &mut PerformanceData,
-    state: &mut impl CommonState,
+    state: &impl CommonState,
     ctx: &egui::Context,
-) {
+) -> u64 {
     if !state.shared_state().run_started {
-        return;
+        performance_data.run_start = None;
+        performance_data.steps_during_last_frame = 0;
+        performance_data.total_steps = 0;
+        return 0;
     }
 
-    state.ram_mut().set_keyboard(0);
-    ctx.input().keys_down.iter().take(1).for_each(|_| {
-        state.ram_mut().set_keyboard(32);
-    });
+    let run_start = performance_data.run_start.get_or_insert(Instant::now());
 
-    let run_time = (Instant::now() - performance_data.run_start).as_secs_f64();
+    let run_time = (Instant::now() - *run_start).as_secs_f64();
     let wanted_steps = (desired_steps_per_second as f64 * run_time) as u64;
     let mut steps_to_run = wanted_steps - performance_data.total_steps;
 
@@ -574,8 +609,19 @@ fn run_steps(
     performance_data.steps_during_last_frame = steps_to_run;
     performance_data.total_steps += steps_to_run;
 
-    for _ in 0..steps_to_run {
-        state.step();
+    return steps_to_run;
+}
+
+fn run_steps(state: &mut impl CommonState, steps_to_run: u64, key_down: Option<Key>) {
+    if steps_to_run > 0 {
+        state.ram_mut().set_keyboard(0);
+        if let Some(_) = key_down {
+            state.ram_mut().set_keyboard(32);
+        }
+
+        for _ in 0..steps_to_run {
+            state.step();
+        }
     }
 }
 
@@ -586,27 +632,41 @@ impl eframe::App for EmulatorApp {
         let mut action = None;
         draw_shared(ctx, &mut action);
 
-        match &mut self.state {
+        let steps_to_run = match &self.state {
             AppState::Hardware(state) => {
-                run_steps(
+                steps_to_run(
                     state.shared_state.desired_steps_per_second,
                     frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
                     &mut self.performance_data,
                     state,
                     ctx,
-                );
+                )
             }
             AppState::VM(state) => {
-                run_steps(
+                steps_to_run(
                     state.shared_state.desired_steps_per_second,
                     frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
                     &mut self.performance_data,
                     state,
                     ctx,
-                );
+                )
+            }
+            _ => 0,
+        };
+
+        let key_down = ctx.input().keys_down.iter().cloned().next();
+
+        match &mut self.state {
+            AppState::Hardware(state) => {
+                run_steps(state, steps_to_run, key_down);
+            }
+            AppState::VM(state) => {
+                run_steps(state, steps_to_run, key_down);
             }
             _ => {}
-        };
+        }
+
+
         ctx.request_repaint();
 
         match &self.state {
