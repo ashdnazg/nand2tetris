@@ -259,7 +259,7 @@ enum CommonAction {
     StepClicked,
     RunClicked,
     PauseClicked,
-    ResetClicked
+    ResetClicked,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -474,19 +474,17 @@ fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
 
 fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
     match action {
-        CommonAction::StepClicked => {
-            state.step();
-        },
+        CommonAction::StepClicked => {}
         CommonAction::RunClicked => {
             state.shared_state_mut().run_started = true;
-        },
+        }
         CommonAction::PauseClicked => {
             state.shared_state_mut().run_started = false;
-        },
+        }
         CommonAction::ResetClicked => {
             state.reset();
             state.shared_state_mut().run_started = false;
-        },
+        }
     }
 }
 
@@ -661,24 +659,20 @@ impl eframe::App for EmulatorApp {
             1
         } else {
             match &self.state {
-                AppState::Hardware(state) => {
-                    steps_to_run(
-                        state.shared_state.desired_steps_per_second,
-                        frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
-                        &mut self.performance_data,
-                        state,
-                        ctx,
-                    )
-                }
-                AppState::VM(state) => {
-                    steps_to_run(
-                        state.shared_state.desired_steps_per_second,
-                        frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
-                        &mut self.performance_data,
-                        state,
-                        ctx,
-                    )
-                }
+                AppState::Hardware(state) => steps_to_run(
+                    state.shared_state.desired_steps_per_second,
+                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
+                    &mut self.performance_data,
+                    state,
+                    ctx,
+                ),
+                AppState::VM(state) => steps_to_run(
+                    state.shared_state.desired_steps_per_second,
+                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
+                    &mut self.performance_data,
+                    state,
+                    ctx,
+                ),
                 _ => 0,
             }
         };
@@ -694,7 +688,6 @@ impl eframe::App for EmulatorApp {
             }
             _ => {}
         }
-
 
         ctx.request_repaint();
 
