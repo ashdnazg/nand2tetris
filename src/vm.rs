@@ -126,6 +126,10 @@ impl VM {
         }
     }
 
+    pub fn reset(&mut self) {
+        *self = VM::new(self.files.iter().map(|(s, f)| (s.clone(), f.clone())).collect());
+    }
+
     fn create_file_name_to_static_segment(files: &Vec<(String, File)>) -> HashMap<String, i16> {
         let mut map: HashMap<String, i16> = HashMap::new();
         let mut index = 16i16;

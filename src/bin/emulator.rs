@@ -58,7 +58,7 @@ impl Screen {
                     in vec2 v_pos;
                     out vec4 out_color;
                     void main() {
-                        ivec2 coord = ivec2((v_pos + 1) * vec2(128.0, 128.0));
+                        ivec2 coord = ivec2((v_pos + 1) * vec2(256.0, 128.0));
                         uint i_color = 1 - ((texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & uint(1));
                         out_color = vec4(vec3(i_color), 1.0);
                     }
@@ -178,6 +178,7 @@ trait CommonState {
     fn shared_state_mut(&mut self) -> &mut SharedState;
     fn ram(&self) -> &RAM;
     fn ram_mut(&mut self) -> &mut RAM;
+    fn reset(&mut self);
 }
 
 impl CommonState for HardwareState {
@@ -200,6 +201,10 @@ impl CommonState for HardwareState {
     fn ram_mut(&mut self) -> &mut RAM {
         &mut self.hardware.ram
     }
+
+    fn reset(&mut self) {
+        self.hardware.reset();
+    }
 }
 
 impl CommonState for VMState {
@@ -221,6 +226,10 @@ impl CommonState for VMState {
 
     fn ram_mut(&mut self) -> &mut RAM {
         &mut self.vm.ram
+    }
+
+    fn reset(&mut self) {
+        self.vm.reset();
     }
 }
 
@@ -249,6 +258,8 @@ impl Default for AppState {
 enum CommonAction {
     StepClicked,
     RunClicked,
+    PauseClicked,
+    ResetClicked
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -291,6 +302,7 @@ fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame:
     let screen = screen.clone();
     let screen_buffer =
         &ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize];
+
     unsafe {
         use glow::HasContext as _;
         frame.gl().active_texture(glow::TEXTURE0);
@@ -342,6 +354,12 @@ fn draw_shared(ctx: &egui::Context, action: &mut Option<Action>) {
             }
             if ui.button("Run").clicked() {
                 *action = Some(Action::Common(CommonAction::RunClicked));
+            }
+            if ui.button("Pause").clicked() {
+                *action = Some(Action::Common(CommonAction::PauseClicked));
+            }
+            if ui.button("Reset").clicked() {
+                *action = Some(Action::Common(CommonAction::ResetClicked));
             }
         });
     });
@@ -458,10 +476,17 @@ fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
     match action {
         CommonAction::StepClicked => {
             state.step();
-        }
+        },
         CommonAction::RunClicked => {
             state.shared_state_mut().run_started = true;
-        }
+        },
+        CommonAction::PauseClicked => {
+            state.shared_state_mut().run_started = false;
+        },
+        CommonAction::ResetClicked => {
+            state.reset();
+            state.shared_state_mut().run_started = false;
+        },
     }
 }
 
@@ -632,26 +657,30 @@ impl eframe::App for EmulatorApp {
         let mut action = None;
         draw_shared(ctx, &mut action);
 
-        let steps_to_run = match &self.state {
-            AppState::Hardware(state) => {
-                steps_to_run(
-                    state.shared_state.desired_steps_per_second,
-                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
-                    &mut self.performance_data,
-                    state,
-                    ctx,
-                )
+        let steps_to_run = if action == Some(Action::Common(CommonAction::StepClicked)) {
+            1
+        } else {
+            match &self.state {
+                AppState::Hardware(state) => {
+                    steps_to_run(
+                        state.shared_state.desired_steps_per_second,
+                        frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
+                        &mut self.performance_data,
+                        state,
+                        ctx,
+                    )
+                }
+                AppState::VM(state) => {
+                    steps_to_run(
+                        state.shared_state.desired_steps_per_second,
+                        frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
+                        &mut self.performance_data,
+                        state,
+                        ctx,
+                    )
+                }
+                _ => 0,
             }
-            AppState::VM(state) => {
-                steps_to_run(
-                    state.shared_state.desired_steps_per_second,
-                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
-                    &mut self.performance_data,
-                    state,
-                    ctx,
-                )
-            }
-            _ => 0,
         };
 
         let key_down = ctx.input().keys_down.iter().cloned().next();

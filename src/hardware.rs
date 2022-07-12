@@ -342,6 +342,12 @@ impl Hardware {
             self.step();
         }
     }
+
+    pub fn reset(&mut self) {
+        let mut new_instance = Hardware::default();
+        new_instance.rom = self.rom;
+        *self = new_instance;
+    }
 }
 
 #[cfg(test)]
