@@ -5,7 +5,7 @@
 use std::ops::RangeInclusive;
 use std::time::Instant;
 
-use eframe::egui::{self, Key};
+use eframe::egui::{self, Key, Slider};
 use eframe::emath::Rect;
 use eframe::epaint::Vec2;
 
@@ -243,7 +243,7 @@ impl Default for AppState {
         hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
         let shared_state = SharedState {
-            desired_steps_per_second: 1_000_000,
+            desired_steps_per_second: 10,
             run_started: false,
         };
 
@@ -260,6 +260,7 @@ enum CommonAction {
     RunClicked,
     PauseClicked,
     ResetClicked,
+    SpeedSliderMoved(u64),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -272,6 +273,7 @@ struct PerformanceData {
     steps_during_last_frame: u64,
     total_steps: u64,
     run_start: Option<Instant>,
+    previous_desired_steps_per_second: u64,
 }
 
 pub struct EmulatorApp {
@@ -286,6 +288,7 @@ impl EmulatorApp {
             steps_during_last_frame: 0,
             total_steps: 0,
             run_start: None,
+            previous_desired_steps_per_second: 0,
         };
         Self {
             performance_data,
@@ -337,7 +340,7 @@ fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame:
     ui.painter().add(callback);
 }
 
-fn draw_shared(ctx: &egui::Context, action: &mut Option<Action>) {
+fn draw_shared(ctx: &egui::Context, shared_state: &SharedState, action: &mut Option<Action>) {
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
@@ -360,6 +363,19 @@ fn draw_shared(ctx: &egui::Context, action: &mut Option<Action>) {
             }
             if ui.button("Reset").clicked() {
                 *action = Some(Action::Common(CommonAction::ResetClicked));
+            }
+            let mut new_steps_per_second = shared_state.desired_steps_per_second;
+            ui.vertical(|ui| {
+                // let height = ui.text_style_height(&egui::TextStyle::Body);
+                let old_size = ui.spacing_mut().interact_size.x;
+                ui.spacing_mut().interact_size.x = 100.0;
+                ui.add(Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true));
+                ui.spacing_mut().interact_size.x = old_size;
+            });
+            if new_steps_per_second != shared_state.desired_steps_per_second {
+                *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
+                    new_steps_per_second,
+                )))
             }
         });
     });
@@ -485,6 +501,9 @@ fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
             state.reset();
             state.shared_state_mut().run_started = false;
         }
+        CommonAction::SpeedSliderMoved(new_value) => {
+            state.shared_state_mut().desired_steps_per_second = *new_value;
+        }
     }
 }
 
@@ -608,10 +627,16 @@ fn steps_to_run(
     state: &impl CommonState,
     ctx: &egui::Context,
 ) -> u64 {
-    if !state.shared_state().run_started {
+    if !state.shared_state().run_started
+        || performance_data.previous_desired_steps_per_second != desired_steps_per_second
+    {
         performance_data.run_start = None;
         performance_data.steps_during_last_frame = 0;
         performance_data.total_steps = 0;
+        performance_data.previous_desired_steps_per_second = desired_steps_per_second;
+    }
+
+    if !state.shared_state().run_started {
         return 0;
     }
 
@@ -653,7 +678,11 @@ impl eframe::App for EmulatorApp {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let mut action = None;
-        draw_shared(ctx, &mut action);
+        match &self.state {
+            AppState::Hardware(state) => draw_shared(ctx, state.shared_state(), &mut action),
+            AppState::VM(state) => draw_shared(ctx, state.shared_state(), &mut action),
+            AppState::Start => {}
+        };
 
         let steps_to_run = if action == Some(Action::Common(CommonAction::StepClicked)) {
             1
