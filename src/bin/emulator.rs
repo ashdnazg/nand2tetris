@@ -154,6 +154,7 @@ impl Screen {
 struct SharedState {
     desired_steps_per_second: u64,
     run_started: bool,
+    breakpoints_open: bool,
 }
 
 struct HardwareState {
@@ -245,6 +246,7 @@ impl Default for AppState {
         let shared_state = SharedState {
             desired_steps_per_second: 10,
             run_started: false,
+            breakpoints_open: false,
         };
 
         AppState::Hardware(HardwareState {
@@ -255,16 +257,25 @@ impl Default for AppState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+enum BreakpointAction {
+    AddClicked,
+    RemoveClicked,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum CommonAction {
     StepClicked,
     RunClicked,
     PauseClicked,
     ResetClicked,
+    BreakpointsClicked,
+    BreakpointsClosed,
     SpeedSliderMoved(u64),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Action {
+    Breakpoint(BreakpointAction),
     Common(CommonAction),
     Quit,
 }
@@ -340,7 +351,12 @@ fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame:
     ui.painter().add(callback);
 }
 
-fn draw_shared(ctx: &egui::Context, shared_state: &SharedState, action: &mut Option<Action>) {
+fn draw_shared(
+    ctx: &egui::Context,
+    shared_state: &SharedState,
+    performance_data: &PerformanceData,
+    action: &mut Option<Action>,
+) {
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
@@ -364,6 +380,9 @@ fn draw_shared(ctx: &egui::Context, shared_state: &SharedState, action: &mut Opt
             if ui.button("Reset").clicked() {
                 *action = Some(Action::Common(CommonAction::ResetClicked));
             }
+            if ui.button("Breakpoints").clicked() {
+                *action = Some(Action::Common(CommonAction::BreakpointsClicked));
+            }
             let mut new_steps_per_second = shared_state.desired_steps_per_second;
             ui.vertical(|ui| {
                 // let height = ui.text_style_height(&egui::TextStyle::Body);
@@ -376,6 +395,11 @@ fn draw_shared(ctx: &egui::Context, shared_state: &SharedState, action: &mut Opt
                 *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
                     new_steps_per_second,
                 )))
+            }
+            if let Some(run_start) = performance_data.run_start {
+                let run_time = (Instant::now() - run_start).as_secs_f64();
+                let steps_per_second = performance_data.total_steps as f64 / run_time;
+                ui.label((steps_per_second.round() as u64).to_string());
             }
         });
     });
@@ -420,6 +444,29 @@ fn draw_hardware(
                 });
             });
     });
+
+    let mut breakpoints_open = state.shared_state.breakpoints_open;
+
+    egui::Window::new("Breakpoints")
+        .open(&mut breakpoints_open)
+        .resizable(true)
+        .default_width(1000.0)
+        .show(ctx, |ui| {
+            if ui.button("Add").clicked() {
+                *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
+            }
+            ui.add_enabled_ui(state.hardware.get_breakpoints().len() > 0, |ui| {
+                if ui.button("Remove").clicked() {
+                    *action = Some(Action::Breakpoint(BreakpointAction::RemoveClicked));
+                }
+            });
+            ui.label(state.hardware.get_breakpoints().len().to_string())
+        });
+
+    if state.shared_state.breakpoints_open != breakpoints_open {
+        assert!(state.shared_state.breakpoints_open);
+        *action = Some(Action::Common(CommonAction::BreakpointsClosed));
+    }
 }
 
 fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
@@ -488,6 +535,17 @@ fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
 
 fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
 
+fn reduce_breakpoint_hardware(hardware_state: &mut HardwareState, action: &BreakpointAction) {
+    match action {
+        BreakpointAction::AddClicked => {
+            hardware_state.hardware.add_breakpoint(&Breakpoint { var: BreakpointVar::PC, value: 10 })
+        },
+        BreakpointAction::RemoveClicked => {
+            hardware_state.hardware.remove_breakpoint(hardware_state.hardware.get_breakpoints().len() - 1)
+        },
+    }
+}
+
 fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
     match action {
         CommonAction::StepClicked => {}
@@ -500,6 +558,12 @@ fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
         CommonAction::ResetClicked => {
             state.reset();
             state.shared_state_mut().run_started = false;
+        }
+        CommonAction::BreakpointsClicked => {
+            state.shared_state_mut().breakpoints_open = !state.shared_state().breakpoints_open;
+        }
+        CommonAction::BreakpointsClosed => {
+            state.shared_state_mut().breakpoints_open = false;
         }
         CommonAction::SpeedSliderMoved(new_value) => {
             state.shared_state_mut().desired_steps_per_second = *new_value;
@@ -517,6 +581,11 @@ fn reduce(state: &mut AppState, action: &Action) {
                 common_action
             ),
         },
+        Action::Breakpoint(breakpoint_action) => match state {
+            AppState::Hardware(hardware_state) => reduce_breakpoint_hardware(hardware_state, breakpoint_action),
+            AppState::VM(vm_state) =>todo!(),
+            AppState::Start => todo!(),
+        }
         Action::Quit => todo!(),
     }
 }
@@ -625,7 +694,7 @@ fn steps_to_run(
     last_frame_time: f32,
     performance_data: &mut PerformanceData,
     state: &impl CommonState,
-    ctx: &egui::Context,
+    action: &Option<Action>,
 ) -> u64 {
     if !state.shared_state().run_started
         || performance_data.previous_desired_steps_per_second != desired_steps_per_second
@@ -637,7 +706,7 @@ fn steps_to_run(
     }
 
     if !state.shared_state().run_started {
-        return 0;
+        return (action == &Some(Action::Common(CommonAction::StepClicked))) as u64;
     }
 
     let run_start = performance_data.run_start.get_or_insert(Instant::now());
@@ -679,31 +748,38 @@ impl eframe::App for EmulatorApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let mut action = None;
         match &self.state {
-            AppState::Hardware(state) => draw_shared(ctx, state.shared_state(), &mut action),
-            AppState::VM(state) => draw_shared(ctx, state.shared_state(), &mut action),
+            AppState::Hardware(state) => draw_shared(
+                ctx,
+                state.shared_state(),
+                &self.performance_data,
+                &mut action,
+            ),
+            AppState::VM(state) => draw_shared(
+                ctx,
+                state.shared_state(),
+                &self.performance_data,
+                &mut action,
+            ),
             AppState::Start => {}
         };
 
-        let steps_to_run = if action == Some(Action::Common(CommonAction::StepClicked)) {
-            1
-        } else {
-            match &self.state {
-                AppState::Hardware(state) => steps_to_run(
-                    state.shared_state.desired_steps_per_second,
-                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
-                    &mut self.performance_data,
-                    state,
-                    ctx,
-                ),
-                AppState::VM(state) => steps_to_run(
-                    state.shared_state.desired_steps_per_second,
-                    frame.info().cpu_usage.unwrap_or(1.0 / 60.0),
-                    &mut self.performance_data,
-                    state,
-                    ctx,
-                ),
-                _ => 0,
-            }
+        let last_frame_time = frame.info().cpu_usage.unwrap_or(1.0 / 60.0);
+        let steps_to_run = match &self.state {
+            AppState::Hardware(state) => steps_to_run(
+                state.shared_state.desired_steps_per_second,
+                last_frame_time,
+                &mut self.performance_data,
+                state,
+                &action,
+            ),
+            AppState::VM(state) => steps_to_run(
+                state.shared_state.desired_steps_per_second,
+                last_frame_time,
+                &mut self.performance_data,
+                state,
+                &action,
+            ),
+            _ => 0,
         };
 
         let key_down = ctx.input().keys_down.iter().cloned().next();

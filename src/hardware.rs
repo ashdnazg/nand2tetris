@@ -223,6 +223,7 @@ pub struct Hardware {
     pub pc: i16,
     pub rom: [Instruction; 32 * 1024],
     pub ram: RAM,
+    pub breakpoints: Vec<Breakpoint>,
 }
 
 impl Default for Hardware {
@@ -235,6 +236,7 @@ impl Default for Hardware {
             ram: RAM {
                 contents: [0; 32 * 1024],
             },
+            breakpoints: vec![],
         }
     }
 }
@@ -311,7 +313,17 @@ impl Hardware {
         }
     }
 
-    pub fn step(&mut self) {
+    pub fn get_breakpoint_var(&self, breakpoint_var: &BreakpointVar) -> i16 {
+        match breakpoint_var {
+            BreakpointVar::A => self.a,
+            BreakpointVar::D => self.d,
+            BreakpointVar::M => self.ram[self.a],
+            BreakpointVar::PC => self.pc,
+            BreakpointVar::Mem(address) => self.ram[*address],
+        }
+    }
+
+    pub fn step(&mut self) -> bool {
         let instruction = *self.current_instruction();
         match instruction.instruction_type() {
             InstructionType::A => {
@@ -328,6 +340,14 @@ impl Hardware {
                 }
             }
         }
+
+        for breakpoint in &self.breakpoints {
+            if self.get_breakpoint_var(&breakpoint.var) == breakpoint.value {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn load_program<I: Iterator<Item = Instruction>>(&mut self, program: I) {
@@ -348,6 +368,33 @@ impl Hardware {
         new_instance.rom = self.rom;
         *self = new_instance;
     }
+
+    pub fn get_breakpoints(&self) -> &Vec<Breakpoint> {
+        &self.breakpoints
+    }
+
+    pub fn add_breakpoint(&mut self, breakpoint: &Breakpoint) {
+        self.breakpoints.push(breakpoint.clone())
+    }
+
+    pub fn remove_breakpoint(&mut self, index: usize) {
+        self.breakpoints.remove(index);
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum BreakpointVar {
+    A,
+    D,
+    M,
+    PC,
+    Mem(i16),
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct Breakpoint {
+    pub var: BreakpointVar,
+    pub value: i16,
 }
 
 #[cfg(test)]
