@@ -11,12 +11,12 @@ edition = "2021"
 
 [dependencies]
 sdl2 = { version = "0.35", optional = true }
-eframe = { version = "0.18.0", optional = true }
-egui_extras = { version = "0.18.0", optional = true }
+eframe = { version = "0.19.0", optional = true }
+egui_extras = { version = "0.19.0", optional = true }
 nom = "7.1.1"
 hashbrown = "0.12"
-egui_glow = "0.18"
-glow = "0.11"
+egui_glow = "0.19"
+glow = "0.11.2"
 
 [profile.release]
 debug = true

@@ -9,8 +9,8 @@ use eframe::egui::{self, Key, Slider};
 use eframe::emath::Rect;
 use eframe::epaint::Vec2;
 
-use egui_extras::TableBuilder;
 use egui_extras::{Size, StripBuilder};
+use egui_extras::{Table, TableBuilder};
 
 use nand2tetris::hardware::*;
 use nand2tetris::vm::*;
@@ -159,6 +159,8 @@ struct SharedState {
 
 struct HardwareState {
     shared_state: SharedState,
+    selected_breakpoint_var: BreakpointVar,
+    breakpoint_value: i16,
     hardware: Hardware,
 }
 
@@ -174,7 +176,7 @@ enum AppState {
 }
 
 trait CommonState {
-    fn step(&mut self);
+    fn step(&mut self) -> bool;
     fn shared_state(&self) -> &SharedState;
     fn shared_state_mut(&mut self) -> &mut SharedState;
     fn ram(&self) -> &RAM;
@@ -183,8 +185,8 @@ trait CommonState {
 }
 
 impl CommonState for HardwareState {
-    fn step(&mut self) {
-        self.hardware.step();
+    fn step(&mut self) -> bool {
+        self.hardware.step()
     }
 
     fn shared_state(&self) -> &SharedState {
@@ -209,8 +211,9 @@ impl CommonState for HardwareState {
 }
 
 impl CommonState for VMState {
-    fn step(&mut self) {
+    fn step(&mut self) -> bool {
         self.vm.step();
+        false
     }
 
     fn shared_state(&self) -> &SharedState {
@@ -251,6 +254,8 @@ impl Default for AppState {
 
         AppState::Hardware(HardwareState {
             shared_state,
+            selected_breakpoint_var: BreakpointVar::A,
+            breakpoint_value: 0,
             hardware,
         })
     }
@@ -259,6 +264,8 @@ impl Default for AppState {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum BreakpointAction {
     AddClicked,
+    VariableChanged(BreakpointVar),
+    ValueChanged(i16),
     RemoveClicked,
 }
 
@@ -304,7 +311,7 @@ impl EmulatorApp {
         Self {
             performance_data,
             state: Default::default(),
-            screen: Arc::new(Mutex::new(Screen::new(&cc.gl))),
+            screen: Arc::new(Mutex::new(Screen::new(&cc.gl.as_ref().unwrap()))),
         }
     }
 }
@@ -319,12 +326,12 @@ fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame:
 
     unsafe {
         use glow::HasContext as _;
-        frame.gl().active_texture(glow::TEXTURE0);
+        let context = frame.gl().unwrap();
+
+        context.active_texture(glow::TEXTURE0);
         let guard = screen.lock();
-        frame
-            .gl()
-            .bind_texture(glow::TEXTURE_2D, Some(guard.texture));
-        frame.gl().tex_image_2d(
+        context.bind_texture(glow::TEXTURE_2D, Some(guard.texture));
+        context.tex_image_2d(
             glow::TEXTURE_2D,
             0,
             glow::R8UI as i32,
@@ -335,18 +342,16 @@ fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Mutex<Screen>>, ram: &RAM, frame:
             glow::UNSIGNED_BYTE,
             Some(screen_buffer.align_to::<u8>().1),
         );
-        frame.gl().bind_texture(glow::TEXTURE_2D, None);
+        context.bind_texture(glow::TEXTURE_2D, None);
     }
+
+    let cb = egui_glow::CallbackFn::new(move |_info, painter| {
+        screen.lock().paint(painter.gl());
+    });
 
     let callback = egui::PaintCallback {
         rect,
-        callback: std::sync::Arc::new(move |_info, render_ctx| {
-            if let Some(painter) = render_ctx.downcast_ref::<egui_glow::Painter>() {
-                screen.lock().paint(painter.gl());
-            } else {
-                eprintln!("Can't do custom painting because we are not using a glow context");
-            }
-        }),
+        callback: Arc::new(cb),
     };
     ui.painter().add(callback);
 }
@@ -452,15 +457,91 @@ fn draw_hardware(
         .resizable(true)
         .default_width(1000.0)
         .show(ctx, |ui| {
-            if ui.button("Add").clicked() {
-                *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
-            }
-            ui.add_enabled_ui(state.hardware.get_breakpoints().len() > 0, |ui| {
+            let breakpoints = state.hardware.get_breakpoints();
+            ui.horizontal(|ui| {
+                if ui.button("Add").clicked() {
+                    *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
+                }
+                let mut new_selected_breakpoint_var = state.selected_breakpoint_var;
+                let selected_text = match state.selected_breakpoint_var {
+                    BreakpointVar::Mem(_) => "Mem[]".to_string(),
+                    _ => state.selected_breakpoint_var.to_string(),
+                };
+                egui::ComboBox::from_id_source("Variable")
+                    .selected_text(selected_text)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut new_selected_breakpoint_var,
+                            BreakpointVar::A,
+                            "A",
+                        );
+                        ui.selectable_value(
+                            &mut new_selected_breakpoint_var,
+                            BreakpointVar::D,
+                            "D",
+                        );
+                        ui.selectable_value(
+                            &mut new_selected_breakpoint_var,
+                            BreakpointVar::M,
+                            "M",
+                        );
+                        ui.selectable_value(
+                            &mut new_selected_breakpoint_var,
+                            BreakpointVar::PC,
+                            "PC",
+                        );
+                        ui.selectable_value(
+                            &mut new_selected_breakpoint_var,
+                            BreakpointVar::Mem(0),
+                            "Mem[]",
+                        );
+                    });
+                if new_selected_breakpoint_var != state.selected_breakpoint_var {
+                    *action = Some(Action::Breakpoint(BreakpointAction::VariableChanged(
+                        new_selected_breakpoint_var,
+                    )));
+                }
+                let mut new_text = state.breakpoint_value.to_string();
+                ui.text_edit_singleline(&mut new_text);
+                if let Ok(new_value) = new_text.parse::<i16>() {
+                    if new_value != state.breakpoint_value {
+                        *action = Some(Action::Breakpoint(BreakpointAction::ValueChanged(
+                            new_value,
+                        )));
+                    }
+                }
+            });
+            ui.add_enabled_ui(breakpoints.len() > 0, |ui| {
                 if ui.button("Remove").clicked() {
                     *action = Some(Action::Breakpoint(BreakpointAction::RemoveClicked));
                 }
             });
-            ui.label(state.hardware.get_breakpoints().len().to_string())
+            ui.label(state.hardware.get_breakpoints().len().to_string());
+            let header_height = ui.text_style_height(&egui::TextStyle::Body);
+            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
+            TableBuilder::new(ui)
+                .striped(true)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Size::exact(100.0))
+                .column(Size::exact(100.0))
+                .header(header_height, |mut header| {
+                    header.col(|ui| {
+                        ui.label("Variable");
+                    });
+                    header.col(|ui| {
+                        ui.label("Value");
+                    });
+                })
+                .body(|body| {
+                    body.rows(row_height, breakpoints.len(), |row_index, mut row| {
+                        row.col(|ui| {
+                            ui.monospace(breakpoints[row_index].var.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.monospace(breakpoints[row_index].value.to_string());
+                        });
+                    });
+                });
         });
 
     if state.shared_state.breakpoints_open != breakpoints_open {
@@ -538,11 +619,22 @@ fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
 fn reduce_breakpoint_hardware(hardware_state: &mut HardwareState, action: &BreakpointAction) {
     match action {
         BreakpointAction::AddClicked => {
-            hardware_state.hardware.add_breakpoint(&Breakpoint { var: BreakpointVar::PC, value: 10 })
-        },
+            hardware_state.hardware.add_breakpoint(&Breakpoint {
+                var: hardware_state.selected_breakpoint_var,
+                value: hardware_state.breakpoint_value,
+            });
+        }
         BreakpointAction::RemoveClicked => {
-            hardware_state.hardware.remove_breakpoint(hardware_state.hardware.get_breakpoints().len() - 1)
-        },
+            hardware_state
+                .hardware
+                .remove_breakpoint(hardware_state.hardware.get_breakpoints().len() - 1);
+        }
+        BreakpointAction::VariableChanged(new_var) => {
+            hardware_state.selected_breakpoint_var = *new_var;
+        }
+        BreakpointAction::ValueChanged(new_value) => {
+            hardware_state.breakpoint_value = *new_value;
+        }
     }
 }
 
@@ -582,10 +674,12 @@ fn reduce(state: &mut AppState, action: &Action) {
             ),
         },
         Action::Breakpoint(breakpoint_action) => match state {
-            AppState::Hardware(hardware_state) => reduce_breakpoint_hardware(hardware_state, breakpoint_action),
-            AppState::VM(vm_state) =>todo!(),
+            AppState::Hardware(hardware_state) => {
+                reduce_breakpoint_hardware(hardware_state, breakpoint_action)
+            }
+            AppState::VM(vm_state) => todo!(),
             AppState::Start => todo!(),
-        }
+        },
         Action::Quit => todo!(),
     }
 }
@@ -610,7 +704,7 @@ impl EmulatorWidgets for egui::Ui {
 
             TableBuilder::new(ui)
                 .striped(true)
-                .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Size::initial(45.0).at_least(45.0))
                 .column(Size::remainder().at_least(40.0))
                 .header(header_height, |mut header| {
@@ -648,7 +742,7 @@ impl EmulatorWidgets for egui::Ui {
 
             TableBuilder::new(ui)
                 .striped(true)
-                .cell_layout(egui::Layout::left_to_right().with_cross_align(egui::Align::Center))
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Size::initial(45.0).at_least(45.0))
                 .column(Size::remainder().at_least(70.0))
                 .header(header_height, |mut header| {
@@ -737,7 +831,10 @@ fn run_steps(state: &mut impl CommonState, steps_to_run: u64, key_down: Option<K
         }
 
         for _ in 0..steps_to_run {
-            state.step();
+            if state.step() {
+                state.shared_state_mut().run_started = false;
+                return;
+            }
         }
     }
 }
@@ -805,7 +902,7 @@ impl eframe::App for EmulatorApp {
         };
 
         if action == Some(Action::Quit) {
-            frame.quit();
+            frame.close();
             return;
         }
 
@@ -814,8 +911,10 @@ impl eframe::App for EmulatorApp {
         }
     }
 
-    fn on_exit(&mut self, gl: &glow::Context) {
-        self.screen.lock().destroy(gl);
+    fn on_exit(&mut self, gl: Option<&glow::Context>) {
+        if let Some(context) = gl {
+            self.screen.lock().destroy(context);
+        }
     }
 }
 

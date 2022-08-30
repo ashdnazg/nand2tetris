@@ -382,13 +382,25 @@ impl Hardware {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Copy, Debug)]
 pub enum BreakpointVar {
     A,
     D,
     M,
     PC,
     Mem(i16),
+}
+
+impl std::fmt::Display for BreakpointVar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BreakpointVar::A => write!(f, "{}", "A"),
+            BreakpointVar::D => write!(f, "{}", "D"),
+            BreakpointVar::M => write!(f, "{}", "M"),
+            BreakpointVar::PC => write!(f, "{}", "PC"),
+            BreakpointVar::Mem(address) => write!(f, "RAM[{}]", address),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
