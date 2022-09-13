@@ -92,10 +92,6 @@ impl HardwareState {
             .show(ctx, |ui| {
                 let breakpoints = self.hardware.get_breakpoints();
                 ui.horizontal(|ui| {
-                    if ui.button("Add").clicked() {
-                        *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
-                    }
-
                     let breakpoint_address =
                         if let BreakpointVar::Mem(address) = self.selected_breakpoint_var {
                             address
@@ -169,9 +165,15 @@ impl HardwareState {
                             )));
                         }
                     }
+
+                    if ui.button("Add").clicked() {
+                        *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
+                    }
                 });
+                ui.label("Breakpoints:");
                 let header_height = ui.text_style_height(&egui::TextStyle::Body);
-                let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
+                let row_height = ui.text_style_height(&egui::TextStyle::Monospace)
+                    + 2.0 * ui.spacing().button_padding.x;
                 TableBuilder::new(ui)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -188,21 +190,36 @@ impl HardwareState {
                         header.col(|_| {});
                     })
                     .body(|body| {
-                        body.rows(row_height, breakpoints.len(), |row_index, mut row| {
-                            row.col(|ui| {
-                                ui.monospace(breakpoints[row_index].var.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.monospace(breakpoints[row_index].value.to_string());
-                            });
-                            row.col(|ui| {
-                                if ui.button("Remove").clicked() {
-                                    *action = Some(Action::Breakpoint(
-                                        BreakpointAction::RemoveClicked(row_index),
-                                    ));
-                                }
-                            });
-                        });
+                        body.rows(
+                            row_height,
+                            usize::max(breakpoints.len(), 10),
+                            |row_index, mut row| {
+                                let breakpoint = breakpoints.get(row_index);
+                                row.col(|ui| {
+                                    ui.monospace(
+                                        breakpoint
+                                            .map(|b| b.var.to_string())
+                                            .unwrap_or("".to_string()),
+                                    );
+                                });
+                                row.col(|ui| {
+                                    ui.monospace(
+                                        breakpoint
+                                            .map(|b| b.value.to_string())
+                                            .unwrap_or("".to_string()),
+                                    );
+                                });
+                                row.col(|ui| {
+                                    if breakpoint.is_some() {
+                                        if ui.button("Remove").clicked() {
+                                            *action = Some(Action::Breakpoint(
+                                                BreakpointAction::RemoveClicked(row_index),
+                                            ));
+                                        }
+                                    }
+                                });
+                            },
+                        );
                     });
             });
 
