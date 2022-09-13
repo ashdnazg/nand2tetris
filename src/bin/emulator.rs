@@ -9,8 +9,8 @@ use eframe::egui::{self, Key, Slider};
 use eframe::emath::Rect;
 use eframe::epaint::Vec2;
 
+use egui_extras::TableBuilder;
 use egui_extras::{Size, StripBuilder};
-use egui_extras::{Table, TableBuilder};
 
 use nand2tetris::hardware::*;
 use nand2tetris::vm::*;
@@ -266,7 +266,7 @@ enum BreakpointAction {
     AddClicked,
     VariableChanged(BreakpointVar),
     ValueChanged(i16),
-    RemoveClicked,
+    RemoveClicked(usize),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -462,13 +462,22 @@ fn draw_hardware(
                 if ui.button("Add").clicked() {
                     *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
                 }
+
+                let breakpoint_address =
+                    if let BreakpointVar::Mem(address) = state.selected_breakpoint_var {
+                        address
+                    } else {
+                        0
+                    };
+
                 let mut new_selected_breakpoint_var = state.selected_breakpoint_var;
                 let selected_text = match state.selected_breakpoint_var {
-                    BreakpointVar::Mem(_) => "Mem[]".to_string(),
+                    BreakpointVar::Mem(_) => "Mem".to_string(),
                     _ => state.selected_breakpoint_var.to_string(),
                 };
                 egui::ComboBox::from_id_source("Variable")
                     .selected_text(selected_text)
+                    .width(50.0)
                     .show_ui(ui, |ui| {
                         ui.selectable_value(
                             &mut new_selected_breakpoint_var,
@@ -492,18 +501,33 @@ fn draw_hardware(
                         );
                         ui.selectable_value(
                             &mut new_selected_breakpoint_var,
-                            BreakpointVar::Mem(0),
-                            "Mem[]",
+                            BreakpointVar::Mem(breakpoint_address),
+                            "Mem",
                         );
                     });
+
+                if let BreakpointVar::Mem(address) = state.selected_breakpoint_var {
+                    ui.label("[");
+                    let mut new_address_text = address.to_string();
+                    ui.add(egui::TextEdit::singleline(&mut new_address_text).desired_width(50.0));
+                    if let Ok(new_address) = new_address_text.parse::<i16>() {
+                        if new_address != address {
+                            new_selected_breakpoint_var = BreakpointVar::Mem(new_address);
+                        }
+                    }
+                    ui.label("]");
+                }
+
                 if new_selected_breakpoint_var != state.selected_breakpoint_var {
                     *action = Some(Action::Breakpoint(BreakpointAction::VariableChanged(
                         new_selected_breakpoint_var,
                     )));
                 }
-                let mut new_text = state.breakpoint_value.to_string();
-                ui.text_edit_singleline(&mut new_text);
-                if let Ok(new_value) = new_text.parse::<i16>() {
+                ui.label("=");
+
+                let mut new_value_text = state.breakpoint_value.to_string();
+                ui.add(egui::TextEdit::singleline(&mut new_value_text).desired_width(50.0));
+                if let Ok(new_value) = new_value_text.parse::<i16>() {
                     if new_value != state.breakpoint_value {
                         *action = Some(Action::Breakpoint(BreakpointAction::ValueChanged(
                             new_value,
@@ -511,12 +535,6 @@ fn draw_hardware(
                     }
                 }
             });
-            ui.add_enabled_ui(breakpoints.len() > 0, |ui| {
-                if ui.button("Remove").clicked() {
-                    *action = Some(Action::Breakpoint(BreakpointAction::RemoveClicked));
-                }
-            });
-            ui.label(state.hardware.get_breakpoints().len().to_string());
             let header_height = ui.text_style_height(&egui::TextStyle::Body);
             let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
             TableBuilder::new(ui)
@@ -524,6 +542,7 @@ fn draw_hardware(
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                 .column(Size::exact(100.0))
                 .column(Size::exact(100.0))
+                .column(Size::exact(70.0))
                 .header(header_height, |mut header| {
                     header.col(|ui| {
                         ui.label("Variable");
@@ -531,6 +550,7 @@ fn draw_hardware(
                     header.col(|ui| {
                         ui.label("Value");
                     });
+                    header.col(|_| {});
                 })
                 .body(|body| {
                     body.rows(row_height, breakpoints.len(), |row_index, mut row| {
@@ -539,6 +559,13 @@ fn draw_hardware(
                         });
                         row.col(|ui| {
                             ui.monospace(breakpoints[row_index].value.to_string());
+                        });
+                        row.col(|ui| {
+                            if ui.button("Remove").clicked() {
+                                *action = Some(Action::Breakpoint(
+                                    BreakpointAction::RemoveClicked(row_index),
+                                ));
+                            }
                         });
                     });
                 });
@@ -561,7 +588,7 @@ fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
                         .size(Size::relative(0.5))
                         .size(Size::remainder())
                         .horizontal(|mut strip| {
-                            strip.cell(|ui| {});
+                            strip.cell(|_| {});
                             strip.strip(|builder| {
                                 builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
                                     |mut strip| {
@@ -594,7 +621,7 @@ fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
                         .size(Size::relative(0.5))
                         .size(Size::remainder())
                         .vertical(|mut strip| {
-                            strip.cell(|ui| {});
+                            strip.cell(|_| {});
                             strip.strip(|builder| {
                                 builder
                                     .size(Size::relative(0.5))
@@ -624,10 +651,8 @@ fn reduce_breakpoint_hardware(hardware_state: &mut HardwareState, action: &Break
                 value: hardware_state.breakpoint_value,
             });
         }
-        BreakpointAction::RemoveClicked => {
-            hardware_state
-                .hardware
-                .remove_breakpoint(hardware_state.hardware.get_breakpoints().len() - 1);
+        BreakpointAction::RemoveClicked(row_index) => {
+            hardware_state.hardware.remove_breakpoint(*row_index);
         }
         BreakpointAction::VariableChanged(new_var) => {
             hardware_state.selected_breakpoint_var = *new_var;

@@ -366,6 +366,7 @@ impl Hardware {
     pub fn reset(&mut self) {
         let mut new_instance = Hardware::default();
         new_instance.rom = self.rom;
+        new_instance.breakpoints = self.breakpoints.clone();
         *self = new_instance;
     }
 
