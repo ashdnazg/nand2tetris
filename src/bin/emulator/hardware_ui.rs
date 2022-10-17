@@ -7,9 +7,9 @@ use eframe::{
 use egui_extras::{Size, StripBuilder, TableBuilder};
 use nand2tetris::hardware::{BreakpointVar, RAM};
 
-use crate::shared_ui::*;
-use crate::hardware_state::{HardwareState, BreakpointAction};
 use crate::common_state::{Action, CommonAction, CommonState, SharedState};
+use crate::hardware_state::{BreakpointAction, HardwareState};
+use crate::shared_ui::*;
 
 impl CommonState for HardwareState {
     fn step(&mut self) -> bool {

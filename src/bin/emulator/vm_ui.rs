@@ -1,9 +1,9 @@
 use eframe::egui;
-use egui_extras::{StripBuilder, Size};
+use egui_extras::{Size, StripBuilder};
 
 use crate::shared_ui::EmulatorWidgets;
-use crate::Action;
 use crate::vm_state::VMState;
+use crate::Action;
 
 pub fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
     egui::CentralPanel::default().show(ctx, |ui| {

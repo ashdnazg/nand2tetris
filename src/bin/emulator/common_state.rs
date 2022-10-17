@@ -1,7 +1,7 @@
-use nand2tetris::hardware::RAM;
-use std::time::Instant;
 use crate::hardware_state::{BreakpointAction, HardwareState};
 use crate::vm_state::VMState;
+use nand2tetris::hardware::RAM;
+use std::time::Instant;
 
 pub enum AppState {
     Hardware(HardwareState),

@@ -3,12 +3,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Hide console window in release builds on Windows, this blocks stdout.
 
 mod common_reducer;
+mod common_state;
 mod hardware_reducer;
+mod hardware_state;
 mod hardware_ui;
 mod shared_ui;
-mod hardware_state;
 mod vm_state;
-mod common_state;
 mod vm_ui;
 
 use eframe::egui;
@@ -17,11 +17,11 @@ use eframe::epaint::Vec2;
 use egui::mutex::Mutex;
 use std::sync::Arc;
 
-use crate::common_state::{Action, AppState, CommonState, PerformanceData};
-use crate::common_reducer::steps_to_run;
-use crate::vm_ui::draw_vm;
-use crate::shared_ui::{Screen, StepRunnable, draw_shared, draw_start};
 use crate::common_reducer::reduce;
+use crate::common_reducer::steps_to_run;
+use crate::common_state::{Action, AppState, CommonState, PerformanceData};
+use crate::shared_ui::{draw_shared, draw_start, Screen, StepRunnable};
+use crate::vm_ui::draw_vm;
 
 pub struct EmulatorApp {
     performance_data: PerformanceData,
@@ -45,12 +45,18 @@ impl eframe::App for EmulatorApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let mut action = None;
         match &self.state {
-            AppState::Hardware(state) => {
-                draw_shared(&state.shared_state(), ctx, &self.performance_data, &mut action)
-            }
-            AppState::VM(state) => {
-                draw_shared(&state.shared_state(), ctx, &self.performance_data, &mut action)
-            }
+            AppState::Hardware(state) => draw_shared(
+                &state.shared_state(),
+                ctx,
+                &self.performance_data,
+                &mut action,
+            ),
+            AppState::VM(state) => draw_shared(
+                &state.shared_state(),
+                ctx,
+                &self.performance_data,
+                &mut action,
+            ),
             AppState::Start => {}
         };
 

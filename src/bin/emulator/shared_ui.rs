@@ -8,7 +8,7 @@ use eframe::{
 use egui_extras::{Size, TableBuilder};
 use nand2tetris::hardware::{Instruction, RAM};
 
-use crate::common_state::{CommonState, CommonAction, Action, PerformanceData, SharedState};
+use crate::common_state::{Action, CommonAction, CommonState, PerformanceData, SharedState};
 
 pub struct Screen {
     program: glow::Program,
@@ -225,9 +225,7 @@ pub fn draw_shared(
                 // let height = ui.text_style_height(&egui::TextStyle::Body);
                 let old_size = ui.spacing_mut().interact_size.x;
                 ui.spacing_mut().interact_size.x = 100.0;
-                ui.add(
-                    Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true),
-                );
+                ui.add(Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true));
                 ui.spacing_mut().interact_size.x = old_size;
             });
             if new_steps_per_second != state.desired_steps_per_second {

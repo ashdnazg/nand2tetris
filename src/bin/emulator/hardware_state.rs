@@ -1,4 +1,4 @@
-use nand2tetris::hardware::{BreakpointVar, Instruction, Hardware};
+use nand2tetris::hardware::{BreakpointVar, Hardware, Instruction};
 
 use crate::common_state::SharedState;
 
