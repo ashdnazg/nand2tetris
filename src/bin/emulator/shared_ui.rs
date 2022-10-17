@@ -6,66 +6,9 @@ use eframe::{
     epaint::Rect,
 };
 use egui_extras::{Size, TableBuilder};
-use nand2tetris::hardware::{BreakpointVar, Instruction, RAM};
+use nand2tetris::hardware::{Instruction, RAM};
 
-pub trait CommonState {
-    fn step(&mut self) -> bool;
-    fn shared_state(&self) -> &SharedState;
-    fn shared_state_mut(&mut self) -> &mut SharedState;
-    fn ram(&self) -> &RAM;
-    fn ram_mut(&mut self) -> &mut RAM;
-    fn reset(&mut self);
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BreakpointAction {
-    AddClicked,
-    VariableChanged(BreakpointVar),
-    ValueChanged(i16),
-    RemoveClicked(usize),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CommonAction {
-    StepClicked,
-    RunClicked,
-    PauseClicked,
-    ResetClicked,
-    BreakpointsClicked,
-    BreakpointsClosed,
-    SpeedSliderMoved(u64),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Action {
-    Breakpoint(BreakpointAction),
-    Common(CommonAction),
-    Quit,
-}
-
-pub struct PerformanceData {
-    steps_during_last_frame: u64,
-    total_steps: u64,
-    run_start: Option<Instant>,
-    previous_desired_steps_per_second: u64,
-}
-
-impl Default for PerformanceData {
-    fn default() -> Self {
-        PerformanceData {
-            steps_during_last_frame: 0,
-            total_steps: 0,
-            run_start: None,
-            previous_desired_steps_per_second: 0,
-        }
-    }
-}
-
-pub struct SharedState {
-    pub desired_steps_per_second: u64,
-    pub run_started: bool,
-    pub breakpoints_open: bool,
-}
+use crate::common_state::{CommonState, CommonAction, Action, PerformanceData, SharedState};
 
 pub struct Screen {
     program: glow::Program,
@@ -245,127 +188,60 @@ pub fn draw_screen(
     ui.painter().add(callback);
 }
 
-impl SharedState {
-    pub fn draw(
-        &self,
-        ctx: &egui::Context,
-        performance_data: &PerformanceData,
-        action: &mut Option<Action>,
-    ) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        *action = Some(Action::Quit);
-                    }
-                });
-            });
-            ui.separator();
-            ui.horizontal(|ui| {
-                if ui.button("Step").clicked() {
-                    *action = Some(Action::Common(CommonAction::StepClicked));
-                }
-                if ui.button("Run").clicked() {
-                    *action = Some(Action::Common(CommonAction::RunClicked));
-                }
-                if ui.button("Pause").clicked() {
-                    *action = Some(Action::Common(CommonAction::PauseClicked));
-                }
-                if ui.button("Reset").clicked() {
-                    *action = Some(Action::Common(CommonAction::ResetClicked));
-                }
-                if ui.button("Breakpoints").clicked() {
-                    *action = Some(Action::Common(CommonAction::BreakpointsClicked));
-                }
-                let mut new_steps_per_second = self.desired_steps_per_second;
-                ui.vertical(|ui| {
-                    // let height = ui.text_style_height(&egui::TextStyle::Body);
-                    let old_size = ui.spacing_mut().interact_size.x;
-                    ui.spacing_mut().interact_size.x = 100.0;
-                    ui.add(
-                        Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true),
-                    );
-                    ui.spacing_mut().interact_size.x = old_size;
-                });
-                if new_steps_per_second != self.desired_steps_per_second {
-                    *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
-                        new_steps_per_second,
-                    )))
-                }
-                if let Some(run_start) = performance_data.run_start {
-                    let run_time = (Instant::now() - run_start).as_secs_f64();
-                    let steps_per_second = performance_data.total_steps as f64 / run_time;
-                    ui.label((steps_per_second.round() as u64).to_string());
+pub fn draw_shared(
+    state: &SharedState,
+    ctx: &egui::Context,
+    performance_data: &PerformanceData,
+    action: &mut Option<Action>,
+) {
+    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        // The top panel is often a good place for a menu bar:
+        egui::menu::bar(ui, |ui| {
+            ui.menu_button("File", |ui| {
+                if ui.button("Quit").clicked() {
+                    *action = Some(Action::Quit);
                 }
             });
         });
-    }
-}
-
-pub fn steps_to_run(
-    desired_steps_per_second: u64,
-    last_frame_time: f32,
-    performance_data: &mut PerformanceData,
-    state: &impl CommonState,
-    action: &Option<Action>,
-) -> u64 {
-    if !state.shared_state().run_started
-        || performance_data.previous_desired_steps_per_second != desired_steps_per_second
-    {
-        performance_data.run_start = None;
-        performance_data.steps_during_last_frame = 0;
-        performance_data.total_steps = 0;
-        performance_data.previous_desired_steps_per_second = desired_steps_per_second;
-    }
-
-    if !state.shared_state().run_started {
-        return (action == &Some(Action::Common(CommonAction::StepClicked))) as u64;
-    }
-
-    let run_start = performance_data.run_start.get_or_insert(Instant::now());
-
-    let run_time = (Instant::now() - *run_start).as_secs_f64();
-    let wanted_steps = (desired_steps_per_second as f64 * run_time) as u64;
-    let mut steps_to_run = wanted_steps - performance_data.total_steps;
-
-    if performance_data.steps_during_last_frame > 0 {
-        steps_to_run = u64::min(
-            steps_to_run,
-            ((performance_data.steps_during_last_frame as f64) / (last_frame_time as f64 * 60.0))
-                as u64,
-        );
-    }
-
-    performance_data.steps_during_last_frame = steps_to_run;
-    performance_data.total_steps += steps_to_run;
-
-    return steps_to_run;
-}
-
-pub fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
-    match action {
-        CommonAction::StepClicked => {}
-        CommonAction::RunClicked => {
-            state.shared_state_mut().run_started = true;
-        }
-        CommonAction::PauseClicked => {
-            state.shared_state_mut().run_started = false;
-        }
-        CommonAction::ResetClicked => {
-            state.reset();
-            state.shared_state_mut().run_started = false;
-        }
-        CommonAction::BreakpointsClicked => {
-            state.shared_state_mut().breakpoints_open = !state.shared_state().breakpoints_open;
-        }
-        CommonAction::BreakpointsClosed => {
-            state.shared_state_mut().breakpoints_open = false;
-        }
-        CommonAction::SpeedSliderMoved(new_value) => {
-            state.shared_state_mut().desired_steps_per_second = *new_value;
-        }
-    }
+        ui.separator();
+        ui.horizontal(|ui| {
+            if ui.button("Step").clicked() {
+                *action = Some(Action::Common(CommonAction::StepClicked));
+            }
+            if ui.button("Run").clicked() {
+                *action = Some(Action::Common(CommonAction::RunClicked));
+            }
+            if ui.button("Pause").clicked() {
+                *action = Some(Action::Common(CommonAction::PauseClicked));
+            }
+            if ui.button("Reset").clicked() {
+                *action = Some(Action::Common(CommonAction::ResetClicked));
+            }
+            if ui.button("Breakpoints").clicked() {
+                *action = Some(Action::Common(CommonAction::BreakpointsClicked));
+            }
+            let mut new_steps_per_second = state.desired_steps_per_second;
+            ui.vertical(|ui| {
+                // let height = ui.text_style_height(&egui::TextStyle::Body);
+                let old_size = ui.spacing_mut().interact_size.x;
+                ui.spacing_mut().interact_size.x = 100.0;
+                ui.add(
+                    Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true),
+                );
+                ui.spacing_mut().interact_size.x = old_size;
+            });
+            if new_steps_per_second != state.desired_steps_per_second {
+                *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
+                    new_steps_per_second,
+                )))
+            }
+            if let Some(run_start) = performance_data.run_start {
+                let run_time = (Instant::now() - run_start).as_secs_f64();
+                let steps_per_second = performance_data.total_steps as f64 / run_time;
+                ui.label((steps_per_second.round() as u64).to_string());
+            }
+        });
+    });
 }
 
 pub trait EmulatorWidgets {

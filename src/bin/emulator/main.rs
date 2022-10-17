@@ -2,58 +2,33 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Hide console window in release builds on Windows, this blocks stdout.
 
+mod common_reducer;
+mod hardware_reducer;
 mod hardware_ui;
 mod shared_ui;
+mod hardware_state;
+mod vm_state;
+mod common_state;
+mod vm_ui;
 
 use eframe::egui;
 use eframe::epaint::Vec2;
 
-use egui_extras::{Size, StripBuilder};
-
-use nand2tetris::hardware::*;
-use nand2tetris::vm::*;
-
 use egui::mutex::Mutex;
-use hardware_ui::*;
-use shared_ui::*;
 use std::sync::Arc;
 
-struct VMState {
-    shared_state: SharedState,
-    vm: VM,
-}
+use crate::common_state::{Action, PerformanceData, CommonState};
+use crate::common_reducer::{reduce_common, steps_to_run};
+use crate::hardware_reducer::reduce_breakpoint_hardware;
+use crate::hardware_state::HardwareState;
+use crate::vm_state::VMState;
+use crate::vm_ui::draw_vm;
+use crate::shared_ui::{Screen, StepRunnable, draw_shared};
 
 enum AppState {
     Hardware(HardwareState),
     VM(VMState),
     Start,
-}
-
-impl CommonState for VMState {
-    fn step(&mut self) -> bool {
-        self.vm.step();
-        false
-    }
-
-    fn shared_state(&self) -> &SharedState {
-        &self.shared_state
-    }
-
-    fn shared_state_mut(&mut self) -> &mut SharedState {
-        &mut self.shared_state
-    }
-
-    fn ram(&self) -> &RAM {
-        &self.vm.ram
-    }
-
-    fn ram_mut(&mut self) -> &mut RAM {
-        &mut self.vm.ram
-    }
-
-    fn reset(&mut self) {
-        self.vm.reset();
-    }
 }
 
 impl Default for AppState {
@@ -76,70 +51,6 @@ impl EmulatorApp {
             screen: Arc::new(Mutex::new(Screen::new(&cc.gl.as_ref().unwrap()))),
         }
     }
-}
-
-fn draw_vm(state: &VMState, ctx: &egui::Context, action: &mut Option<Action>) {
-    egui::CentralPanel::default().show(ctx, |ui| {
-        StripBuilder::new(ui)
-            .size(Size::relative(0.5))
-            .size(Size::remainder())
-            .horizontal(|mut strip| {
-                strip.strip(|builder| {
-                    builder
-                        .size(Size::relative(0.5))
-                        .size(Size::remainder())
-                        .horizontal(|mut strip| {
-                            strip.cell(|_| {});
-                            strip.strip(|builder| {
-                                builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
-                                    |mut strip| {
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("Static", &state.vm.ram, 0..=5);
-                                        });
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("Local", &state.vm.ram, 0..=5);
-                                        });
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("Argument", &state.vm.ram, 0..=5);
-                                        });
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("This", &state.vm.ram, 0..=5);
-                                        });
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("That", &state.vm.ram, 0..=5);
-                                        });
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("Temp", &state.vm.ram, 0..=5);
-                                        });
-                                    },
-                                );
-                            });
-                        });
-                });
-
-                strip.strip(|builder| {
-                    builder
-                        .size(Size::relative(0.5))
-                        .size(Size::remainder())
-                        .vertical(|mut strip| {
-                            strip.cell(|_| {});
-                            strip.strip(|builder| {
-                                builder
-                                    .size(Size::relative(0.5))
-                                    .size(Size::remainder())
-                                    .horizontal(|mut strip| {
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("Global Stack", &state.vm.ram, 256..=1024);
-                                        });
-                                        strip.cell(|ui| {
-                                            ui.ram_grid("RAM", &state.vm.ram, 0..=i16::MAX);
-                                        });
-                                    });
-                            });
-                        });
-                });
-            });
-    });
 }
 
 fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
@@ -172,14 +83,10 @@ impl eframe::App for EmulatorApp {
         let mut action = None;
         match &self.state {
             AppState::Hardware(state) => {
-                state
-                    .shared_state()
-                    .draw(ctx, &self.performance_data, &mut action)
+                draw_shared(&state.shared_state(), ctx, &self.performance_data, &mut action)
             }
             AppState::VM(state) => {
-                state
-                    .shared_state()
-                    .draw(ctx, &self.performance_data, &mut action)
+                draw_shared(&state.shared_state(), ctx, &self.performance_data, &mut action)
             }
             AppState::Start => {}
         };

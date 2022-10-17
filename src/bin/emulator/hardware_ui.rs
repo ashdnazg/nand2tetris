@@ -5,16 +5,11 @@ use eframe::{
     epaint::{mutex::Mutex, Vec2},
 };
 use egui_extras::{Size, StripBuilder, TableBuilder};
-use nand2tetris::hardware::{Breakpoint, BreakpointVar, Hardware, Instruction, RAM};
+use nand2tetris::hardware::{BreakpointVar, RAM};
 
 use crate::shared_ui::*;
-
-pub struct HardwareState {
-    shared_state: SharedState,
-    selected_breakpoint_var: BreakpointVar,
-    breakpoint_value: i16,
-    hardware: Hardware,
-}
+use crate::hardware_state::{HardwareState, BreakpointAction};
+use crate::common_state::{Action, CommonAction, CommonState, SharedState};
 
 impl CommonState for HardwareState {
     fn step(&mut self) -> bool {
@@ -226,50 +221,6 @@ impl HardwareState {
         if self.shared_state.breakpoints_open != breakpoints_open {
             assert!(self.shared_state.breakpoints_open);
             *action = Some(Action::Common(CommonAction::BreakpointsClosed));
-        }
-    }
-}
-
-pub fn reduce_breakpoint_hardware(hardware_state: &mut HardwareState, action: &BreakpointAction) {
-    match action {
-        BreakpointAction::AddClicked => {
-            hardware_state.hardware.add_breakpoint(&Breakpoint {
-                var: hardware_state.selected_breakpoint_var,
-                value: hardware_state.breakpoint_value,
-            });
-        }
-        BreakpointAction::RemoveClicked(row_index) => {
-            hardware_state.hardware.remove_breakpoint(*row_index);
-        }
-        BreakpointAction::VariableChanged(new_var) => {
-            hardware_state.selected_breakpoint_var = *new_var;
-        }
-        BreakpointAction::ValueChanged(new_value) => {
-            hardware_state.breakpoint_value = *new_value;
-        }
-    }
-}
-
-impl Default for HardwareState {
-    fn default() -> Self {
-        let mut hardware = Hardware::default();
-        let program: [u16; 29] = [
-            16384, 60432, 16, 58248, 17, 60040, 24576, 64528, 12, 58114, 17, 61064, 17, 64528, 16,
-            65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
-        ];
-        hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
-
-        let shared_state = SharedState {
-            desired_steps_per_second: 10,
-            run_started: false,
-            breakpoints_open: false,
-        };
-
-        HardwareState {
-            shared_state,
-            selected_breakpoint_var: BreakpointVar::A,
-            breakpoint_value: 0,
-            hardware,
         }
     }
 }
