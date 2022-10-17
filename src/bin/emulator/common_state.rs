@@ -1,6 +1,19 @@
 use nand2tetris::hardware::RAM;
 use std::time::Instant;
-use crate::hardware_state::BreakpointAction;
+use crate::hardware_state::{BreakpointAction, HardwareState};
+use crate::vm_state::VMState;
+
+pub enum AppState {
+    Hardware(HardwareState),
+    VM(VMState),
+    Start,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        AppState::Hardware(Default::default())
+    }
+}
 
 pub trait CommonState {
     fn step(&mut self) -> bool;

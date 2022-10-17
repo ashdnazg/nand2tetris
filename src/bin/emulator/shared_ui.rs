@@ -364,3 +364,5 @@ impl<T: CommonState> StepRunnable for T {
         }
     }
 }
+
+pub fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}

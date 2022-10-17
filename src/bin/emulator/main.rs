@@ -17,25 +17,11 @@ use eframe::epaint::Vec2;
 use egui::mutex::Mutex;
 use std::sync::Arc;
 
-use crate::common_state::{Action, PerformanceData, CommonState};
-use crate::common_reducer::{reduce_common, steps_to_run};
-use crate::hardware_reducer::reduce_breakpoint_hardware;
-use crate::hardware_state::HardwareState;
-use crate::vm_state::VMState;
+use crate::common_state::{Action, AppState, CommonState, PerformanceData};
+use crate::common_reducer::steps_to_run;
 use crate::vm_ui::draw_vm;
-use crate::shared_ui::{Screen, StepRunnable, draw_shared};
-
-enum AppState {
-    Hardware(HardwareState),
-    VM(VMState),
-    Start,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        AppState::Hardware(Default::default())
-    }
-}
+use crate::shared_ui::{Screen, StepRunnable, draw_shared, draw_start};
+use crate::common_reducer::reduce;
 
 pub struct EmulatorApp {
     performance_data: PerformanceData,
@@ -50,29 +36,6 @@ impl EmulatorApp {
             state: Default::default(),
             screen: Arc::new(Mutex::new(Screen::new(&cc.gl.as_ref().unwrap()))),
         }
-    }
-}
-
-fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
-
-fn reduce(state: &mut AppState, action: &Action) {
-    match action {
-        Action::Common(common_action) => match state {
-            AppState::Hardware(hardware_state) => reduce_common(hardware_state, common_action),
-            AppState::VM(vm_state) => reduce_common(vm_state, common_action),
-            AppState::Start => panic!(
-                "Received common action {:?} when in state AppState::Start",
-                common_action
-            ),
-        },
-        Action::Breakpoint(breakpoint_action) => match state {
-            AppState::Hardware(hardware_state) => {
-                reduce_breakpoint_hardware(hardware_state, breakpoint_action)
-            }
-            AppState::VM(vm_state) => todo!(),
-            AppState::Start => todo!(),
-        },
-        Action::Quit => todo!(),
     }
 }
 

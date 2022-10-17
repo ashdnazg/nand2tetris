@@ -1,6 +1,28 @@
 use std::time::Instant;
 
-use crate::common_state::{Action, CommonAction, CommonState, PerformanceData};
+use crate::common_state::{Action, AppState, CommonAction, CommonState, PerformanceData};
+use crate::hardware_reducer::reduce_breakpoint_hardware;
+
+pub fn reduce(state: &mut AppState, action: &Action) {
+    match action {
+        Action::Common(common_action) => match state {
+            AppState::Hardware(hardware_state) => reduce_common(hardware_state, common_action),
+            AppState::VM(vm_state) => reduce_common(vm_state, common_action),
+            AppState::Start => panic!(
+                "Received common action {:?} when in state AppState::Start",
+                common_action
+            ),
+        },
+        Action::Breakpoint(breakpoint_action) => match state {
+            AppState::Hardware(hardware_state) => {
+                reduce_breakpoint_hardware(hardware_state, breakpoint_action)
+            }
+            AppState::VM(vm_state) => todo!(),
+            AppState::Start => todo!(),
+        },
+        Action::Quit => todo!(),
+    }
+}
 
 pub fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
     match action {
