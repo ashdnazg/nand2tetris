@@ -79,7 +79,11 @@ impl eframe::App for EmulatorApp {
             _ => 0,
         };
 
-        let key_down = ctx.input().keys_down.iter().cloned().next();
+        let key_down = if ctx.memory().focus().is_none() {
+            ctx.input().keys_down.iter().cloned().next()
+        } else {
+            None
+        };
 
         match &mut self.state {
             AppState::Hardware(state) => {
