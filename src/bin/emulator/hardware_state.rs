@@ -26,14 +26,8 @@ impl Default for HardwareState {
         ];
         hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
-        let shared_state = SharedState {
-            desired_steps_per_second: 10,
-            run_started: false,
-            breakpoints_open: false,
-        };
-
         HardwareState {
-            shared_state,
+            shared_state: SharedState::default(),
             selected_breakpoint_var: BreakpointVar::A,
             breakpoint_value: 0,
             hardware,

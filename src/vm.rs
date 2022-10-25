@@ -1,7 +1,11 @@
 use hashbrown::{HashMap, HashSet};
-use std::ops::{Index, IndexMut};
+use std::{
+    fs,
+    ops::{Index, IndexMut},
+    path::Path,
+};
 
-use crate::hardware::RAM;
+use crate::{hardware::RAM, vm_parse::commands};
 
 impl Index<Register> for RAM {
     type Output = i16;
@@ -110,6 +114,32 @@ pub struct VM {
 }
 
 impl VM {
+    pub fn from_dir<P: AsRef<Path>>(path: P) -> Self {
+        let paths = fs::read_dir(path).unwrap();
+        let files = paths
+            .map(|path| path.unwrap())
+            .filter(|path| path.file_name().to_str().unwrap().ends_with(".vm"))
+            .map(|path| {
+                (
+                    path.file_name()
+                        .to_str()
+                        .unwrap()
+                        .rsplit_once('.')
+                        .unwrap()
+                        .0
+                        .to_owned(),
+                    File::new(
+                        commands(fs::read_to_string(path.path()).unwrap().as_str())
+                            .unwrap()
+                            .1,
+                    ),
+                )
+            })
+            .collect();
+
+        Self::new(files)
+    }
+
     pub fn new(files: Vec<(String, File)>) -> Self {
         let file_name_to_static_segment = Self::create_file_name_to_static_segment(&files);
 
@@ -417,7 +447,7 @@ pub enum VMCommand {
 }
 
 #[allow(clippy::upper_case_acronyms)]
-enum Register {
+pub enum Register {
     SP,
     LCL,
     ARG,

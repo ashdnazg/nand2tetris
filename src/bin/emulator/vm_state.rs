@@ -8,6 +8,15 @@ pub struct VMState {
     pub vm: VM,
 }
 
+impl Default for VMState {
+    fn default() -> Self {
+        Self {
+            shared_state: Default::default(),
+            vm: VM::from_dir("../hackenstein3DVM"),
+        }
+    }
+}
+
 impl CommonState for VMState {
     fn step(&mut self) -> bool {
         self.vm.step();

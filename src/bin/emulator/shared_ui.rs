@@ -8,7 +8,9 @@ use eframe::{
 use egui_extras::{Size, TableBuilder};
 use nand2tetris::hardware::{Instruction, RAM};
 
-use crate::common_state::{Action, CommonAction, CommonState, PerformanceData, SharedState};
+use crate::common_state::{
+    Action, CommonAction, CommonState, PerformanceData, SharedState, UIStyle,
+};
 
 pub struct Screen {
     program: glow::Program,
@@ -243,7 +245,7 @@ pub fn draw_shared(
 }
 
 pub trait EmulatorWidgets {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>);
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>, style: UIStyle);
     fn rom_grid(
         &mut self,
         caption: &str,
@@ -254,7 +256,7 @@ pub trait EmulatorWidgets {
 }
 
 impl EmulatorWidgets for egui::Ui {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>) {
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>, style: UIStyle) {
         self.push_id(caption, |ui| {
             ui.label(caption);
             let header_height = ui.text_style_height(&egui::TextStyle::Body);
@@ -266,12 +268,14 @@ impl EmulatorWidgets for egui::Ui {
                 .column(Size::initial(45.0).at_least(45.0))
                 .column(Size::remainder().at_least(40.0))
                 .header(header_height, |mut header| {
-                    header.col(|ui| {
-                        ui.label("Address");
-                    });
-                    header.col(|ui| {
-                        ui.label("Value");
-                    });
+                    if style == UIStyle::Hardware {
+                        header.col(|ui| {
+                            ui.label("Address");
+                        });
+                        header.col(|ui| {
+                            ui.label("Value");
+                        });
+                    }
                 })
                 .body(|body| {
                     body.rows(row_height, range.len(), |row_index, mut row| {
@@ -279,7 +283,7 @@ impl EmulatorWidgets for egui::Ui {
                             ui.monospace(row_index.to_string());
                         });
                         row.col(|ui| {
-                            ui.monospace(ram[row_index as i16].to_string());
+                            ui.monospace(ram[row_index as i16 + range.start()].to_string());
                         });
                     });
                 });

@@ -101,7 +101,7 @@ impl eframe::App for EmulatorApp {
             AppState::Hardware(state) => {
                 state.draw(ctx, &mut action, &self.screen, &frame);
             }
-            AppState::VM(state) => draw_vm(state, ctx, &mut action),
+            AppState::VM(state) => draw_vm(state, ctx, &mut action, &self.screen, &frame),
             AppState::Start => draw_start(ctx, &mut action),
         };
 

@@ -9,9 +9,15 @@ pub enum AppState {
     Start,
 }
 
+#[derive(PartialEq)]
+pub enum UIStyle {
+    Hardware,
+    VM,
+}
+
 impl Default for AppState {
     fn default() -> Self {
-        AppState::Hardware(Default::default())
+        AppState::VM(VMState::default())
     }
 }
 
@@ -64,4 +70,14 @@ pub struct SharedState {
     pub desired_steps_per_second: u64,
     pub run_started: bool,
     pub breakpoints_open: bool,
+}
+
+impl Default for SharedState {
+    fn default() -> Self {
+        Self {
+            desired_steps_per_second: 10,
+            run_started: false,
+            breakpoints_open: false,
+        }
+    }
 }

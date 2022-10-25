@@ -7,7 +7,7 @@ use eframe::{
 use egui_extras::{Size, StripBuilder, TableBuilder};
 use nand2tetris::hardware::{BreakpointVar, RAM};
 
-use crate::common_state::{Action, CommonAction, CommonState, SharedState};
+use crate::common_state::{Action, CommonAction, CommonState, SharedState, UIStyle};
 use crate::hardware_state::{BreakpointAction, HardwareState};
 use crate::shared_ui::*;
 
@@ -64,7 +64,12 @@ impl HardwareState {
                                     );
                                 });
                                 strip.cell(|ui| {
-                                    ui.ram_grid("RAM", &self.hardware.ram, 0..=i16::MAX);
+                                    ui.ram_grid(
+                                        "RAM",
+                                        &self.hardware.ram,
+                                        0..=i16::MAX,
+                                        UIStyle::Hardware,
+                                    );
                                 });
                             });
                     });
