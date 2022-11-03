@@ -2,14 +2,14 @@ use egui::mutex::Mutex;
 use std::{ops::RangeInclusive, sync::Arc, time::Instant};
 
 use eframe::{
-    egui::{self, Key, Slider},
+    egui::{self, Slider},
     epaint::Rect,
 };
 use egui_extras::{Size, TableBuilder};
 use nand2tetris::hardware::{Instruction, RAM};
 
 use crate::common_state::{
-    Action, CommonAction, CommonState, PerformanceData, SharedState, UIStyle,
+    Action, CommonAction, PerformanceData, SharedState, UIStyle,
 };
 
 pub struct Screen {

@@ -191,18 +191,18 @@ impl VM {
     }
 
     pub fn step(&mut self) {
-        self.step2(1)
+        self.run(1)
     }
 
-    pub fn step2(&mut self, num_steps: u64) {
+    pub fn run(&mut self, num_steps: u64) {
         let mut steps_remaining = num_steps;
         while steps_remaining > 0 {
             let reference = &self.files[&self.current_file_name].commands as *const Vec<VMCommand>;
-            steps_remaining -= self.step3(unsafe { &*reference }, steps_remaining);
+            steps_remaining -= self.run_commands(unsafe { &*reference }, steps_remaining);
         }
     }
 
-    pub fn step3(&mut self, commands: &[VMCommand], num_steps: u64) -> u64 {
+    pub fn run_commands(&mut self, commands: &[VMCommand], num_steps: u64) -> u64 {
         // if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
         //     println!(
         //         "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",

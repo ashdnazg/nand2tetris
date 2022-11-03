@@ -323,6 +323,16 @@ impl Hardware {
         }
     }
 
+    pub fn run(&mut self, step_count: u64) -> bool {
+        for _ in 0..step_count {
+            if self.step() {
+                return true;
+            }
+        }
+
+        false
+    }
+
     pub fn step(&mut self) -> bool {
         let instruction = *self.current_instruction();
         match instruction.instruction_type() {

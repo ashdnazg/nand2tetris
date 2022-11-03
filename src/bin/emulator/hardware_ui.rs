@@ -5,37 +5,11 @@ use eframe::{
     epaint::{mutex::Mutex, Vec2},
 };
 use egui_extras::{Size, StripBuilder, TableBuilder};
-use nand2tetris::hardware::{BreakpointVar, RAM};
+use nand2tetris::hardware::BreakpointVar;
 
-use crate::common_state::{Action, CommonAction, CommonState, SharedState, UIStyle};
+use crate::common_state::{Action, CommonAction, UIStyle};
 use crate::hardware_state::{BreakpointAction, HardwareState};
 use crate::shared_ui::*;
-
-impl CommonState for HardwareState {
-    fn step(&mut self, steps_to_run: u64) -> bool {
-        self.hardware.step()
-    }
-
-    fn shared_state(&self) -> &SharedState {
-        &self.shared_state
-    }
-
-    fn shared_state_mut(&mut self) -> &mut SharedState {
-        &mut self.shared_state
-    }
-
-    fn ram(&self) -> &RAM {
-        &self.hardware.ram
-    }
-
-    fn ram_mut(&mut self) -> &mut RAM {
-        &mut self.hardware.ram
-    }
-
-    fn reset(&mut self) {
-        self.hardware.reset();
-    }
-}
 
 impl HardwareState {
     pub fn draw(
