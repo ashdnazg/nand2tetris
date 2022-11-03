@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use crate::common_reducer::reduce;
 use crate::common_reducer::steps_to_run;
-use crate::common_state::{Action, AppState, CommonState, PerformanceData};
-use crate::shared_ui::{draw_shared, draw_start, Screen, StepRunnable};
+use crate::common_state::{Action, AppState, CommonState, PerformanceData, StepRunnable};
+use crate::shared_ui::{draw_shared, draw_start, Screen};
 use crate::vm_ui::draw_vm;
 
 pub struct EmulatorApp {
@@ -87,10 +87,10 @@ impl eframe::App for EmulatorApp {
 
         match &mut self.state {
             AppState::Hardware(state) => {
-                state.run_steps(steps_to_run, key_down);
+                state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
             }
             AppState::VM(state) => {
-                state.run_steps(steps_to_run, key_down);
+                state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
             }
             _ => {}
         }

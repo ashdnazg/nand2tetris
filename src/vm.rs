@@ -191,6 +191,18 @@ impl VM {
     }
 
     pub fn step(&mut self) {
+        self.step2(1)
+    }
+
+    pub fn step2(&mut self, num_steps: u64) {
+        let mut steps_remaining = num_steps;
+        while steps_remaining > 0 {
+            let reference = &self.files[&self.current_file_name].commands as *const Vec<VMCommand>;
+            steps_remaining -= self.step3(unsafe { &*reference }, steps_remaining);
+        }
+    }
+
+    pub fn step3(&mut self, commands: &[VMCommand], num_steps: u64) -> u64 {
         // if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
         //     println!(
         //         "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",
@@ -198,92 +210,82 @@ impl VM {
         //         self.ram[self.ram[Register::LCL] + 1], self.ram[self.ram[Register::SP] -1], self.ram[self.ram[Register::SP] - 2], self.ram[Register::SP], self.ram[Register::LCL], self.ram[Register::ARG], self.ram[Register::THIS], self.ram[Register::THAT]
         //     );
         // }
-        match &self.files[&self.current_file_name].commands[self.current_command_index] {
-            VMCommand::Add => {
-                let y = self.ram.pop();
-                *self.ram.stack_top() = self.ram.stack_top().wrapping_add(y);
-                self.current_command_index += 1;
-            }
-            VMCommand::Push { segment, offset } => {
-                let value = self.ram.get(
-                    &self.file_name_to_static_segment,
-                    &self.current_file_name,
-                    *segment,
-                    *offset,
-                );
-                self.ram.push(value);
-                self.current_command_index += 1;
-            }
-            VMCommand::Pop { segment, offset } => {
-                let value = self.ram.pop();
-                self.ram.set(
-                    &self.file_name_to_static_segment,
-                    &self.current_file_name,
-                    *segment,
-                    *offset,
-                    value,
-                );
-                self.current_command_index += 1;
-            }
-            VMCommand::Sub => {
-                let y = self.ram.pop();
-                *self.ram.stack_top() = self.ram.stack_top().wrapping_sub(y);
-                self.current_command_index += 1;
-            }
-            VMCommand::Neg => {
-                let y = self.ram.stack_top();
-                *y = -*y;
-                self.current_command_index += 1;
-            }
-            VMCommand::Eq => {
-                let y = self.ram.pop();
-                let x = self.ram.stack_top();
-                *x = -((*x == y) as i16);
-                self.current_command_index += 1;
-            }
-            VMCommand::Gt => {
-                let y = self.ram.pop();
-                let x = self.ram.stack_top();
-                *x = -((*x > y) as i16);
-                self.current_command_index += 1;
-            }
-            VMCommand::Lt => {
-                let y = self.ram.pop();
-                // let (this, that, wat) = (self.ram[Register::THIS], self.ram[Register::THAT], self.ram[self.ram[Register::THAT]]);
-                let x = self.ram.stack_top();
-                // println!("x:{:?} y: {:?} this: {:?} that: {:?}, ram[THAT]: {:?} ", x, y, this, that, wat);
-                *x = -((*x < y) as i16);
-                self.current_command_index += 1;
-            }
-            VMCommand::And => {
-                let y = self.ram.pop();
-                *self.ram.stack_top() &= y;
-                self.current_command_index += 1;
-            }
-            VMCommand::Or => {
-                let y = self.ram.pop();
-                *self.ram.stack_top() |= y;
-                self.current_command_index += 1;
-            }
-            VMCommand::Not => {
-                *self.ram.stack_top() ^= -1;
-                self.current_command_index += 1;
-            }
-            VMCommand::Label { name: _ } => {
-                self.current_command_index += 1;
-            }
-            VMCommand::Goto { label_name } => {
-                Self::goto(
-                    &mut self.current_command_index,
-                    &self.current_file_name,
-                    &self.files,
-                    &self.call_stack,
-                    label_name,
-                );
-            }
-            VMCommand::IfGoto { label_name } => {
-                let value = self.ram.pop();
-                if value != 0 {
+        for i in 0..num_steps {
+            match &commands[self.current_command_index] {
+                VMCommand::Add => {
+                    let y = self.ram.pop();
+                    *self.ram.stack_top() = self.ram.stack_top().wrapping_add(y);
+                    self.current_command_index += 1;
+                }
+                VMCommand::Push { segment, offset } => {
+                    let value = self.ram.get(
+                        &self.file_name_to_static_segment,
+                        &self.current_file_name,
+                        *segment,
+                        *offset,
+                    );
+                    self.ram.push(value);
+                    self.current_command_index += 1;
+                }
+                VMCommand::Pop { segment, offset } => {
+                    let value = self.ram.pop();
+                    self.ram.set(
+                        &self.file_name_to_static_segment,
+                        &self.current_file_name,
+                        *segment,
+                        *offset,
+                        value,
+                    );
+                    self.current_command_index += 1;
+                }
+                VMCommand::Sub => {
+                    let y = self.ram.pop();
+                    *self.ram.stack_top() = self.ram.stack_top().wrapping_sub(y);
+                    self.current_command_index += 1;
+                }
+                VMCommand::Neg => {
+                    let y = self.ram.stack_top();
+                    *y = -*y;
+                    self.current_command_index += 1;
+                }
+                VMCommand::Eq => {
+                    let y = self.ram.pop();
+                    let x = self.ram.stack_top();
+                    *x = -((*x == y) as i16);
+                    self.current_command_index += 1;
+                }
+                VMCommand::Gt => {
+                    let y = self.ram.pop();
+                    let x = self.ram.stack_top();
+                    *x = -((*x > y) as i16);
+                    self.current_command_index += 1;
+                }
+                VMCommand::Lt => {
+                    let y = self.ram.pop();
+                    // let (this, that, wat) = (self.ram[Register::THIS], self.ram[Register::THAT], self.ram[self.ram[Register::THAT]]);
+                    let x = self.ram.stack_top();
+                    // println!("x:{:?} y: {:?} this: {:?} that: {:?}, ram[THAT]: {:?} ", x, y, this, that, wat);
+                    *x = -((*x < y) as i16);
+                    self.current_command_index += 1;
+                }
+                VMCommand::And => {
+                    let y = self.ram.pop();
+                    *self.ram.stack_top() &= y;
+                    self.current_command_index += 1;
+                }
+                VMCommand::Or => {
+                    let y = self.ram.pop();
+                    *self.ram.stack_top() |= y;
+                    self.current_command_index += 1;
+                }
+                VMCommand::Not => {
+                    *self.ram.stack_top() ^= -1;
+                    self.current_command_index += 1;
+                }
+                VMCommand::Label { name: _ } => {
+                    self.current_command_index += 1;
+                }
+                VMCommand::Goto { label_name } => {
                     Self::goto(
                         &mut self.current_command_index,
                         &self.current_file_name,
@@ -291,64 +293,82 @@ impl VM {
                         &self.call_stack,
                         label_name,
                     );
-                } else {
+                }
+                VMCommand::IfGoto { label_name } => {
+                    let value = self.ram.pop();
+                    if value != 0 {
+                        Self::goto(
+                            &mut self.current_command_index,
+                            &self.current_file_name,
+                            &self.files,
+                            &self.call_stack,
+                            label_name,
+                        );
+                    } else {
+                        self.current_command_index += 1;
+                    }
+                }
+                VMCommand::Function {
+                    name: _,
+                    local_var_count,
+                } => {
+                    for _ in 0..*local_var_count {
+                        self.ram.push(0);
+                    }
                     self.current_command_index += 1;
                 }
-            }
-            VMCommand::Function {
-                name: _,
-                local_var_count,
-            } => {
-                for _ in 0..*local_var_count {
-                    self.ram.push(0);
-                }
-                self.current_command_index += 1;
-            }
-            VMCommand::Call {
-                function_name,
-                argument_count,
-            } => {
-                let argument_segment = self.ram[Register::SP] - argument_count;
-                self.ram.push((self.current_command_index + 1) as i16);
-                for i in 1..=4 {
-                    let value = self.ram[i];
-                    self.ram.push(value);
-                }
+                VMCommand::Call {
+                    function_name,
+                    argument_count,
+                } => {
+                    let argument_segment = self.ram[Register::SP] - argument_count;
+                    self.ram.push((self.current_command_index + 1) as i16);
+                    for i in 1..=4 {
+                        let value = self.ram[i];
+                        self.ram.push(value);
+                    }
 
-                let (file_name, _) = function_name.split_once('.').unwrap();
-                self.call_stack.push(Frame {
-                    file_name: file_name.to_owned(),
-                    function_name: function_name.to_owned(),
-                });
-                // println!("{function_name}");
+                    let (file_name, _) = function_name.split_once('.').unwrap();
+                    self.call_stack.push(Frame {
+                        file_name: file_name.to_owned(),
+                        function_name: function_name.to_owned(),
+                    });
+                    // println!("{function_name}");
 
-                let local_segment = self.ram[Register::SP];
-                self.ram[Register::LCL] = local_segment;
-                self.ram[Register::ARG] = argument_segment;
-                self.current_file_name = file_name.to_owned();
-                self.current_command_index =
-                    self.files[file_name].function_name_to_command_index[function_name];
-            }
-            VMCommand::Return => {
-                // println!("return");
-                let frame = self.ram[Register::LCL];
-                self.current_command_index = self.ram[frame - 5] as usize;
-                let return_value = self.ram.pop();
-                self.ram.set(
-                    &self.file_name_to_static_segment,
-                    &self.current_file_name,
-                    PopSegment::Argument,
-                    0,
-                    return_value,
-                );
-                self.ram[Register::SP] = self.ram[Register::ARG] + 1;
-                for i in 1..=4 {
-                    self.ram[i] = self.ram[frame - 5 + i];
+                    let local_segment = self.ram[Register::SP];
+                    self.ram[Register::LCL] = local_segment;
+                    self.ram[Register::ARG] = argument_segment;
+                    self.current_file_name = file_name.to_owned();
+                    self.current_command_index =
+                        self.files[file_name].function_name_to_command_index[function_name];
+
+                    return i
                 }
-                self.call_stack.pop();
-                self.current_file_name = self.call_stack.last().unwrap().file_name.clone();
+                VMCommand::Return => {
+                    // println!("return");
+                    let frame = self.ram[Register::LCL];
+                    self.current_command_index = self.ram[frame - 5] as usize;
+                    let return_value = self.ram.pop();
+                    self.ram.set(
+                        &self.file_name_to_static_segment,
+                        &self.current_file_name,
+                        PopSegment::Argument,
+                        0,
+                        return_value,
+                    );
+                    self.ram[Register::SP] = self.ram[Register::ARG] + 1;
+                    for i in 1..=4 {
+                        self.ram[i] = self.ram[frame - 5 + i];
+                    }
+                    self.call_stack.pop();
+                    self.current_file_name = self.call_stack.last().unwrap().file_name.clone();
+
+                    return i
+                }
             }
         }
+
+        num_steps
     }
 
     fn goto(

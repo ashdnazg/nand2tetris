@@ -12,7 +12,7 @@ use crate::hardware_state::{BreakpointAction, HardwareState};
 use crate::shared_ui::*;
 
 impl CommonState for HardwareState {
-    fn step(&mut self) -> bool {
+    fn step(&mut self, steps_to_run: u64) -> bool {
         self.hardware.step()
     }
 

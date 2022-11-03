@@ -1,5 +1,6 @@
 use crate::hardware_state::{BreakpointAction, HardwareState};
 use crate::vm_state::VMState;
+use eframe::egui::{Key, Modifiers};
 use nand2tetris::hardware::RAM;
 use std::time::Instant;
 
@@ -22,7 +23,7 @@ impl Default for AppState {
 }
 
 pub trait CommonState {
-    fn step(&mut self) -> bool;
+    fn step(&mut self, steps_to_run: u64) -> bool;
     fn shared_state(&self) -> &SharedState;
     fn shared_state_mut(&mut self) -> &mut SharedState;
     fn ram(&self) -> &RAM;
@@ -81,3 +82,139 @@ impl Default for SharedState {
         }
     }
 }
+
+pub trait StepRunnable {
+    fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>, modifiers: Modifiers);
+}
+
+impl<T: CommonState> StepRunnable for T {
+    fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>, modifiers: Modifiers) {
+        if steps_to_run > 0 {
+            let keyboard_value = keyboard_value_from_key(key_down, modifiers);
+            self.ram_mut().set_keyboard(keyboard_value);
+
+            // for _ in 0..steps_to_run {
+            if self.step(steps_to_run) {
+                self.shared_state_mut().run_started = false;
+                return;
+            }
+            // }
+        }
+    }
+}
+
+fn keyboard_value_from_key(key: Option<Key>, modifiers: Modifiers) -> i16 {
+    let mut value = match key {
+        Some(Key::ArrowDown) => 133,
+        Some(Key::ArrowLeft) => 130,
+        Some(Key::ArrowRight) => 132,
+        Some(Key::ArrowUp) => 131,
+        Some(Key::Escape) => 140,
+        Some(Key::Tab) => todo!(),
+        Some(Key::Backspace) => 129,
+        Some(Key::Enter) => 128,
+        Some(Key::Space) => 32,
+        Some(Key::Insert) => 138,
+        Some(Key::Delete) => 139,
+        Some(Key::Home) => 134,
+        Some(Key::End) => 135,
+        Some(Key::PageUp) => 136,
+        Some(Key::PageDown) => 137,
+        Some(Key::F1) => 141,
+        Some(Key::F2) => 142,
+        Some(Key::F3) => 143,
+        Some(Key::F4) => 144,
+        Some(Key::F5) => 145,
+        Some(Key::F6) => 146,
+        Some(Key::F7) => 147,
+        Some(Key::F8) => 148,
+        Some(Key::F9) => 149,
+        Some(Key::F10) => 150,
+        Some(Key::Num0) => 48,
+        Some(Key::Num1) => 49,
+        Some(Key::Num2) => 50,
+        Some(Key::Num3) => 51,
+        Some(Key::Num4) => 52,
+        Some(Key::Num5) => 53,
+        Some(Key::Num6) => 54,
+        Some(Key::Num7) => 55,
+        Some(Key::Num8) => 56,
+        Some(Key::Num9) => 57,
+        Some(Key::A) => 65,
+        Some(Key::B) => 66,
+        Some(Key::C) => 67,
+        Some(Key::D) => 68,
+        Some(Key::E) => 69,
+        Some(Key::F) => 70,
+        Some(Key::G) => 71,
+        Some(Key::H) => 72,
+        Some(Key::I) => 73,
+        Some(Key::J) => 74,
+        Some(Key::K) => 75,
+        Some(Key::L) => 76,
+        Some(Key::M) => 77,
+        Some(Key::N) => 78,
+        Some(Key::O) => 79,
+        Some(Key::P) => 80,
+        Some(Key::Q) => 81,
+        Some(Key::R) => 82,
+        Some(Key::S) => 83,
+        Some(Key::T) => 84,
+        Some(Key::U) => 85,
+        Some(Key::V) => 86,
+        Some(Key::W) => 87,
+        Some(Key::X) => 88,
+        Some(Key::Y) => 89,
+        Some(Key::Z) => 90,
+        _ => 0
+    };
+    if value >= 65 && value <= 90 && !modifiers.shift {
+        value += 32;
+    }
+
+    value
+}
+
+
+// fn keyboard_value_from_scancode(scancode: Scancode, keymod: Mod) -> i16 {
+//     match scancode {
+//         Scancode::Space => 32,
+//         Scancode::Return => 128,
+//         Scancode::Backspace => 129,
+//         Scancode::Left => 130,
+//         Scancode::Up => 131,
+//         Scancode::Right => 132,
+//         Scancode::Down => 133,
+//         Scancode::Home => 134,
+//         Scancode::End => 135,
+//         Scancode::PageUp => 136,
+//         Scancode::PageDown => 137,
+//         Scancode::Insert => 138,
+//         Scancode::Delete => 139,
+//         Scancode::Escape => 140,
+//         Scancode::F1 => 141,
+//         Scancode::F2 => 142,
+//         Scancode::F3 => 143,
+//         Scancode::F4 => 144,
+//         Scancode::F5 => 145,
+//         Scancode::F6 => 146,
+//         Scancode::F7 => 147,
+//         Scancode::F8 => 148,
+//         Scancode::F9 => 149,
+//         Scancode::F10 => 150,
+//         Scancode::F11 => 151,
+//         Scancode::F12 => 152,
+//         _ => {
+//             let name = scancode.name();
+//             if name.len() == 1 && name.is_ascii() {
+//                 let mut value = name.as_bytes()[0];
+//                 if !keymod.contains(Mod::LSHIFTMOD) && !keymod.contains(Mod::RSHIFTMOD) {
+//                     value.make_ascii_lowercase();
+//                 }
+//                 value as i16
+//             } else {
+//                 0
+//             }
+//         }
+//     }
+// }

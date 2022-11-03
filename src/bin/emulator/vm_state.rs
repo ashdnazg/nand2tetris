@@ -18,8 +18,8 @@ impl Default for VMState {
 }
 
 impl CommonState for VMState {
-    fn step(&mut self) -> bool {
-        self.vm.step();
+    fn step(&mut self, steps_to_run: u64) -> bool {
+        self.vm.step2(steps_to_run);
         false
     }
 

@@ -345,26 +345,4 @@ impl EmulatorWidgets for egui::Ui {
     }
 }
 
-pub trait StepRunnable {
-    fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>);
-}
-
-impl<T: CommonState> StepRunnable for T {
-    fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>) {
-        if steps_to_run > 0 {
-            self.ram_mut().set_keyboard(0);
-            if let Some(_) = key_down {
-                self.ram_mut().set_keyboard(32);
-            }
-
-            for _ in 0..steps_to_run {
-                if self.step() {
-                    self.shared_state_mut().run_started = false;
-                    return;
-                }
-            }
-        }
-    }
-}
-
 pub fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}
