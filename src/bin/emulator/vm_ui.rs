@@ -35,49 +35,49 @@ pub fn draw_vm(
                                         strip.cell(|ui| {
                                             ui.ram_grid(
                                                 "Static",
-                                                &state.vm.ram,
+                                                &state.vm.run_state.ram,
                                                 0..=5,
                                                 UIStyle::VM,
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.ram[Register::LCL];
+                                            let this_address = &state.vm.run_state.ram[Register::LCL];
                                             ui.ram_grid(
                                                 "Local",
-                                                &state.vm.ram,
+                                                &state.vm.run_state.ram,
                                                 *this_address..=*this_address + 4,
                                                 UIStyle::VM,
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.ram[Register::ARG];
+                                            let this_address = &state.vm.run_state.ram[Register::ARG];
                                             ui.ram_grid(
                                                 "Argument",
-                                                &state.vm.ram,
+                                                &state.vm.run_state.ram,
                                                 *this_address..=*this_address + 4,
                                                 UIStyle::VM,
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.ram[Register::THIS];
+                                            let this_address = &state.vm.run_state.ram[Register::THIS];
                                             ui.ram_grid(
                                                 "This",
-                                                &state.vm.ram,
+                                                &state.vm.run_state.ram,
                                                 *this_address..=*this_address + 4,
                                                 UIStyle::VM,
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.ram[Register::THAT];
+                                            let this_address = &state.vm.run_state.ram[Register::THAT];
                                             ui.ram_grid(
                                                 "That",
-                                                &state.vm.ram,
+                                                &state.vm.run_state.ram,
                                                 *this_address..=*this_address + 4,
                                                 UIStyle::VM,
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("Temp", &state.vm.ram, 5..=10, UIStyle::VM);
+                                            ui.ram_grid("Temp", &state.vm.run_state.ram, 5..=10, UIStyle::VM);
                                         });
                                     },
                                 );
@@ -93,7 +93,7 @@ pub fn draw_vm(
                             strip.cell(|ui| {
                                 ui.allocate_ui(Vec2::new(512.0, 256.0), |ui| {
                                     egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                                        draw_screen(ui, screen, &state.vm.ram, frame);
+                                        draw_screen(ui, screen, &state.vm.run_state.ram, frame);
                                     });
                                 });
                             });
@@ -105,7 +105,7 @@ pub fn draw_vm(
                                         strip.cell(|ui| {
                                             ui.ram_grid(
                                                 "Global Stack",
-                                                &state.vm.ram,
+                                                &state.vm.run_state.ram,
                                                 256..=1024,
                                                 UIStyle::VM,
                                             );
@@ -113,7 +113,7 @@ pub fn draw_vm(
                                         strip.cell(|ui| {
                                             ui.ram_grid(
                                                 "RAM",
-                                                &state.vm.ram,
+                                                &state.vm.run_state.ram,
                                                 0..=i16::MAX,
                                                 UIStyle::VM,
                                             );

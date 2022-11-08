@@ -37,11 +37,11 @@ impl CommonState for VMState {
     }
 
     fn ram(&self) -> &RAM {
-        &self.vm.ram
+        &self.vm.run_state.ram
     }
 
     fn ram_mut(&mut self) -> &mut RAM {
-        &mut self.vm.ram
+        &mut self.vm.run_state.ram
     }
 
     fn reset(&mut self) {

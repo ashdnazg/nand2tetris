@@ -111,7 +111,7 @@ fn run_vm() -> Result<(), String> {
             points.clear();
             for x in 0..512 {
                 for y in 0..256 {
-                    if vm.ram.get_pixel(x, y) {
+                    if vm.run_state.ram.get_pixel(x, y) {
                         points.push(Point::new(x as i32, y as i32))
                     }
                 }
@@ -135,10 +135,10 @@ fn run_vm() -> Result<(), String> {
                         ..
                     } => {
                         let keyboard_value = keyboard_value_from_scancode(scancode, keymod);
-                        vm.ram.set_keyboard(keyboard_value);
+                        vm.run_state.ram.set_keyboard(keyboard_value);
                     }
                     Event::KeyUp { .. } => {
-                        vm.ram.set_keyboard(0);
+                        vm.run_state.ram.set_keyboard(0);
                     }
                     _ => {}
                 }
