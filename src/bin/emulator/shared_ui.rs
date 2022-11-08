@@ -8,9 +8,7 @@ use eframe::{
 use egui_extras::{Size, TableBuilder};
 use nand2tetris::hardware::{Instruction, RAM};
 
-use crate::common_state::{
-    Action, CommonAction, PerformanceData, SharedState, UIStyle,
-};
+use crate::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
 
 pub struct Screen {
     program: glow::Program,

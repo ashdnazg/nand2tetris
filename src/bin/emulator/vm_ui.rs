@@ -41,7 +41,8 @@ pub fn draw_vm(
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.run_state.ram[Register::LCL];
+                                            let this_address =
+                                                &state.vm.run_state.ram[Register::LCL];
                                             ui.ram_grid(
                                                 "Local",
                                                 &state.vm.run_state.ram,
@@ -50,7 +51,8 @@ pub fn draw_vm(
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.run_state.ram[Register::ARG];
+                                            let this_address =
+                                                &state.vm.run_state.ram[Register::ARG];
                                             ui.ram_grid(
                                                 "Argument",
                                                 &state.vm.run_state.ram,
@@ -59,7 +61,8 @@ pub fn draw_vm(
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.run_state.ram[Register::THIS];
+                                            let this_address =
+                                                &state.vm.run_state.ram[Register::THIS];
                                             ui.ram_grid(
                                                 "This",
                                                 &state.vm.run_state.ram,
@@ -68,7 +71,8 @@ pub fn draw_vm(
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address = &state.vm.run_state.ram[Register::THAT];
+                                            let this_address =
+                                                &state.vm.run_state.ram[Register::THAT];
                                             ui.ram_grid(
                                                 "That",
                                                 &state.vm.run_state.ram,
@@ -77,7 +81,12 @@ pub fn draw_vm(
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            ui.ram_grid("Temp", &state.vm.run_state.ram, 5..=10, UIStyle::VM);
+                                            ui.ram_grid(
+                                                "Temp",
+                                                &state.vm.run_state.ram,
+                                                5..=10,
+                                                UIStyle::VM,
+                                            );
                                         });
                                     },
                                 );

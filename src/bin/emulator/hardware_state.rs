@@ -1,6 +1,6 @@
 use nand2tetris::hardware::{BreakpointVar, Hardware, Instruction, RAM};
 
-use crate::common_state::{SharedState, CommonState};
+use crate::common_state::{CommonState, SharedState};
 
 pub struct HardwareState {
     pub shared_state: SharedState,

@@ -47,13 +47,7 @@ impl RAM {
         &mut self[sp - 1]
     }
 
-    fn set(
-        &mut self,
-        static_segment: i16,
-        segment: PopSegment,
-        offset: i16,
-        value: i16,
-    ) {
+    fn set(&mut self, static_segment: i16, segment: PopSegment, offset: i16, value: i16) {
         match segment {
             PopSegment::Static => {
                 self[static_segment + offset] = value;
@@ -83,12 +77,7 @@ impl RAM {
         }
     }
 
-    fn get(
-        &self,
-        static_segment: i16,
-        segment: PushSegment,
-        offset: i16,
-    ) -> i16 {
+    fn get(&self, static_segment: i16, segment: PushSegment, offset: i16) -> i16 {
         match segment {
             PushSegment::Constant => offset,
             PushSegment::Static => self[static_segment + offset],
@@ -116,7 +105,7 @@ pub struct RunState {
 
 pub struct VM {
     pub run_state: RunState,
-    pub program: Program
+    pub program: Program,
 }
 
 impl VM {
@@ -148,7 +137,10 @@ impl VM {
 
     pub fn new(files: Vec<(String, File)>) -> Self {
         let file_name_to_static_segment = Self::create_file_name_to_static_segment(&files);
-        let program = Program { files: files.into_iter().collect(), file_name_to_static_segment };
+        let program = Program {
+            files: files.into_iter().collect(),
+            file_name_to_static_segment,
+        };
 
         Self {
             program,
@@ -159,18 +151,13 @@ impl VM {
                 call_stack: vec![Frame {
                     file_name: "Sys".to_owned(),
                     function_name: "Sys.init".to_owned(),
-                }]
-            }
+                }],
+            },
         }
     }
 
     pub fn reset(&mut self) {
-        *self = VM::new(
-            self.program.files
-                .clone()
-                .into_iter()
-                .collect(),
-        );
+        *self = VM::new(self.program.files.clone().into_iter().collect());
     }
 
     fn create_file_name_to_static_segment(files: &Vec<(String, File)>) -> HashMap<String, i16> {
@@ -206,12 +193,25 @@ impl VM {
         let mut steps_remaining = num_steps;
         while steps_remaining > 0 {
             let commands = &self.program.files[&self.run_state.current_file_name].commands;
-            let static_segment = self.program.file_name_to_static_segment[&self.run_state.current_file_name];
-            steps_remaining -= Self::run_commands(&mut self.run_state, commands, static_segment, &self.program.files, steps_remaining);
+            let static_segment =
+                self.program.file_name_to_static_segment[&self.run_state.current_file_name];
+            steps_remaining -= Self::run_commands(
+                &mut self.run_state,
+                commands,
+                static_segment,
+                &self.program.files,
+                steps_remaining,
+            );
         }
     }
 
-    pub fn run_commands(run_state: &mut RunState, commands: &[VMCommand], static_segment: i16, files: &HashMap<String, File>, num_steps: u64) -> u64 {
+    pub fn run_commands(
+        run_state: &mut RunState,
+        commands: &[VMCommand],
+        static_segment: i16,
+        files: &HashMap<String, File>,
+        num_steps: u64,
+    ) -> u64 {
         // if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
         //     println!(
         //         "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",
@@ -227,22 +227,13 @@ impl VM {
                     run_state.current_command_index += 1;
                 }
                 VMCommand::Push { segment, offset } => {
-                    let value = run_state.ram.get(
-                        static_segment,
-                        *segment,
-                        *offset,
-                    );
+                    let value = run_state.ram.get(static_segment, *segment, *offset);
                     run_state.ram.push(value);
                     run_state.current_command_index += 1;
                 }
                 VMCommand::Pop { segment, offset } => {
                     let value = run_state.ram.pop();
-                    run_state.ram.set(
-                        static_segment,
-                        *segment,
-                        *offset,
-                        value,
-                    );
+                    run_state.ram.set(static_segment, *segment, *offset, value);
                     run_state.current_command_index += 1;
                 }
                 VMCommand::Sub => {
@@ -329,7 +320,9 @@ impl VM {
                     argument_count,
                 } => {
                     let argument_segment = run_state.ram[Register::SP] - argument_count;
-                    run_state.ram.push((run_state.current_command_index + 1) as i16);
+                    run_state
+                        .ram
+                        .push((run_state.current_command_index + 1) as i16);
                     for i in 1..=4 {
                         let value = run_state.ram[i];
                         run_state.ram.push(value);
@@ -349,27 +342,25 @@ impl VM {
                     run_state.current_command_index =
                         files[file_name].function_name_to_command_index[function_name];
 
-                    return steps_done
+                    return steps_done;
                 }
                 VMCommand::Return => {
                     // println!("return");
                     let frame = run_state.ram[Register::LCL];
                     run_state.current_command_index = run_state.ram[frame - 5] as usize;
                     let return_value = run_state.ram.pop();
-                    run_state.ram.set(
-                        static_segment,
-                        PopSegment::Argument,
-                        0,
-                        return_value,
-                    );
+                    run_state
+                        .ram
+                        .set(static_segment, PopSegment::Argument, 0, return_value);
                     run_state.ram[Register::SP] = run_state.ram[Register::ARG] + 1;
                     for i in 1..=4 {
                         run_state.ram[i] = run_state.ram[frame - 5 + i];
                     }
                     run_state.call_stack.pop();
-                    run_state.current_file_name = run_state.call_stack.last().unwrap().file_name.clone();
+                    run_state.current_file_name =
+                        run_state.call_stack.last().unwrap().file_name.clone();
 
-                    return steps_done
+                    return steps_done;
                 }
             }
         }
@@ -541,17 +532,13 @@ mod tests {
         }
 
         fn test_instance() -> VM {
-            let mut vm = VM::new(vec![
-                (
-                    "foo".to_owned(),
-                    File::new(vec![
-                        VMCommand::Push {
-                            segment: PushSegment::Constant,
-                            offset: 666,
-                        },
-                    ]),
-                ),
-            ]);
+            let mut vm = VM::new(vec![(
+                "foo".to_owned(),
+                File::new(vec![VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 666,
+                }]),
+            )]);
             vm.run_state.current_file_name = "foo".to_owned();
 
             vm

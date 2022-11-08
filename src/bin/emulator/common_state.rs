@@ -165,7 +165,7 @@ fn keyboard_value_from_key(key: Option<Key>, modifiers: Modifiers) -> i16 {
         Some(Key::X) => 88,
         Some(Key::Y) => 89,
         Some(Key::Z) => 90,
-        _ => 0
+        _ => 0,
     };
     if value >= 65 && value <= 90 && !modifiers.shift {
         value += 32;
