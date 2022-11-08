@@ -12,7 +12,7 @@ impl Default for VMState {
     fn default() -> Self {
         Self {
             shared_state: Default::default(),
-            vm: VM::from_dir("../hackenstein3DVM"),
+            vm: VM::from_dir("hackenstein3DVM"),
         }
     }
 }
