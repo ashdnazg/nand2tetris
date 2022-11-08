@@ -243,18 +243,18 @@ pub fn draw_shared(
 }
 
 pub trait EmulatorWidgets {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>, style: UIStyle);
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle);
     fn rom_grid(
         &mut self,
         caption: &str,
         rom: &[Instruction; 32 * 1024],
-        range: RangeInclusive<i16>,
+        range: &RangeInclusive<i16>,
         highlight_address: i16,
     );
 }
 
 impl EmulatorWidgets for egui::Ui {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: RangeInclusive<i16>, style: UIStyle) {
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle) {
         self.push_id(caption, |ui| {
             ui.label(caption);
             let header_height = ui.text_style_height(&egui::TextStyle::Body);
@@ -292,7 +292,7 @@ impl EmulatorWidgets for egui::Ui {
         &mut self,
         caption: &str,
         rom: &[Instruction; 32 * 1024],
-        range: RangeInclusive<i16>,
+        range: &RangeInclusive<i16>,
         highlight_address: i16,
     ) {
         self.push_id(caption, |ui| {

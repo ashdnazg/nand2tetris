@@ -32,31 +32,50 @@ pub fn draw_vm(
                             strip.strip(|builder| {
                                 builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
                                     |mut strip| {
+                                        let function_name = &state
+                                            .vm
+                                            .run_state
+                                            .call_stack
+                                            .last()
+                                            .unwrap()
+                                            .function_name;
+                                        let function_metadata = &state.vm.program.files
+                                            [&state.vm.run_state.current_file_name]
+                                            .function_metadata[function_name];
                                         strip.cell(|ui| {
+                                            let static_segment =
+                                                &state.vm.program.file_name_to_static_segment
+                                                    [&state.vm.run_state.current_file_name];
                                             ui.ram_grid(
                                                 "Static",
                                                 &state.vm.run_state.ram,
-                                                0..=5,
+                                                static_segment,
                                                 UIStyle::VM,
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address =
+                                            let local_address =
                                                 &state.vm.run_state.ram[Register::LCL];
                                             ui.ram_grid(
                                                 "Local",
                                                 &state.vm.run_state.ram,
-                                                *this_address..=*this_address + 4,
+                                                &(*local_address
+                                                    ..=*local_address
+                                                        + function_metadata.local_var_count
+                                                        - 1),
                                                 UIStyle::VM,
                                             );
                                         });
                                         strip.cell(|ui| {
-                                            let this_address =
+                                            let argument_address =
                                                 &state.vm.run_state.ram[Register::ARG];
                                             ui.ram_grid(
                                                 "Argument",
                                                 &state.vm.run_state.ram,
-                                                *this_address..=*this_address + 4,
+                                                &(*argument_address
+                                                    ..=*argument_address
+                                                        + function_metadata.argument_count
+                                                        - 1),
                                                 UIStyle::VM,
                                             );
                                         });
@@ -66,7 +85,7 @@ pub fn draw_vm(
                                             ui.ram_grid(
                                                 "This",
                                                 &state.vm.run_state.ram,
-                                                *this_address..=*this_address + 4,
+                                                &(*this_address..=*this_address + 4),
                                                 UIStyle::VM,
                                             );
                                         });
@@ -76,7 +95,7 @@ pub fn draw_vm(
                                             ui.ram_grid(
                                                 "That",
                                                 &state.vm.run_state.ram,
-                                                *this_address..=*this_address + 4,
+                                                &(*this_address..=*this_address + 4),
                                                 UIStyle::VM,
                                             );
                                         });
@@ -84,7 +103,7 @@ pub fn draw_vm(
                                             ui.ram_grid(
                                                 "Temp",
                                                 &state.vm.run_state.ram,
-                                                5..=10,
+                                                &(5..=12),
                                                 UIStyle::VM,
                                             );
                                         });
@@ -115,7 +134,7 @@ pub fn draw_vm(
                                             ui.ram_grid(
                                                 "Global Stack",
                                                 &state.vm.run_state.ram,
-                                                256..=1024,
+                                                &(256..=1024),
                                                 UIStyle::VM,
                                             );
                                         });
@@ -123,7 +142,7 @@ pub fn draw_vm(
                                             ui.ram_grid(
                                                 "RAM",
                                                 &state.vm.run_state.ram,
-                                                0..=i16::MAX,
+                                                &(0..=i16::MAX),
                                                 UIStyle::VM,
                                             );
                                         });

@@ -33,7 +33,7 @@ impl HardwareState {
                                     ui.rom_grid(
                                         "ROM",
                                         &self.hardware.rom,
-                                        0..=i16::MAX,
+                                        &(0..=i16::MAX),
                                         self.hardware.pc,
                                     );
                                 });
@@ -41,7 +41,7 @@ impl HardwareState {
                                     ui.ram_grid(
                                         "RAM",
                                         &self.hardware.ram,
-                                        0..=i16::MAX,
+                                        &(0..=i16::MAX),
                                         UIStyle::Hardware,
                                     );
                                 });

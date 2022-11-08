@@ -1,7 +1,7 @@
 use hashbrown::{HashMap, HashSet};
 use std::{
     fs,
-    ops::{Index, IndexMut},
+    ops::{Index, IndexMut, RangeInclusive},
     path::Path,
 };
 
@@ -93,7 +93,7 @@ impl RAM {
 
 pub struct Program {
     pub files: HashMap<String, File>,
-    pub file_name_to_static_segment: HashMap<String, i16>,
+    pub file_name_to_static_segment: HashMap<String, RangeInclusive<i16>>,
 }
 
 pub struct RunState {
@@ -160,11 +160,12 @@ impl VM {
         *self = VM::new(self.program.files.clone().into_iter().collect());
     }
 
-    fn create_file_name_to_static_segment(files: &Vec<(String, File)>) -> HashMap<String, i16> {
-        let mut map: HashMap<String, i16> = HashMap::new();
+    fn create_file_name_to_static_segment(
+        files: &Vec<(String, File)>,
+    ) -> HashMap<String, RangeInclusive<i16>> {
+        let mut map: HashMap<String, RangeInclusive<i16>> = HashMap::new();
         let mut index = 16i16;
         for (file_name, file) in files {
-            map.insert(file_name.clone(), index);
             let static_vars: HashSet<i16> = file
                 .commands
                 .iter()
@@ -180,7 +181,9 @@ impl VM {
                     _ => None,
                 })
                 .collect();
-            index += *static_vars.iter().max().unwrap_or(&0);
+            let num_vars = *static_vars.iter().max().unwrap_or(&0);
+            map.insert(file_name.clone(), index..=(index + num_vars - 1));
+            index += num_vars;
         }
         map
     }
@@ -194,11 +197,11 @@ impl VM {
         while steps_remaining > 0 {
             let commands = &self.program.files[&self.run_state.current_file_name].commands;
             let static_segment =
-                self.program.file_name_to_static_segment[&self.run_state.current_file_name];
+                &self.program.file_name_to_static_segment[&self.run_state.current_file_name];
             steps_remaining -= Self::run_commands(
                 &mut self.run_state,
                 commands,
-                static_segment,
+                *static_segment.start(),
                 &self.program.files,
                 steps_remaining,
             );
@@ -384,7 +387,13 @@ impl VM {
 
 pub struct Frame {
     file_name: String,
-    function_name: String,
+    pub function_name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FunctionMetadata {
+    pub argument_count: i16,
+    pub local_var_count: i16,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -392,13 +401,17 @@ pub struct File {
     commands: Vec<VMCommand>,
     label_name_to_command_index: HashMap<(String, String), usize>,
     function_name_to_command_index: HashMap<String, usize>,
+    pub function_metadata: HashMap<String, FunctionMetadata>,
 }
 
 impl File {
     pub fn new(commands: Vec<VMCommand>) -> Self {
         let mut current_function: Option<String> = None;
+        let mut current_local_var_count: i16 = 0;
+        let mut max_argument_encountered: i16 = 0;
         let mut label_name_to_command_index: HashMap<(String, String), usize> = HashMap::new();
         let mut function_name_to_command_index: HashMap<String, usize> = HashMap::new();
+        let mut function_metadata: HashMap<String, FunctionMetadata> = HashMap::new();
         for (i, command) in commands.iter().enumerate() {
             match command {
                 VMCommand::Label { name } => {
@@ -407,19 +420,49 @@ impl File {
                 }
                 VMCommand::Function {
                     name,
-                    local_var_count: _,
+                    local_var_count,
                 } => {
+                    if let Some(previous_function) = current_function {
+                        function_metadata.insert(
+                            previous_function,
+                            FunctionMetadata {
+                                argument_count: max_argument_encountered,
+                                local_var_count: current_local_var_count,
+                            },
+                        );
+                    }
                     current_function = Some(name.clone());
+                    current_local_var_count = *local_var_count;
                     function_name_to_command_index.insert(name.clone(), i);
+                }
+                VMCommand::Pop {
+                    segment: PopSegment::Argument,
+                    offset,
+                }
+                | VMCommand::Push {
+                    segment: PushSegment::Argument,
+                    offset,
+                } => {
+                    max_argument_encountered = i16::max(max_argument_encountered, *offset);
                 }
                 _ => {}
             }
+        }
+        if let Some(previous_function) = current_function {
+            function_metadata.insert(
+                previous_function,
+                FunctionMetadata {
+                    argument_count: max_argument_encountered,
+                    local_var_count: current_local_var_count,
+                },
+            );
         }
 
         File {
             commands,
             label_name_to_command_index,
             function_name_to_command_index,
+            function_metadata,
         }
     }
 }
@@ -516,7 +559,8 @@ mod tests {
     impl VM {
         fn test_get(&self, segment: PushSegment, offset: i16) -> i16 {
             self.run_state.ram.get(
-                self.program.file_name_to_static_segment[&self.run_state.current_file_name],
+                *self.program.file_name_to_static_segment[&self.run_state.current_file_name]
+                    .start(),
                 segment,
                 offset,
             )
@@ -524,7 +568,8 @@ mod tests {
 
         fn test_set(&mut self, segment: PopSegment, offset: i16, value: i16) {
             self.run_state.ram.set(
-                self.program.file_name_to_static_segment[&self.run_state.current_file_name],
+                *self.program.file_name_to_static_segment[&self.run_state.current_file_name]
+                    .start(),
                 segment,
                 offset,
                 value,
