@@ -81,7 +81,7 @@ label IF_FALSE1
 push local 3
 push local 0
 call String.appendChar 2
-pop temp 0
+pop local 3
 label IF_END1
 label IF_FALSE0
 goto WHILE_EXP0
