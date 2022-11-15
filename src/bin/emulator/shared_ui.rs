@@ -192,52 +192,64 @@ pub fn draw_shared(
     state: &SharedState,
     ctx: &egui::Context,
     performance_data: &PerformanceData,
+    is_top_bar_enabled: bool,
     action: &mut Option<Action>,
 ) {
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
+                if ui.button("Load").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                        *action = Some(Action::FolderPicked(path));
+                        ui.close_menu();
+                    }
+                }
                 if ui.button("Quit").clicked() {
                     *action = Some(Action::Quit);
                 }
             });
         });
         ui.separator();
-        ui.horizontal(|ui| {
-            if ui.button("Step").clicked() {
-                *action = Some(Action::Common(CommonAction::StepClicked));
-            }
-            if ui.button("Run").clicked() {
-                *action = Some(Action::Common(CommonAction::RunClicked));
-            }
-            if ui.button("Pause").clicked() {
-                *action = Some(Action::Common(CommonAction::PauseClicked));
-            }
-            if ui.button("Reset").clicked() {
-                *action = Some(Action::Common(CommonAction::ResetClicked));
-            }
-            if ui.button("Breakpoints").clicked() {
-                *action = Some(Action::Common(CommonAction::BreakpointsClicked));
-            }
-            let mut new_steps_per_second = state.desired_steps_per_second;
-            ui.vertical(|ui| {
-                // let height = ui.text_style_height(&egui::TextStyle::Body);
-                let old_size = ui.spacing_mut().interact_size.x;
-                ui.spacing_mut().interact_size.x = 100.0;
-                ui.add(Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true));
-                ui.spacing_mut().interact_size.x = old_size;
+        ui.add_enabled_ui(is_top_bar_enabled, |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("Step").clicked() {
+                    *action = Some(Action::Common(CommonAction::StepClicked));
+                }
+                if ui.button("Run").clicked() {
+                    *action = Some(Action::Common(CommonAction::RunClicked));
+                }
+                if ui.button("Pause").clicked() {
+                    *action = Some(Action::Common(CommonAction::PauseClicked));
+                }
+                if ui.button("Reset").clicked() {
+                    *action = Some(Action::Common(CommonAction::ResetClicked));
+                }
+                if ui.button("Breakpoints").clicked() {
+                    *action = Some(Action::Common(CommonAction::BreakpointsClicked));
+                }
+
+                let mut new_steps_per_second = state.desired_steps_per_second;
+                ui.vertical(|ui| {
+                    // let height = ui.text_style_height(&egui::TextStyle::Body);
+                    let old_size = ui.spacing_mut().interact_size.x;
+                    ui.spacing_mut().interact_size.x = 100.0;
+                    ui.add(
+                        Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true),
+                    );
+                    ui.spacing_mut().interact_size.x = old_size;
+                });
+                if new_steps_per_second != state.desired_steps_per_second {
+                    *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
+                        new_steps_per_second,
+                    )))
+                }
+                if let Some(run_start) = performance_data.run_start {
+                    let run_time = (Instant::now() - run_start).as_secs_f64();
+                    let steps_per_second = performance_data.total_steps as f64 / run_time;
+                    ui.label((steps_per_second.round() as u64).to_string());
+                }
             });
-            if new_steps_per_second != state.desired_steps_per_second {
-                *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
-                    new_steps_per_second,
-                )))
-            }
-            if let Some(run_start) = performance_data.run_start {
-                let run_time = (Instant::now() - run_start).as_secs_f64();
-                let steps_per_second = performance_data.total_steps as f64 / run_time;
-                ui.label((steps_per_second.round() as u64).to_string());
-            }
         });
     });
 }

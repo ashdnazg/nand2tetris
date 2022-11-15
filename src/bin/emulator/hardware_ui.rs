@@ -57,7 +57,7 @@ impl HardwareState {
                 });
         });
 
-        let mut breakpoints_open = self.shared_state.breakpoints_open;
+        let mut breakpoints_open = self.breakpoints_open;
 
         egui::Window::new("Breakpoints")
             .open(&mut breakpoints_open)
@@ -197,8 +197,8 @@ impl HardwareState {
                     });
             });
 
-        if self.shared_state.breakpoints_open != breakpoints_open {
-            assert!(self.shared_state.breakpoints_open);
+        if self.breakpoints_open != breakpoints_open {
+            assert!(self.breakpoints_open);
             *action = Some(Action::Common(CommonAction::BreakpointsClosed));
         }
     }

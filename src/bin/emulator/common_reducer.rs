@@ -1,50 +1,63 @@
 use std::time::Instant;
 
-use crate::common_state::{Action, AppState, CommonAction, CommonState, PerformanceData};
+use crate::common_state::{
+    Action, AppState, CommonAction, CommonState, PerformanceData, SharedState,
+};
 use crate::hardware_reducer::reduce_breakpoint_hardware;
+use crate::EmulatorApp;
+use crate::vm_state::VMState;
 
-pub fn reduce(state: &mut AppState, action: &Action) {
+pub fn reduce(app: &mut EmulatorApp, action: &Action) {
     match action {
-        Action::Common(common_action) => match state {
-            AppState::Hardware(hardware_state) => reduce_common(hardware_state, common_action),
-            AppState::VM(vm_state) => reduce_common(vm_state, common_action),
+        Action::Common(common_action) => match &mut app.state {
+            AppState::Hardware(hardware_state) => {
+                reduce_common(hardware_state, &mut app.shared_state, common_action)
+            }
+            AppState::VM(vm_state) => reduce_common(vm_state, &mut app.shared_state, common_action),
             AppState::Start => panic!(
                 "Received common action {:?} when in state AppState::Start",
                 common_action
             ),
         },
-        Action::Breakpoint(breakpoint_action) => match state {
+        Action::Breakpoint(breakpoint_action) => match &mut app.state {
             AppState::Hardware(hardware_state) => {
                 reduce_breakpoint_hardware(hardware_state, breakpoint_action)
             }
             AppState::VM(vm_state) => todo!(),
             AppState::Start => todo!(),
         },
+        Action::FolderPicked(path) => {
+            app.state = AppState::VM(VMState::from_dir(path))
+        }
         Action::Quit => todo!(),
     }
 }
 
-pub fn reduce_common(state: &mut impl CommonState, action: &CommonAction) {
+pub fn reduce_common(
+    state: &mut impl CommonState,
+    shared_state: &mut SharedState,
+    action: &CommonAction,
+) {
     match action {
         CommonAction::StepClicked => {}
         CommonAction::RunClicked => {
-            state.shared_state_mut().run_started = true;
+            shared_state.run_started = true;
         }
         CommonAction::PauseClicked => {
-            state.shared_state_mut().run_started = false;
+            shared_state.run_started = false;
         }
         CommonAction::ResetClicked => {
             state.reset();
-            state.shared_state_mut().run_started = false;
+            shared_state.run_started = false;
         }
         CommonAction::BreakpointsClicked => {
-            state.shared_state_mut().breakpoints_open = !state.shared_state().breakpoints_open;
+            shared_state.breakpoints_open = !shared_state.breakpoints_open;
         }
         CommonAction::BreakpointsClosed => {
-            state.shared_state_mut().breakpoints_open = false;
+            shared_state.breakpoints_open = false;
         }
         CommonAction::SpeedSliderMoved(new_value) => {
-            state.shared_state_mut().desired_steps_per_second = *new_value;
+            shared_state.desired_steps_per_second = *new_value;
         }
     }
 }
@@ -54,9 +67,10 @@ pub fn steps_to_run(
     last_frame_time: f32,
     performance_data: &mut PerformanceData,
     state: &impl CommonState,
+    run_started: bool,
     action: &Option<Action>,
 ) -> u64 {
-    if !state.shared_state().run_started
+    if !run_started
         || performance_data.previous_desired_steps_per_second != desired_steps_per_second
     {
         performance_data.run_start = None;
@@ -65,7 +79,7 @@ pub fn steps_to_run(
         performance_data.previous_desired_steps_per_second = desired_steps_per_second;
     }
 
-    if !state.shared_state().run_started {
+    if !run_started {
         return (action == &Some(Action::Common(CommonAction::StepClicked))) as u64;
     }
 

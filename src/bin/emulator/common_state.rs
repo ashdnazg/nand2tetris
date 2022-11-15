@@ -2,6 +2,7 @@ use crate::hardware_state::{BreakpointAction, HardwareState};
 use crate::vm_state::VMState;
 use eframe::egui::{Key, Modifiers};
 use nand2tetris::hardware::RAM;
+use std::path::PathBuf;
 use std::time::Instant;
 
 pub enum AppState {
@@ -18,15 +19,13 @@ pub enum UIStyle {
 
 impl Default for AppState {
     fn default() -> Self {
-        AppState::VM(VMState::default())
+        AppState::Start
     }
 }
 
 pub trait CommonState {
     fn step(&mut self) -> bool;
     fn run(&mut self, step_count: u64) -> bool;
-    fn shared_state(&self) -> &SharedState;
-    fn shared_state_mut(&mut self) -> &mut SharedState;
     fn ram(&self) -> &RAM;
     fn ram_mut(&mut self) -> &mut RAM;
     fn reset(&mut self);
@@ -45,6 +44,7 @@ pub enum CommonAction {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
+    FolderPicked(PathBuf),
     Breakpoint(BreakpointAction),
     Common(CommonAction),
     Quit,
@@ -85,20 +85,26 @@ impl Default for SharedState {
 }
 
 pub trait StepRunnable {
-    fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>, modifiers: Modifiers);
+    fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>, modifiers: Modifiers)
+        -> bool;
 }
 
 impl<T: CommonState> StepRunnable for T {
-    fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>, modifiers: Modifiers) {
+    fn run_steps(
+        &mut self,
+        steps_to_run: u64,
+        key_down: Option<Key>,
+        modifiers: Modifiers,
+    ) -> bool {
         if steps_to_run > 0 {
             let keyboard_value = keyboard_value_from_key(key_down, modifiers);
             self.ram_mut().set_keyboard(keyboard_value);
 
             if self.run(steps_to_run) {
-                self.shared_state_mut().run_started = false;
-                return;
+                return false;
             }
         }
+        return true;
     }
 }
 

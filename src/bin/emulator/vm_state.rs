@@ -1,19 +1,25 @@
+use std::path::PathBuf;
+
 use nand2tetris::hardware::RAM;
 use nand2tetris::vm::VM;
 
-use crate::common_state::{CommonState, SharedState};
+use crate::common_state::CommonState;
 
 pub struct VMState {
-    pub shared_state: SharedState,
     pub vm: VM,
 }
 
 impl Default for VMState {
     fn default() -> Self {
         Self {
-            shared_state: Default::default(),
             vm: VM::from_dir("hackenstein3DVM"),
         }
+    }
+}
+
+impl VMState {
+    pub fn from_dir(path_buf: &PathBuf) -> Self {
+        VMState { vm: VM::from_dir(path_buf) }
     }
 }
 
@@ -26,14 +32,6 @@ impl CommonState for VMState {
     fn run(&mut self, step_count: u64) -> bool {
         self.vm.run(step_count);
         false
-    }
-
-    fn shared_state(&self) -> &SharedState {
-        &self.shared_state
-    }
-
-    fn shared_state_mut(&mut self) -> &mut SharedState {
-        &mut self.shared_state
     }
 
     fn ram(&self) -> &RAM {

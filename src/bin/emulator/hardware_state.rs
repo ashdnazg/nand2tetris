@@ -1,11 +1,11 @@
 use nand2tetris::hardware::{BreakpointVar, Hardware, Instruction, RAM};
 
-use crate::common_state::{CommonState, SharedState};
+use crate::common_state::CommonState;
 
 pub struct HardwareState {
-    pub shared_state: SharedState,
     pub selected_breakpoint_var: BreakpointVar,
     pub breakpoint_value: i16,
+    pub breakpoints_open: bool,
     pub hardware: Hardware,
 }
 
@@ -27,9 +27,9 @@ impl Default for HardwareState {
         hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
 
         HardwareState {
-            shared_state: SharedState::default(),
             selected_breakpoint_var: BreakpointVar::A,
             breakpoint_value: 0,
+            breakpoints_open: false,
             hardware,
         }
     }
@@ -42,14 +42,6 @@ impl CommonState for HardwareState {
 
     fn run(&mut self, step_count: u64) -> bool {
         self.hardware.run(step_count)
-    }
-
-    fn shared_state(&self) -> &SharedState {
-        &self.shared_state
-    }
-
-    fn shared_state_mut(&mut self) -> &mut SharedState {
-        &mut self.shared_state
     }
 
     fn ram(&self) -> &RAM {

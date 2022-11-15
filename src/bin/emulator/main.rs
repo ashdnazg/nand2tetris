@@ -11,6 +11,7 @@ mod shared_ui;
 mod vm_state;
 mod vm_ui;
 
+use common_state::SharedState;
 use eframe::egui;
 use eframe::epaint::Vec2;
 
@@ -25,6 +26,7 @@ use crate::vm_ui::draw_vm;
 
 pub struct EmulatorApp {
     performance_data: PerformanceData,
+    shared_state: SharedState,
     state: AppState,
     screen: Arc<Mutex<Screen>>,
 }
@@ -33,6 +35,7 @@ impl EmulatorApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         Self {
             performance_data: Default::default(),
+            shared_state: Default::default(),
             state: Default::default(),
             screen: Arc::new(Mutex::new(Screen::new(&cc.gl.as_ref().unwrap()))),
         }
@@ -44,36 +47,30 @@ impl eframe::App for EmulatorApp {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let mut action = None;
-        match &self.state {
-            AppState::Hardware(state) => draw_shared(
-                &state.shared_state(),
-                ctx,
-                &self.performance_data,
-                &mut action,
-            ),
-            AppState::VM(state) => draw_shared(
-                &state.shared_state(),
-                ctx,
-                &self.performance_data,
-                &mut action,
-            ),
-            AppState::Start => {}
-        };
+        draw_shared(
+            &self.shared_state,
+            ctx,
+            &self.performance_data,
+            !matches!(self.state, AppState::Start),
+            &mut action,
+        );
 
         let last_frame_time = frame.info().cpu_usage.unwrap_or(1.0 / 60.0);
         let steps_to_run = match &self.state {
             AppState::Hardware(state) => steps_to_run(
-                state.shared_state().desired_steps_per_second,
+                self.shared_state.desired_steps_per_second,
                 last_frame_time,
                 &mut self.performance_data,
                 state,
+                self.shared_state.run_started,
                 &action,
             ),
             AppState::VM(state) => steps_to_run(
-                state.shared_state().desired_steps_per_second,
+                self.shared_state.desired_steps_per_second,
                 last_frame_time,
                 &mut self.performance_data,
                 state,
+                self.shared_state.run_started,
                 &action,
             ),
             _ => 0,
@@ -87,10 +84,12 @@ impl eframe::App for EmulatorApp {
 
         match &mut self.state {
             AppState::Hardware(state) => {
-                state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
+                self.shared_state.run_started &=
+                    state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
             }
             AppState::VM(state) => {
-                state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
+                self.shared_state.run_started &=
+                    state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
             }
             _ => {}
         }
@@ -111,7 +110,7 @@ impl eframe::App for EmulatorApp {
         }
 
         if let Some(action) = action {
-            reduce(&mut self.state, &action);
+            reduce(self, &action);
         }
     }
 
