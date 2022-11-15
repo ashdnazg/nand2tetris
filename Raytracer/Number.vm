@@ -1,0 +1,400 @@
+function Number.getPi 0
+push static 4
+return
+function Number.initialize 3
+push constant 2
+pop static 0
+push constant 256
+call Int32.new 1
+pop static 1
+push static 1
+push static 1
+call Int32.do_mul 2
+pop temp 0
+push constant 561
+call Int32.new 1
+pop local 1
+push constant 367
+call Int32.new 1
+pop local 2
+push local 1
+push local 2
+call Int32.do_mul 2
+pop temp 0
+push local 1
+call Number.new_from_int32 1
+pop static 4
+push static 1
+call Int32.clone 1
+pop static 2
+push static 2
+call Int32.do_sqrt 1
+pop temp 0
+push static 2
+call Int32.do_sqrt 1
+pop temp 0
+push static 2
+call Int32.clone 1
+pop static 3
+push static 3
+call Int32.do_sqrt 1
+pop temp 0
+push static 3
+call Int32.clone 1
+pop local 0
+push static 3
+push local 0
+call Int32.do_mul 2
+pop temp 0
+push static 3
+push local 0
+call Int32.do_mul 2
+pop temp 0
+push local 2
+call Int32.dispose 1
+pop temp 0
+push local 0
+call Int32.dispose 1
+pop temp 0
+push constant 2
+call Int32.new 1
+pop static 5
+push constant 0
+return
+function Number.new 0
+push constant 1
+call Memory.alloc 1
+pop pointer 0
+push static 6
+push constant 1
+add
+pop static 6
+push argument 0
+call Int32.new 1
+pop this 0
+push this 0
+push static 0
+call Int32.do_left_shift_bytes 2
+pop temp 0
+push pointer 0
+return
+function Number.new_from_int32 0
+push constant 1
+call Memory.alloc 1
+pop pointer 0
+push static 6
+push constant 1
+add
+pop static 6
+push argument 0
+pop this 0
+push pointer 0
+return
+function Number.new_from_int_frac 0
+push constant 1
+call Memory.alloc 1
+pop pointer 0
+push static 6
+push constant 1
+add
+pop static 6
+push argument 0
+call Int32.new 1
+pop this 0
+push this 0
+push static 5
+call Int32.do_mul 2
+pop temp 0
+push pointer 0
+return
+function Number.frac_to_i16 1
+push argument 0
+pop pointer 0
+push this 0
+call Int32.getParts 1
+pop local 0
+push pointer 0
+call Number.is_negative 1
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 255
+push constant 1
+push local 0
+add
+pop pointer 1
+push that 0
+sub
+push constant 128
+call Math.multiply 2
+push constant 256
+push constant 0
+push local 0
+add
+pop pointer 1
+push that 0
+sub
+add
+push constant 2
+call Math.divide 2
+neg
+return
+goto IF_END0
+label IF_FALSE0
+push constant 1
+push local 0
+add
+pop pointer 1
+push that 0
+push constant 128
+call Math.multiply 2
+push constant 0
+push local 0
+add
+pop pointer 1
+push that 0
+push constant 2
+call Math.divide 2
+add
+return
+label IF_END0
+function Number.dispose 0
+push argument 0
+pop pointer 0
+push static 6
+push constant 1
+sub
+pop static 6
+push this 0
+call Int32.dispose 1
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function Number.clone 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.clone 1
+call Number.new_from_int32 1
+return
+function Number.getV 0
+push argument 0
+pop pointer 0
+push this 0
+return
+function Number.is_zero 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.is_zero 1
+return
+function Number.is_negative 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.is_negative 1
+return
+function Number.is_positive 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.is_positive 1
+return
+function Number.do_add 0
+push argument 0
+pop pointer 0
+push this 0
+push argument 1
+call Number.getV 1
+call Int32.do_add 2
+pop temp 0
+push constant 0
+return
+function Number.do_sub 0
+push argument 0
+pop pointer 0
+push this 0
+push argument 1
+call Number.getV 1
+call Int32.do_sub 2
+pop temp 0
+push constant 0
+return
+function Number.do_mul 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.is_zero 1
+push argument 1
+call Number.is_zero 1
+or
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 0
+call Int32.do_zero 1
+pop temp 0
+push constant 0
+return
+label IF_FALSE0
+push this 0
+push argument 1
+call Number.getV 1
+push static 0
+call Int32.do_mul_right_shift_bytes 3
+pop temp 0
+push constant 0
+return
+function Number.do_div 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.is_zero 1
+push argument 1
+call Number.is_zero 1
+not
+and
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 0
+call Int32.do_zero 1
+pop temp 0
+push constant 0
+return
+label IF_FALSE0
+push this 0
+push static 0
+push argument 1
+call Number.getV 1
+call Int32.do_left_shift_bytes_div 3
+pop temp 0
+push constant 0
+return
+function Number.do_sqrt 0
+push argument 0
+pop pointer 0
+push this 0
+push static 2
+call Int32.do_mul 2
+pop temp 0
+push this 0
+call Int32.do_sqrt 1
+pop temp 0
+push this 0
+push static 3
+call Int32.do_mul 2
+pop temp 0
+push constant 0
+return
+function Number.do_neg 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.do_neg 1
+pop temp 0
+push constant 0
+return
+function Number.do_abs 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.do_abs 1
+pop temp 0
+push constant 0
+return
+function Number.cmp 0
+push argument 0
+pop pointer 0
+push this 0
+push argument 1
+call Number.getV 1
+call Int32.cmp 2
+return
+function Number.is_less_than 0
+push argument 0
+pop pointer 0
+push this 0
+push argument 1
+call Number.getV 1
+call Int32.cmp 2
+push constant 0
+lt
+return
+function Number.to_int32 0
+push argument 0
+pop pointer 0
+push static 6
+push constant 1
+sub
+pop static 6
+push this 0
+push static 0
+call Int32.do_right_shift_bytes 2
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push this 0
+return
+function Number.do_zero 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.do_zero 1
+pop temp 0
+push constant 0
+return
+function Number.print 0
+push argument 0
+pop pointer 0
+push this 0
+call Int32.print 1
+pop temp 0
+push constant 0
+return
+function Number.printAllocs 0
+push constant 15
+call String.new 1
+push constant 110
+call String.appendChar 2
+push constant 117
+call String.appendChar 2
+push constant 109
+call String.appendChar 2
+push constant 98
+call String.appendChar 2
+push constant 101
+call String.appendChar 2
+push constant 114
+call String.appendChar 2
+push constant 32
+call String.appendChar 2
+push constant 97
+call String.appendChar 2
+push constant 108
+call String.appendChar 2
+push constant 108
+call String.appendChar 2
+push constant 111
+call String.appendChar 2
+push constant 99
+call String.appendChar 2
+push constant 115
+call String.appendChar 2
+push constant 58
+call String.appendChar 2
+push constant 32
+call String.appendChar 2
+call Output.printString 1
+pop temp 0
+push static 6
+call Output.printInt 1
+pop temp 0
+call Output.println 0
+pop temp 0
+push constant 0
+return

@@ -354,5 +354,3 @@ impl EmulatorWidgets for egui::Ui {
         });
     }
 }
-
-pub fn draw_start(ctx: &egui::Context, action: &mut Option<Action>) {}

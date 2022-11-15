@@ -1,0 +1,277 @@
+function Scene.new 0
+push constant 9
+call Memory.alloc 1
+pop pointer 0
+push argument 0
+pop this 0
+push argument 1
+pop this 1
+push argument 2
+pop this 5
+push argument 3
+pop this 6
+push argument 4
+pop this 7
+push argument 5
+pop this 8
+push this 0
+call Number.new 1
+pop this 3
+push this 1
+call Number.new 1
+pop this 4
+push this 3
+call Number.clone 1
+pop this 2
+push this 2
+push this 4
+call Number.do_div 2
+pop temp 0
+push pointer 0
+return
+function Scene.dispose 3
+push argument 0
+pop pointer 0
+push constant 0
+pop local 0
+label WHILE_EXP0
+push local 0
+push this 6
+lt
+not
+if-goto WHILE_END0
+push local 0
+push this 5
+add
+pop pointer 1
+push that 0
+pop local 1
+push local 1
+call Element.dispose 1
+pop temp 0
+push local 0
+push constant 1
+add
+pop local 0
+goto WHILE_EXP0
+label WHILE_END0
+push this 5
+call Array.dispose 1
+pop temp 0
+push constant 0
+pop local 0
+label WHILE_EXP1
+push local 0
+push this 8
+lt
+not
+if-goto WHILE_END1
+push local 0
+push this 7
+add
+pop pointer 1
+push that 0
+pop local 2
+push local 2
+call DirectionalLight.dispose 1
+pop temp 0
+push local 0
+push constant 1
+add
+pop local 0
+goto WHILE_EXP1
+label WHILE_END1
+push this 7
+call Array.dispose 1
+pop temp 0
+push this 2
+call Number.dispose 1
+pop temp 0
+push this 3
+call Number.dispose 1
+pop temp 0
+push this 4
+call Number.dispose 1
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function Scene.getWidth 0
+push argument 0
+pop pointer 0
+push this 0
+return
+function Scene.getHeight 0
+push argument 0
+pop pointer 0
+push this 1
+return
+function Scene.getElements 0
+push argument 0
+pop pointer 0
+push this 5
+return
+function Scene.getNumElements 0
+push argument 0
+pop pointer 0
+push this 6
+return
+function Scene.getLights 0
+push argument 0
+pop pointer 0
+push this 7
+return
+function Scene.getNumLights 0
+push argument 0
+pop pointer 0
+push this 8
+return
+function Scene.create_prime_ray 3
+push argument 0
+pop pointer 0
+push argument 1
+call Number.new 1
+pop local 0
+push local 0
+push argument 5
+call Number.do_add 2
+pop temp 0
+push local 0
+push this 3
+call Number.do_div 2
+pop temp 0
+push local 0
+push argument 4
+call Number.do_mul 2
+pop temp 0
+push local 0
+push argument 3
+call Number.do_sub 2
+pop temp 0
+push local 0
+push this 2
+call Number.do_mul 2
+pop temp 0
+push argument 2
+call Number.new 1
+pop local 1
+push local 1
+push argument 5
+call Number.do_add 2
+pop temp 0
+push local 1
+push this 4
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.do_neg 1
+pop temp 0
+push local 1
+push argument 4
+call Number.do_mul 2
+pop temp 0
+push local 1
+push argument 3
+call Number.do_add 2
+pop temp 0
+push local 0
+push local 1
+push constant 1
+neg
+call Number.new 1
+call Vec3.new 3
+pop local 2
+push local 2
+call Vec3.do_normalize 1
+pop temp 0
+push constant 0
+call Number.new 1
+push constant 0
+call Number.new 1
+push constant 0
+call Number.new 1
+call Vec3.new 3
+push local 2
+call Ray.new 2
+return
+function Scene.trace 6
+push argument 0
+pop pointer 0
+push constant 0
+pop local 0
+label WHILE_EXP0
+push local 1
+push this 6
+lt
+not
+if-goto WHILE_END0
+push local 1
+push this 5
+add
+pop pointer 1
+push that 0
+pop local 2
+push local 2
+push argument 1
+call Element.intersect 2
+pop local 3
+push constant 0
+pop local 5
+push local 0
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 0
+call Intersection.getDistanceFromOrigin 1
+pop local 4
+push local 3
+push local 4
+call Number.is_less_than 2
+pop local 5
+label IF_FALSE0
+push local 3
+call Number.is_negative 1
+not
+push local 0
+push constant 0
+eq
+push local 5
+or
+and
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 0
+push constant 0
+eq
+not
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push local 0
+call Intersection.dispose 1
+pop temp 0
+label IF_FALSE2
+push local 3
+push local 2
+call Intersection.new 2
+pop local 0
+goto IF_END1
+label IF_FALSE1
+push local 3
+call Number.dispose 1
+pop temp 0
+label IF_END1
+push local 1
+push constant 1
+add
+pop local 1
+goto WHILE_EXP0
+label WHILE_END0
+push local 0
+return

@@ -1,0 +1,274 @@
+function Plane.new 0
+push constant 4
+call Memory.alloc 1
+pop pointer 0
+push argument 0
+pop this 0
+push argument 1
+pop this 1
+push argument 2
+pop this 2
+push argument 3
+pop this 3
+push pointer 0
+return
+function Plane.dispose 0
+push argument 0
+pop pointer 0
+push this 0
+call Vec3.dispose 1
+pop temp 0
+push this 1
+call Vec3.dispose 1
+pop temp 0
+push this 2
+call Number.dispose 1
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function Plane.initialize 1
+push constant 0
+call Number.new 1
+push constant 0
+call Number.new 1
+push constant 1
+call Number.new 1
+call Vec3.new 3
+pop static 0
+push constant 0
+call Number.new 1
+push constant 1
+call Number.new 1
+push constant 0
+call Number.new 1
+call Vec3.new 3
+pop static 1
+push constant 1000
+call Number.new 1
+pop static 2
+push constant 1
+call Number.new 1
+pop static 3
+push constant 90
+call Number.new 1
+pop static 4
+push constant 3
+call Number.new 1
+pop static 5
+push constant 100
+call Number.new 1
+pop local 0
+push static 4
+push local 0
+call Number.do_div 2
+pop temp 0
+push static 5
+push local 0
+call Number.do_div 2
+pop temp 0
+push local 0
+call Number.dispose 1
+pop temp 0
+push constant 0
+return
+function Plane.intersect 3
+push argument 0
+pop pointer 0
+push this 1
+push argument 1
+call Ray.getDirection 1
+call Vec3.dot 2
+pop local 0
+push local 0
+call Number.is_positive 1
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 0
+call Number.dispose 1
+pop temp 0
+push constant 1
+neg
+call Number.new 1
+return
+label IF_FALSE0
+push this 0
+call Vec3.clone 1
+pop local 1
+push local 1
+push argument 1
+call Ray.getOrigin 1
+call Vec3.do_sub 2
+pop temp 0
+push local 1
+push this 1
+call Vec3.dot 2
+pop local 2
+push local 2
+push local 0
+call Number.do_div 2
+pop temp 0
+push local 0
+call Number.dispose 1
+pop temp 0
+push local 1
+call Vec3.dispose 1
+pop temp 0
+push local 2
+call Number.is_negative 1
+not
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 2
+return
+goto IF_END1
+label IF_FALSE1
+push local 2
+call Number.dispose 1
+pop temp 0
+push constant 1
+neg
+call Number.new 1
+return
+label IF_END1
+function Plane.color 8
+push argument 0
+pop pointer 0
+push this 3
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 1
+call Vec3.clone 1
+pop local 0
+push local 0
+push static 0
+call Vec3.do_cross 2
+pop temp 0
+push local 0
+call Vec3.dist_sq 1
+pop local 2
+push local 2
+call Number.is_zero 1
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 0
+call Vec3.dispose 1
+pop temp 0
+push this 1
+call Vec3.clone 1
+pop local 0
+push local 0
+push static 1
+call Vec3.do_cross 2
+pop temp 0
+label IF_FALSE1
+push this 1
+call Vec3.clone 1
+pop local 1
+push local 1
+push local 0
+call Vec3.do_cross 2
+pop temp 0
+push argument 1
+push local 0
+call Vec3.dot 2
+pop local 3
+push local 3
+push static 3
+call Number.do_mul 2
+pop temp 0
+push local 3
+push static 2
+call Number.do_add 2
+pop temp 0
+push local 3
+call Number.to_int32 1
+pop local 4
+push argument 1
+push local 1
+call Vec3.dot 2
+pop local 3
+push local 3
+push static 3
+call Number.do_mul 2
+pop temp 0
+push local 3
+push static 2
+call Number.do_add 2
+pop temp 0
+push local 3
+call Number.to_int32 1
+pop local 5
+push local 4
+call Int32.clone 1
+pop local 6
+push local 6
+push local 5
+call Int32.do_add 2
+pop temp 0
+push local 6
+call Int32.is_even 1
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push static 4
+call Number.clone 1
+pop local 7
+goto IF_END2
+label IF_FALSE2
+push static 5
+call Number.clone 1
+pop local 7
+label IF_END2
+push local 0
+call Vec3.dispose 1
+pop temp 0
+push local 1
+call Vec3.dispose 1
+pop temp 0
+push local 2
+call Number.dispose 1
+pop temp 0
+push local 4
+call Int32.dispose 1
+pop temp 0
+push local 5
+call Int32.dispose 1
+pop temp 0
+push local 6
+call Int32.dispose 1
+pop temp 0
+push local 7
+return
+goto IF_END0
+label IF_FALSE0
+push this 2
+call Number.clone 1
+return
+label IF_END0
+function Plane.surface_normal 2
+push argument 0
+pop pointer 0
+push constant 1
+neg
+call Number.new 1
+pop local 0
+push this 1
+call Vec3.clone 1
+pop local 1
+push local 1
+push local 0
+call Vec3.do_scale 2
+pop temp 0
+push local 0
+call Number.dispose 1
+pop temp 0
+push local 1
+return

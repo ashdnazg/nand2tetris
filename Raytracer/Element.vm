@@ -1,0 +1,135 @@
+function Element.plane 0
+push constant 2
+call Memory.alloc 1
+pop pointer 0
+push argument 0
+pop this 0
+push constant 0
+pop this 1
+push pointer 0
+return
+function Element.sphere 0
+push constant 2
+call Memory.alloc 1
+pop pointer 0
+push argument 0
+pop this 1
+push constant 0
+pop this 0
+push pointer 0
+return
+function Element.dispose 0
+push argument 0
+pop pointer 0
+push this 0
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 0
+call Plane.dispose 1
+pop temp 0
+label IF_FALSE0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push this 1
+call Sphere.dispose 1
+pop temp 0
+label IF_FALSE1
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function Element.intersect 0
+push argument 0
+pop pointer 0
+push this 0
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 0
+push argument 1
+call Plane.intersect 2
+return
+label IF_FALSE0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push this 1
+push argument 1
+call Sphere.intersect 2
+return
+label IF_FALSE1
+push constant 0
+return
+function Element.color 0
+push argument 0
+pop pointer 0
+push this 0
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 0
+push argument 1
+call Plane.color 2
+return
+label IF_FALSE0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push this 1
+call Sphere.color 1
+return
+label IF_FALSE1
+push constant 0
+return
+function Element.surface_normal 0
+push argument 0
+pop pointer 0
+push this 0
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 0
+call Plane.surface_normal 1
+return
+label IF_FALSE0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push this 1
+push argument 1
+call Sphere.surface_normal 2
+return
+label IF_FALSE1
+push constant 0
+return

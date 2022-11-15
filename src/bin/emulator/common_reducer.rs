@@ -66,7 +66,6 @@ pub fn steps_to_run(
     desired_steps_per_second: u64,
     last_frame_time: f32,
     performance_data: &mut PerformanceData,
-    state: &impl CommonState,
     run_started: bool,
     action: &Option<Action>,
 ) -> u64 {

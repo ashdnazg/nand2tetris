@@ -20,8 +20,8 @@ use std::sync::Arc;
 
 use crate::common_reducer::reduce;
 use crate::common_reducer::steps_to_run;
-use crate::common_state::{Action, AppState, CommonState, PerformanceData, StepRunnable};
-use crate::shared_ui::{draw_shared, draw_start, Screen};
+use crate::common_state::{Action, AppState, PerformanceData, StepRunnable};
+use crate::shared_ui::{draw_shared, Screen};
 use crate::vm_ui::draw_vm;
 
 pub struct EmulatorApp {
@@ -56,25 +56,13 @@ impl eframe::App for EmulatorApp {
         );
 
         let last_frame_time = frame.info().cpu_usage.unwrap_or(1.0 / 60.0);
-        let steps_to_run = match &self.state {
-            AppState::Hardware(state) => steps_to_run(
-                self.shared_state.desired_steps_per_second,
-                last_frame_time,
-                &mut self.performance_data,
-                state,
-                self.shared_state.run_started,
-                &action,
-            ),
-            AppState::VM(state) => steps_to_run(
-                self.shared_state.desired_steps_per_second,
-                last_frame_time,
-                &mut self.performance_data,
-                state,
-                self.shared_state.run_started,
-                &action,
-            ),
-            _ => 0,
-        };
+        let steps_to_run = steps_to_run(
+            self.shared_state.desired_steps_per_second,
+            last_frame_time,
+            &mut self.performance_data,
+            self.shared_state.run_started,
+            &action,
+        );
 
         let key_down = if ctx.memory().focus().is_none() {
             ctx.input().keys_down.iter().cloned().next()
@@ -101,7 +89,7 @@ impl eframe::App for EmulatorApp {
                 state.draw(ctx, &mut action, &self.screen, &frame);
             }
             AppState::VM(state) => draw_vm(state, ctx, &mut action, &self.screen, &frame),
-            AppState::Start => draw_start(ctx, &mut action),
+            AppState::Start => {},
         };
 
         if action == Some(Action::Quit) {

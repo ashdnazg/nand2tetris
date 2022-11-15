@@ -1,0 +1,1017 @@
+function Main.printArray 1
+push constant 1
+call String.new 1
+push constant 91
+call String.appendChar 2
+call Output.printString 1
+pop temp 0
+push constant 0
+pop local 0
+label WHILE_EXP0
+push local 0
+push argument 1
+lt
+not
+if-goto WHILE_END0
+push local 0
+push argument 0
+add
+pop pointer 1
+push that 0
+call Output.printInt 1
+pop temp 0
+push constant 1
+call String.new 1
+push constant 32
+call String.appendChar 2
+call Output.printString 1
+pop temp 0
+push local 0
+push constant 1
+add
+pop local 0
+goto WHILE_EXP0
+label WHILE_END0
+push constant 1
+call String.new 1
+push constant 93
+call String.appendChar 2
+call Output.printString 1
+pop temp 0
+push constant 0
+return
+function Main.getRawPixelColor 18
+push constant 0
+call Number.new 1
+pop local 0
+push argument 0
+push argument 1
+push argument 2
+push argument 4
+push argument 5
+push argument 6
+call Scene.create_prime_ray 6
+pop local 1
+push argument 0
+push local 1
+call Scene.trace 2
+pop local 2
+push local 2
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 1
+call Ray.getOrigin 1
+pop local 12
+push local 12
+call Vec3.clone 1
+pop local 3
+push local 1
+call Ray.getDirection 1
+pop local 12
+push local 12
+call Vec3.clone 1
+pop local 4
+push local 4
+push local 2
+call Intersection.getDistanceFromOrigin 1
+call Vec3.do_scale 2
+pop temp 0
+push local 3
+push local 4
+call Vec3.do_add 2
+pop temp 0
+push local 2
+call Intersection.getObject 1
+pop local 13
+push local 13
+push local 3
+call Element.surface_normal 2
+pop local 5
+label WHILE_EXP0
+push local 14
+push argument 0
+call Scene.getNumLights 1
+lt
+not
+if-goto WHILE_END0
+push argument 0
+call Scene.getLights 1
+pop local 16
+push local 14
+push local 16
+add
+pop pointer 1
+push that 0
+pop local 17
+push local 3
+call Vec3.clone 1
+pop local 6
+push local 6
+push local 17
+call DirectionalLight.getShadowBias 1
+call Vec3.do_add 2
+pop temp 0
+push local 17
+call DirectionalLight.getNegDirection 1
+pop local 12
+push local 6
+push local 12
+call Vec3.clone 1
+call Ray.new 2
+pop local 7
+push argument 0
+push local 7
+call Scene.trace 2
+pop local 8
+push local 8
+push constant 0
+eq
+pop local 9
+push local 8
+push constant 0
+eq
+not
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 8
+call Intersection.dispose 1
+pop temp 0
+label IF_FALSE1
+push local 9
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push local 5
+push local 17
+call DirectionalLight.getNegDirection 1
+call Vec3.dot 2
+pop local 10
+push local 10
+call Number.is_positive 1
+if-goto IF_TRUE3
+goto IF_FALSE3
+label IF_TRUE3
+push local 17
+call DirectionalLight.getColor 1
+pop local 15
+push local 15
+call Number.clone 1
+pop local 11
+push local 11
+push local 10
+call Number.do_mul 2
+pop temp 0
+push local 11
+call Number.getPi 0
+call Number.do_div 2
+pop temp 0
+push local 2
+call Intersection.getObject 1
+pop local 13
+push local 13
+push local 3
+call Element.color 2
+pop local 15
+push local 11
+push local 15
+call Number.do_mul 2
+pop temp 0
+push local 15
+call Number.dispose 1
+pop temp 0
+push local 0
+push local 11
+call Number.do_add 2
+pop temp 0
+push local 11
+call Number.dispose 1
+pop temp 0
+label IF_FALSE3
+push local 10
+call Number.dispose 1
+pop temp 0
+label IF_FALSE2
+push local 7
+call Ray.dispose 1
+pop temp 0
+push local 14
+push constant 1
+add
+pop local 14
+goto WHILE_EXP0
+label WHILE_END0
+push local 2
+call Intersection.dispose 1
+pop temp 0
+push local 3
+call Vec3.dispose 1
+pop temp 0
+push local 4
+call Vec3.dispose 1
+pop temp 0
+push local 5
+call Vec3.dispose 1
+pop temp 0
+label IF_FALSE0
+push local 1
+call Ray.dispose 1
+pop temp 0
+push local 0
+return
+function Main.render 28
+push argument 0
+call Scene.getWidth 1
+call Array.new 1
+pop local 12
+push argument 0
+call Scene.getWidth 1
+call Array.new 1
+pop local 13
+push constant 0
+pop local 15
+push constant 0
+pop local 11
+label WHILE_EXP0
+push local 11
+push argument 0
+call Scene.getWidth 1
+lt
+not
+if-goto WHILE_END0
+push local 11
+push local 12
+add
+push constant 0
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push local 11
+push local 13
+add
+push constant 0
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push local 11
+push constant 1
+add
+pop local 11
+goto WHILE_EXP0
+label WHILE_END0
+call Main.getOneHalf 0
+pop local 0
+push constant 0
+call Number.new 1
+pop local 1
+push constant 1
+call Number.new 1
+pop local 2
+push constant 2
+call Number.new 1
+pop local 3
+push constant 3
+call Number.new 1
+pop local 4
+push constant 5
+call Number.new 1
+pop local 5
+push constant 7
+call Number.new 1
+pop local 6
+push constant 16
+call Number.new 1
+pop local 7
+push constant 1
+neg
+call Number.new 1
+pop local 8
+push constant 0
+pop local 9
+label WHILE_EXP1
+push local 9
+push argument 0
+call Scene.getHeight 1
+lt
+not
+if-goto WHILE_END1
+push local 9
+push constant 2
+call Math.divide 2
+push constant 2
+call Math.multiply 2
+push local 9
+eq
+not
+pop local 26
+push constant 0
+not
+pop local 27
+push local 26
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push argument 0
+call Scene.getWidth 1
+push constant 1
+sub
+pop local 10
+goto IF_END0
+label IF_FALSE0
+push constant 0
+pop local 10
+label IF_END0
+label WHILE_EXP2
+push local 27
+not
+if-goto WHILE_END2
+push argument 0
+push local 10
+push local 9
+push local 8
+push local 2
+push local 3
+push local 0
+call Main.getRawPixelColor 7
+pop local 24
+push local 24
+call Number.do_sqrt 1
+pop temp 0
+push local 15
+call Number.new_from_int_frac 1
+pop local 25
+push local 24
+push local 25
+call Number.do_add 2
+pop temp 0
+push local 25
+call Number.dispose 1
+pop temp 0
+push local 10
+push local 12
+add
+pop pointer 1
+push that 0
+call Number.new_from_int_frac 1
+pop local 25
+push local 24
+push local 25
+call Number.do_add 2
+pop temp 0
+push local 25
+call Number.dispose 1
+pop temp 0
+push local 24
+push local 0
+call Number.cmp 2
+pop local 17
+push local 17
+push constant 0
+gt
+push local 17
+push constant 0
+eq
+or
+pop local 23
+push local 23
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 2
+pop local 16
+goto IF_END1
+label IF_FALSE1
+push local 1
+pop local 16
+label IF_END1
+push local 24
+call Number.clone 1
+pop local 18
+push local 18
+push local 16
+call Number.do_sub 2
+pop temp 0
+push local 18
+push local 7
+call Number.do_div 2
+pop temp 0
+push local 10
+push constant 1
+add
+push argument 0
+call Scene.getWidth 1
+lt
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push local 18
+call Number.clone 1
+pop local 20
+push local 20
+push local 6
+call Number.do_mul 2
+pop temp 0
+push local 20
+call Number.frac_to_i16 1
+pop local 15
+push local 20
+call Number.dispose 1
+pop temp 0
+label IF_FALSE2
+push local 9
+push constant 1
+add
+push argument 0
+call Scene.getHeight 1
+lt
+if-goto IF_TRUE3
+goto IF_FALSE3
+label IF_TRUE3
+push local 10
+push constant 0
+gt
+if-goto IF_TRUE4
+goto IF_FALSE4
+label IF_TRUE4
+push local 18
+call Number.clone 1
+pop local 21
+push local 26
+not
+if-goto IF_TRUE5
+goto IF_FALSE5
+label IF_TRUE5
+push local 21
+push local 4
+call Number.do_mul 2
+pop temp 0
+label IF_FALSE5
+push local 10
+push constant 1
+sub
+push local 13
+add
+push local 10
+push constant 1
+sub
+push local 13
+add
+pop pointer 1
+push that 0
+push local 21
+call Number.frac_to_i16 1
+add
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push local 21
+call Number.dispose 1
+pop temp 0
+label IF_FALSE4
+push local 18
+call Number.clone 1
+pop local 19
+push local 19
+push local 5
+call Number.do_mul 2
+pop temp 0
+push local 10
+push local 13
+add
+push local 10
+push local 13
+add
+pop pointer 1
+push that 0
+push local 19
+call Number.frac_to_i16 1
+add
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push local 19
+call Number.dispose 1
+pop temp 0
+push local 10
+push constant 1
+add
+push argument 0
+call Scene.getWidth 1
+lt
+if-goto IF_TRUE6
+goto IF_FALSE6
+label IF_TRUE6
+push local 18
+call Number.clone 1
+pop local 22
+push local 26
+if-goto IF_TRUE7
+goto IF_FALSE7
+label IF_TRUE7
+push local 22
+push local 4
+call Number.do_mul 2
+pop temp 0
+label IF_FALSE7
+push local 10
+push constant 1
+add
+push local 13
+add
+push local 10
+push constant 1
+add
+push local 13
+add
+pop pointer 1
+push that 0
+push local 22
+call Number.frac_to_i16 1
+add
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push local 22
+call Number.dispose 1
+pop temp 0
+label IF_FALSE6
+label IF_FALSE3
+push local 18
+call Number.dispose 1
+pop temp 0
+push local 23
+not
+call Screen.setColor 1
+pop temp 0
+push local 10
+push local 9
+call Screen.drawPixel 2
+pop temp 0
+push local 24
+call Number.dispose 1
+pop temp 0
+push local 26
+if-goto IF_TRUE8
+goto IF_FALSE8
+label IF_TRUE8
+push local 10
+push constant 1
+sub
+pop local 10
+push local 10
+push constant 1
+neg
+gt
+pop local 27
+goto IF_END8
+label IF_FALSE8
+push local 10
+push constant 1
+add
+pop local 10
+push local 10
+push argument 0
+call Scene.getWidth 1
+lt
+pop local 27
+label IF_END8
+goto WHILE_EXP2
+label WHILE_END2
+push local 12
+pop local 14
+push local 13
+pop local 12
+push local 14
+pop local 13
+push constant 0
+pop local 11
+label WHILE_EXP3
+push local 11
+push argument 0
+call Scene.getWidth 1
+lt
+not
+if-goto WHILE_END3
+push local 11
+push local 13
+add
+push constant 0
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push local 11
+push constant 1
+add
+pop local 11
+goto WHILE_EXP3
+label WHILE_END3
+push local 9
+push constant 1
+add
+pop local 9
+goto WHILE_EXP1
+label WHILE_END1
+push local 0
+call Number.dispose 1
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 2
+call Number.dispose 1
+pop temp 0
+push local 4
+call Number.dispose 1
+pop temp 0
+push local 5
+call Number.dispose 1
+pop temp 0
+push local 6
+call Number.dispose 1
+pop temp 0
+push local 7
+call Number.dispose 1
+pop temp 0
+push local 12
+call Array.dispose 1
+pop temp 0
+push local 13
+call Array.dispose 1
+pop temp 0
+push constant 0
+return
+function Main.getNegativeOneHalf 2
+push constant 1
+neg
+call Number.new 1
+pop local 0
+push constant 2
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getThreeHalves 2
+push constant 3
+call Number.new 1
+pop local 0
+push constant 2
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getFourFifths 2
+push constant 4
+call Number.new 1
+pop local 0
+push constant 5
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getThreeFifths 2
+push constant 3
+call Number.new 1
+pop local 0
+push constant 5
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getOneHalf 2
+push constant 1
+call Number.new 1
+pop local 0
+push constant 2
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getOneTwentieth 2
+push constant 1
+call Number.new 1
+pop local 0
+push constant 20
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getOneFiftieth 2
+push constant 1
+call Number.new 1
+pop local 0
+push constant 50
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getNineTenths 2
+push constant 9
+call Number.new 1
+pop local 0
+push constant 10
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.getThreeTenths 2
+push constant 3
+call Number.new 1
+pop local 0
+push constant 10
+call Number.new 1
+pop local 1
+push local 0
+push local 1
+call Number.do_div 2
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push local 0
+return
+function Main.main 9
+call Int32.initialize 0
+pop temp 0
+call Number.initialize 0
+pop temp 0
+call Plane.initialize 0
+pop temp 0
+push constant 5
+pop local 1
+push local 1
+call Array.new 1
+pop local 2
+push constant 3
+pop local 3
+push local 3
+call Array.new 1
+pop local 4
+push constant 0
+push local 2
+add
+push constant 6
+neg
+call Number.new 1
+call Main.getNegativeOneHalf 0
+push constant 5
+neg
+call Number.new 1
+call Vec3.new 3
+call Main.getThreeHalves 0
+call Main.getFourFifths 0
+call Sphere.new 3
+call Element.sphere 1
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 1
+push local 2
+add
+push constant 1
+neg
+call Number.new 1
+push constant 1
+neg
+call Number.new 1
+push constant 5
+neg
+call Number.new 1
+call Vec3.new 3
+push constant 1
+call Number.new 1
+call Main.getThreeFifths 0
+call Sphere.new 3
+call Element.sphere 1
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 2
+push local 2
+add
+push constant 2
+call Number.new 1
+push constant 0
+call Number.new 1
+push constant 3
+neg
+call Number.new 1
+call Vec3.new 3
+push constant 2
+call Number.new 1
+push constant 1
+call Number.new 1
+call Sphere.new 3
+call Element.sphere 1
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 3
+push local 2
+add
+push constant 0
+call Number.new 1
+push constant 0
+call Number.new 1
+push constant 25
+neg
+call Number.new 1
+call Vec3.new 3
+push constant 0
+call Number.new 1
+push constant 0
+call Number.new 1
+push constant 1
+neg
+call Number.new 1
+call Vec3.new 3
+push constant 1
+call Number.new 1
+push constant 0
+call Plane.new 4
+call Element.plane 1
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 4
+push local 2
+add
+push constant 0
+call Number.new 1
+push constant 2
+neg
+call Number.new 1
+push constant 0
+call Number.new 1
+call Vec3.new 3
+push constant 0
+call Number.new 1
+push constant 1
+neg
+call Number.new 1
+push constant 0
+call Number.new 1
+call Vec3.new 3
+push constant 1
+neg
+call Number.new 1
+push constant 0
+not
+call Plane.new 4
+call Element.plane 1
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 0
+call Number.new 1
+push constant 1
+neg
+call Number.new 1
+push constant 1
+neg
+call Number.new 1
+call Vec3.new 3
+pop local 5
+push local 5
+call Vec3.do_normalize 1
+pop temp 0
+push constant 1
+neg
+call Number.new 1
+push constant 1
+neg
+call Number.new 1
+push constant 0
+call Number.new 1
+call Vec3.new 3
+pop local 6
+push local 6
+call Vec3.do_normalize 1
+pop temp 0
+call Main.getOneHalf 0
+push constant 1
+neg
+call Number.new 1
+push constant 0
+call Number.new 1
+call Vec3.new 3
+pop local 7
+push local 7
+call Vec3.do_normalize 1
+pop temp 0
+push constant 0
+push local 4
+add
+push local 5
+call Main.getOneFiftieth 0
+call DirectionalLight.new 2
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 1
+push local 4
+add
+push local 6
+call Main.getNineTenths 0
+call DirectionalLight.new 2
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 2
+push local 4
+add
+push local 7
+call Main.getThreeTenths 0
+call DirectionalLight.new 2
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 512
+push constant 256
+push local 2
+push local 1
+push local 4
+push local 3
+call Scene.new 6
+pop local 0
+push local 0
+call Main.render 1
+pop temp 0
+push local 0
+call Scene.dispose 1
+pop temp 0
+push constant 0
+return

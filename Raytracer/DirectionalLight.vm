@@ -1,0 +1,70 @@
+function DirectionalLight.new 2
+push constant 4
+call Memory.alloc 1
+pop pointer 0
+push constant 1
+neg
+call Number.new 1
+pop local 0
+call Main.getOneTwentieth 0
+pop local 1
+push argument 0
+pop this 0
+push argument 1
+pop this 1
+push this 0
+call Vec3.clone 1
+pop this 2
+push this 2
+push local 0
+call Vec3.do_scale 2
+pop temp 0
+push this 2
+call Vec3.clone 1
+pop this 3
+push this 3
+push local 1
+call Vec3.do_scale 2
+pop temp 0
+push local 0
+call Number.dispose 1
+pop temp 0
+push local 1
+call Number.dispose 1
+pop temp 0
+push pointer 0
+return
+function DirectionalLight.dispose 0
+push argument 0
+pop pointer 0
+push this 0
+call Vec3.dispose 1
+pop temp 0
+push this 1
+call Number.dispose 1
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function DirectionalLight.getDirection 0
+push argument 0
+pop pointer 0
+push this 0
+return
+function DirectionalLight.getNegDirection 0
+push argument 0
+pop pointer 0
+push this 2
+return
+function DirectionalLight.getShadowBias 0
+push argument 0
+pop pointer 0
+push this 3
+return
+function DirectionalLight.getColor 0
+push argument 0
+pop pointer 0
+push this 1
+return
