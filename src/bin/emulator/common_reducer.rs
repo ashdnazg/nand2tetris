@@ -5,6 +5,7 @@ use crate::common_state::{
 };
 use crate::hardware_reducer::reduce_breakpoint_hardware;
 use crate::EmulatorApp;
+use crate::hardware_state::HardwareState;
 use crate::vm_state::VMState;
 
 pub fn reduce(app: &mut EmulatorApp, action: &Action) {
@@ -28,7 +29,10 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
         },
         Action::FolderPicked(path) => {
             app.state = AppState::VM(VMState::from_dir(path))
-        }
+        },
+        Action::FilePicked(path) => {
+            app.state = AppState::Hardware(HardwareState::from_file(path))
+        },
         Action::Quit => todo!(),
     }
 }

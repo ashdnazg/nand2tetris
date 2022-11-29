@@ -45,6 +45,7 @@ pub enum CommonAction {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     FolderPicked(PathBuf),
+    FilePicked(PathBuf),
     Breakpoint(BreakpointAction),
     Common(CommonAction),
     Quit,

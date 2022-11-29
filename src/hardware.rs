@@ -74,7 +74,8 @@ enum InstructionType {
 }
 
 #[allow(clippy::upper_case_acronyms)]
-enum JumpCondition {
+#[derive(Clone)]
+pub(crate) enum JumpCondition {
     NoJump,
     JGT,
     JEQ,

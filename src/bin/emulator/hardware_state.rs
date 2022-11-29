@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use nand2tetris::hardware::{BreakpointVar, Hardware, Instruction, RAM};
 
 use crate::common_state::CommonState;
@@ -32,6 +34,12 @@ impl Default for HardwareState {
             breakpoints_open: false,
             hardware,
         }
+    }
+}
+
+impl HardwareState {
+    pub fn from_file(path: &PathBuf) -> Self {
+        HardwareState::default()
     }
 }
 

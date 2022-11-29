@@ -199,9 +199,23 @@ pub fn draw_shared(
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("Load").clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                if ui.button("Load VM Folder").clicked() {
+                    let mut dialog = rfd::FileDialog::new();
+                    if let Ok(current_dir) = std::env::current_dir() {
+                        dialog = dialog.set_directory(current_dir);
+                    }
+                    if let Some(path) = dialog.pick_folder() {
                         *action = Some(Action::FolderPicked(path));
+                        ui.close_menu();
+                    }
+                }
+                if ui.button("Load Hack File").clicked() {
+                    let mut dialog = rfd::FileDialog::new();
+                    if let Ok(current_dir) = std::env::current_dir() {
+                        dialog = dialog.set_directory(current_dir);
+                    }
+                    if let Some(path) = dialog.add_filter("Hack", &[&"asm"]).pick_file() {
+                        *action = Some(Action::FilePicked(path));
                         ui.close_menu();
                     }
                 }
