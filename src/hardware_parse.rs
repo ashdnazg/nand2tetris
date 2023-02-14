@@ -5,9 +5,9 @@ use nom::{
     bytes::complete::{is_not, tag},
     character::complete::{alphanumeric1, i16, line_ending, space0, space1},
     combinator::{all_consuming, eof, map, opt, recognize, value},
-    error::VerboseError,
+    error::{VerboseError, ParseError},
     multi::{many1_count, separated_list1, many1},
-    sequence::{delimited, pair, preceded, separated_pair, tuple, terminated},
+    sequence::{delimited, pair, preceded, separated_pair, tuple, terminated}, Compare,
 };
 
 type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;
@@ -25,6 +25,41 @@ fn secondPass(_: &[AssemblyInstruction]) -> Vec<Instruction> {
 
 fn create_instruction(args: (DestinationRegisters, &str, Option<JumpCondition>)) -> AssemblyInstruction {
     AssemblyInstruction::Instruction(Instruction::create(args.0, "D-1", args.2.unwrap_or(JumpCondition::NoJump)).unwrap())
+}
+
+// TODO: add enum to return where we should split `left`.
+fn compare_no_whitespace(left: &str, right: &str) -> nom::CompareResult {
+    let left_filtered = left.chars().filter(|c| !c.is_whitespace());
+    let left_filtered_count = left_filtered.clone().count();
+    let pos = left_filtered.zip(right.chars()).position(|(a, b)| a != b);
+
+    match pos {
+        Some(_) => nom::CompareResult::Error,
+        None => {
+            if left_filtered_count >= right.len() {
+                nom::CompareResult::Ok
+            } else {
+                nom::CompareResult::Incomplete
+            }
+        }
+    }
+}
+
+pub fn tag_no_whitespace<'a>(
+    tag: &'a str,
+  ) -> impl Fn(&'a str) -> IResult<&'a str, &'a str>
+{
+    move |i: &str| {
+        let tag_len = tag.len();
+        let res: IResult<_, _> = match compare_no_whitespace(i, tag) {
+            nom::CompareResult::Ok => Ok(i.split_at(tag_len)),
+            _ => {
+                let e: nom::error::ErrorKind = nom::error::ErrorKind::Tag;
+                Err(nom::Err::Error(VerboseError::from_error_kind(i, e)))
+            }
+        };
+        res
+    }
 }
 
 fn create_destination(args: Option<&str>) -> DestinationRegisters {
@@ -74,7 +109,11 @@ fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
                     ),
                     create_destination
                 ),
-                tag("D-1"),
+                delimited(
+                    space0,
+                    tag_no_whitespace("D-1"),
+                    space0
+                ),
                 opt(
                     preceded(
                         tag(";"),
@@ -158,4 +197,20 @@ mod tests {
     // fn test_duplicate_valid_target() {
     //     assert!(instruction("AAA=D;JEQ").is_err());
     // }
+
+    #[test]
+    fn test_compare_no_whitespace() {
+        use nom::CompareResult::*;
+        assert_eq!(compare_no_whitespace("abc", "def"), Error);
+        assert_eq!(compare_no_whitespace("abc", "ab"), Ok);
+        assert_eq!(compare_no_whitespace("ab", "abc"), Incomplete);
+        assert_eq!(compare_no_whitespace("abc", "abd"), Error);
+        assert_eq!(compare_no_whitespace("", "def"), Incomplete);
+
+        assert_eq!(compare_no_whitespace("a b c", "def"), Error);
+        assert_eq!(compare_no_whitespace("a  b  c", "ab"), Ok);
+        assert_eq!(compare_no_whitespace("a  b", "abc"), Incomplete);
+        assert_eq!(compare_no_whitespace("a b   c", "abd"), Error);
+        assert_eq!(compare_no_whitespace("  ", "def"), Incomplete);
+    }
 }
