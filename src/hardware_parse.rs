@@ -27,22 +27,38 @@ fn create_instruction(args: (DestinationRegisters, &str, Option<JumpCondition>))
     AssemblyInstruction::Instruction(Instruction::create(args.0, "D-1", args.2.unwrap_or(JumpCondition::NoJump)).unwrap())
 }
 
-// TODO: add enum to return where we should split `left`.
-fn compare_no_whitespace(left: &str, right: &str) -> nom::CompareResult {
-    let left_filtered = left.chars().filter(|c| !c.is_whitespace());
-    let left_filtered_count = left_filtered.clone().count();
-    let pos = left_filtered.zip(right.chars()).position(|(a, b)| a != b);
+#[derive(PartialEq, Eq, Debug)]
+enum CompareResult {
+    /// Comparison was successful and the given number of characters were read
+    Ok(usize),
+    /// We need more data to be sure
+    Incomplete,
+    /// Comparison failed
+    Error,
+  }
 
-    match pos {
-        Some(_) => nom::CompareResult::Error,
-        None => {
-            if left_filtered_count >= right.len() {
-                nom::CompareResult::Ok
+// TODO: add enum to return where we should split `left`.
+fn compare_no_whitespace(actual: &str, expected: &str) -> CompareResult {
+    let mut actual_iter = actual.chars();
+    let mut expected_iter = expected.chars();
+    while let Some(expected_char) = expected_iter.next() {
+        let actual_char = loop {
+            if let Some(char) = actual_iter.next() {
+                if !char.is_whitespace() {
+                    break char;
+                }
             } else {
-                nom::CompareResult::Incomplete
+                return CompareResult::Incomplete;
             }
+        };
+
+        println!("{actual_char} {expected_char}");
+        if actual_char != expected_char {
+            return CompareResult::Error;
         }
     }
+
+    CompareResult::Ok(actual.len() - actual_iter.count())
 }
 
 pub fn tag_no_whitespace<'a>(
@@ -50,9 +66,11 @@ pub fn tag_no_whitespace<'a>(
   ) -> impl Fn(&'a str) -> IResult<&'a str, &'a str>
 {
     move |i: &str| {
-        let tag_len = tag.len();
         let res: IResult<_, _> = match compare_no_whitespace(i, tag) {
-            nom::CompareResult::Ok => Ok(i.split_at(tag_len)),
+            CompareResult::Ok(read_count) => {
+                let (read, remaining) = i.split_at(read_count);
+                Ok((remaining, read))
+            },
             _ => {
                 let e: nom::error::ErrorKind = nom::error::ErrorKind::Tag;
                 Err(nom::Err::Error(VerboseError::from_error_kind(i, e)))
@@ -170,7 +188,7 @@ mod tests {
     #[test]
     fn test_target_a() {
         assert_eq!(
-            instruction("M=D-1"),
+            instruction("M = D  -   1   "),
             Ok((
                 "",
                 AssemblyInstruction::Instruction(Instruction::new(58248))
@@ -200,15 +218,15 @@ mod tests {
 
     #[test]
     fn test_compare_no_whitespace() {
-        use nom::CompareResult::*;
+        use CompareResult::*;
         assert_eq!(compare_no_whitespace("abc", "def"), Error);
-        assert_eq!(compare_no_whitespace("abc", "ab"), Ok);
+        assert_eq!(compare_no_whitespace("abc", "ab"), Ok(2));
         assert_eq!(compare_no_whitespace("ab", "abc"), Incomplete);
         assert_eq!(compare_no_whitespace("abc", "abd"), Error);
         assert_eq!(compare_no_whitespace("", "def"), Incomplete);
 
         assert_eq!(compare_no_whitespace("a b c", "def"), Error);
-        assert_eq!(compare_no_whitespace("a  b  c", "ab"), Ok);
+        assert_eq!(compare_no_whitespace("a  b  c", "ab"), Ok(4));
         assert_eq!(compare_no_whitespace("a  b", "abc"), Incomplete);
         assert_eq!(compare_no_whitespace("a b   c", "abd"), Error);
         assert_eq!(compare_no_whitespace("  ", "def"), Incomplete);
