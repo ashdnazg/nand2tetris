@@ -23,8 +23,8 @@ fn secondPass(_: &[AssemblyInstruction]) -> Vec<Instruction> {
     vec![]
 }
 
-fn create_instruction(args: (DestinationRegisters, &str, Option<JumpCondition>)) -> AssemblyInstruction {
-    AssemblyInstruction::Instruction(Instruction::create(args.0, "D-1", args.2.unwrap_or(JumpCondition::NoJump)).unwrap())
+fn create_instruction(args: (DestinationRegisters, u16, Option<JumpCondition>)) -> AssemblyInstruction {
+    AssemblyInstruction::Instruction(Instruction::create(args.0, args.1, args.2.unwrap_or(JumpCondition::NoJump)).unwrap())
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -129,7 +129,46 @@ fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
                 ),
                 delimited(
                     space0,
-                    tag_no_whitespace("D-1"),
+                    alt((
+                        alt((
+                            value(0x01AA, tag_no_whitespace("0"  )),
+                            value(0x01BF, tag_no_whitespace("1"  )),
+                            value(0x01BA, tag_no_whitespace("-1" )),
+                            value(0x018C, tag_no_whitespace("D"  )),
+                            value(0x01B0, tag_no_whitespace("A"  )),
+                            value(0x01F0, tag_no_whitespace("M"  )),
+                            value(0x018D, tag_no_whitespace("!D" )),
+                            value(0x01B1, tag_no_whitespace("!A" )),
+                            value(0x01F1, tag_no_whitespace("!M" )),
+                            value(0x018F, tag_no_whitespace("-D" )),
+                            value(0x01B3, tag_no_whitespace("-A" )),
+                            value(0x01F3, tag_no_whitespace("-M" )),
+                            value(0x019F, tag_no_whitespace("D+1")),
+                            value(0x01B7, tag_no_whitespace("A+1")),
+                            value(0x01F7, tag_no_whitespace("M+1")),
+                            value(0x018E, tag_no_whitespace("D-1")),
+                            value(0x01B2, tag_no_whitespace("A-1")),
+                            value(0x01F2, tag_no_whitespace("M-1")),
+                            value(0x0182, tag_no_whitespace("D+A")),
+                            value(0x0182, tag_no_whitespace("A+D")),
+                            value(0x01C2, tag_no_whitespace("D+M")),
+                        )),
+                        alt((
+                            value(0x01C2, tag_no_whitespace("M+D")),
+                            value(0x0193, tag_no_whitespace("D-A")),
+                            value(0x0187, tag_no_whitespace("A-D")),
+                            value(0x01D3, tag_no_whitespace("D-M")),
+                            value(0x01C7, tag_no_whitespace("M-D")),
+                            value(0x0180, tag_no_whitespace("D&A")),
+                            value(0x0180, tag_no_whitespace("A&D")),
+                            value(0x01C0, tag_no_whitespace("D&M")),
+                            value(0x01C0, tag_no_whitespace("M&D")),
+                            value(0x0195, tag_no_whitespace("D|A")),
+                            value(0x0195, tag_no_whitespace("A|D")),
+                            value(0x01D5, tag_no_whitespace("D|M")),
+                            value(0x01D5, tag_no_whitespace("M|D")),
+                        )),
+                    )),
                     space0
                 ),
                 opt(
