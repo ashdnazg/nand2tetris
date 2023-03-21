@@ -64,8 +64,8 @@ impl eframe::App for EmulatorApp {
             &action,
         );
 
-        let key_down = if ctx.memory().focus().is_none() {
-            ctx.input().keys_down.iter().cloned().next()
+        let key_down = if ctx.memory(|m| m.focus().is_none()) {
+            ctx.input(|i| i.keys_down.iter().cloned().next())
         } else {
             None
         };
@@ -73,11 +73,11 @@ impl eframe::App for EmulatorApp {
         match &mut self.state {
             AppState::Hardware(state) => {
                 self.shared_state.run_started &=
-                    state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
+                    state.run_steps(steps_to_run, key_down, ctx.input(|i| i.modifiers));
             }
             AppState::VM(state) => {
                 self.shared_state.run_started &=
-                    state.run_steps(steps_to_run, key_down, ctx.input().modifiers);
+                    state.run_steps(steps_to_run, key_down, ctx.input(|i| i.modifiers));
             }
             _ => {}
         }
@@ -122,5 +122,5 @@ fn main() {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
             Box::new(EmulatorApp::new(&cc))
         }),
-    );
+    ).unwrap();
 }

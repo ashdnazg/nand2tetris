@@ -4,7 +4,7 @@ use eframe::{
     egui,
     epaint::{mutex::Mutex, Vec2},
 };
-use egui_extras::{Size, StripBuilder, TableBuilder};
+use egui_extras::{Size, StripBuilder, TableBuilder, Column};
 use nand2tetris::hardware::BreakpointVar;
 
 use crate::common_state::{Action, CommonAction, UIStyle};
@@ -151,9 +151,9 @@ impl HardwareState {
                 TableBuilder::new(ui)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                    .column(Size::exact(100.0))
-                    .column(Size::exact(100.0))
-                    .column(Size::exact(70.0))
+                    .column(Column::exact(100.0))
+                    .column(Column::exact(100.0))
+                    .column(Column::exact(70.0))
                     .header(header_height, |mut header| {
                         header.col(|ui| {
                             ui.label("Variable");

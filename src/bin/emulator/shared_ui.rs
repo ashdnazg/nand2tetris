@@ -5,7 +5,7 @@ use eframe::{
     egui::{self, Slider},
     epaint::Rect,
 };
-use egui_extras::{Size, TableBuilder};
+use egui_extras::{TableBuilder, Column};
 use nand2tetris::hardware::{Instruction, RAM};
 
 use crate::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
@@ -289,8 +289,8 @@ impl EmulatorWidgets for egui::Ui {
             TableBuilder::new(ui)
                 .striped(true)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Size::initial(45.0).at_least(45.0))
-                .column(Size::remainder().at_least(40.0))
+                .column(Column::initial(45.0).at_least(45.0))
+                .column(Column::remainder().at_least(40.0))
                 .header(header_height, |mut header| {
                     if style == UIStyle::Hardware {
                         header.col(|ui| {
@@ -329,8 +329,8 @@ impl EmulatorWidgets for egui::Ui {
             TableBuilder::new(ui)
                 .striped(true)
                 .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Size::initial(45.0).at_least(45.0))
-                .column(Size::remainder().at_least(70.0))
+                .column(Column::initial(45.0).at_least(45.0))
+                .column(Column::remainder().at_least(70.0))
                 .header(header_height, |mut header| {
                     header.col(|ui| {
                         ui.label("Address");
