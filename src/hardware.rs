@@ -40,47 +40,47 @@ fn encode_dst_registers(dst_registers: DestinationRegisters) -> u16 {
         A => 4,
         AM => 5,
         AD => 6,
-        AMD => 7
+        AMD => 7,
     }
 }
 
 fn encode_calculation(calculation_str: &str) -> Option<u16> {
     match calculation_str {
-        "0"    => Some(0x01AA),
-        "1"    => Some(0x01BF),
-        "-1"   => Some(0x01BA),
-        "D"    => Some(0x018C),
-        "A"    => Some(0x01B0),
-        "M"    => Some(0x01F0),
-        "!D"   => Some(0x018D),
-        "!A"   => Some(0x01B1),
-        "!M"   => Some(0x01F1),
-        "-D"   => Some(0x018F),
-        "-A"   => Some(0x01B3),
-        "-M"   => Some(0x01F3),
-        "D+1"  => Some(0x019F),
-        "A+1"  => Some(0x01B7),
-        "M+1"  => Some(0x01F7),
-        "D-1"  => Some(0x018E),
-        "A-1"  => Some(0x01B2),
-        "M-1"  => Some(0x01F2),
-        "D+A"  => Some(0x0182),
-        "A+D"  => Some(0x0182),
-        "D+M"  => Some(0x01C2),
-        "M+D"  => Some(0x01C2),
-        "D-A"  => Some(0x0193),
-        "A-D"  => Some(0x0187),
-        "D-M"  => Some(0x01D3),
-        "M-D"  => Some(0x01C7),
-        "D&A"  => Some(0x0180),
-        "A&D"  => Some(0x0180),
-        "D&M"  => Some(0x01C0),
-        "M&D"  => Some(0x01C0),
-        "D|A"  => Some(0x0195),
-        "A|D"  => Some(0x0195),
-        "D|M"  => Some(0x01D5),
-        "M|D"  => Some(0x01D5),
-        _ => None
+        "0" => Some(0x01AA),
+        "1" => Some(0x01BF),
+        "-1" => Some(0x01BA),
+        "D" => Some(0x018C),
+        "A" => Some(0x01B0),
+        "M" => Some(0x01F0),
+        "!D" => Some(0x018D),
+        "!A" => Some(0x01B1),
+        "!M" => Some(0x01F1),
+        "-D" => Some(0x018F),
+        "-A" => Some(0x01B3),
+        "-M" => Some(0x01F3),
+        "D+1" => Some(0x019F),
+        "A+1" => Some(0x01B7),
+        "M+1" => Some(0x01F7),
+        "D-1" => Some(0x018E),
+        "A-1" => Some(0x01B2),
+        "M-1" => Some(0x01F2),
+        "D+A" => Some(0x0182),
+        "A+D" => Some(0x0182),
+        "D+M" => Some(0x01C2),
+        "M+D" => Some(0x01C2),
+        "D-A" => Some(0x0193),
+        "A-D" => Some(0x0187),
+        "D-M" => Some(0x01D3),
+        "M-D" => Some(0x01C7),
+        "D&A" => Some(0x0180),
+        "A&D" => Some(0x0180),
+        "D&M" => Some(0x01C0),
+        "M&D" => Some(0x01C0),
+        "D|A" => Some(0x0195),
+        "A|D" => Some(0x0195),
+        "D|M" => Some(0x01D5),
+        "M|D" => Some(0x01D5),
+        _ => None,
     }
 }
 
@@ -89,13 +89,18 @@ impl Instruction {
         Instruction { raw }
     }
 
-    pub(crate) fn create(dst_registers: DestinationRegisters, calculation_value: u16, jump_condition: JumpCondition) -> Option<Self> {
-
+    pub(crate) fn create(
+        dst_registers: DestinationRegisters,
+        calculation_value: u16,
+        jump_condition: JumpCondition,
+    ) -> Option<Self> {
         let encoded_dst = encode_dst_registers(dst_registers);
         let encoded_calculation = calculation_value;
         let encoded_jump = encode_jmp(jump_condition);
 
-        Some(Instruction { raw: (1 << 15) | (encoded_calculation << 6) | (encoded_dst << 3) | encoded_jump })
+        Some(Instruction {
+            raw: (1 << 15) | (encoded_calculation << 6) | (encoded_dst << 3) | encoded_jump,
+        })
     }
 }
 

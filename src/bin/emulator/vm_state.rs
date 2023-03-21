@@ -19,7 +19,9 @@ impl Default for VMState {
 
 impl VMState {
     pub fn from_dir(path_buf: &PathBuf) -> Self {
-        VMState { vm: VM::from_dir(path_buf) }
+        VMState {
+            vm: VM::from_dir(path_buf),
+        }
     }
 }
 
