@@ -122,5 +122,6 @@ fn main() {
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
             Box::new(EmulatorApp::new(&cc))
         }),
-    ).unwrap();
+    )
+    .unwrap();
 }

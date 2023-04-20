@@ -5,7 +5,7 @@ use eframe::{
     egui::{self, Slider},
     epaint::Rect,
 };
-use egui_extras::{TableBuilder, Column};
+use egui_extras::{Column, TableBuilder};
 use nand2tetris::hardware::{Instruction, RAM};
 
 use crate::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};

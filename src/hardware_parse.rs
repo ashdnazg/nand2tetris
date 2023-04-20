@@ -17,11 +17,16 @@ type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;
 enum AssemblyInstruction {
     Instruction(Instruction),
     Label(String),
-    AtInstruction(String),
+    AtIdentifierInstruction(String),
+    AtNumberInstruction(i16),
 }
 
 fn second_pass(_: &[AssemblyInstruction]) -> Vec<Instruction> {
     vec![]
+}
+
+fn parse_identifier(input: &str) -> IResult<&str, &str> {
+    recognize(many1_count(alt((alphanumeric1, tag("_"), tag(".")))))(input)
 }
 
 fn create_c_instruction(
@@ -30,6 +35,37 @@ fn create_c_instruction(
     AssemblyInstruction::Instruction(
         Instruction::create(args.0, args.1, args.2.unwrap_or(JumpCondition::NoJump)).unwrap(),
     )
+}
+
+fn parse_at_number_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
+    let (remainder, number) = i16(input)?;
+
+    if number < 0 {
+        return Err(nom::Err::Error(VerboseError::from_error_kind(
+            input,
+            nom::error::ErrorKind::Digit,
+        )));
+    }
+
+    Ok((remainder, AssemblyInstruction::AtNumberInstruction(number)))
+}
+
+fn parse_at_identifier_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
+    let (remainder, identifier) = parse_identifier(input)?;
+
+    Ok((
+        remainder,
+        AssemblyInstruction::AtIdentifierInstruction(identifier.to_string()),
+    ))
+}
+
+fn parse_label(input: &str) -> IResult<&str, AssemblyInstruction> {
+    let (remainder, identifier) = parse_identifier(input)?;
+
+    Ok((
+        remainder,
+        AssemblyInstruction::Label(identifier.to_string()),
+    ))
 }
 
 fn parse_destination_registers<'a>() -> impl FnMut(&'a str) -> IResult<&'a str, DestinationRegisters>
@@ -177,21 +213,38 @@ fn create_destination(args: Option<&str>) -> DestinationRegisters {
     }
 }
 
-fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
+fn c_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
     delimited(
         space0,
-        alt((
-            map(
-                tuple((
-                    parse_destination_registers(),
-                    parse_calculation(),
-                    parse_jump_condition(),
-                )),
-                create_c_instruction,
-            ),
-        )),
+        alt((map(
+            tuple((
+                parse_destination_registers(),
+                parse_calculation(),
+                parse_jump_condition(),
+            )),
+            create_c_instruction,
+        ),)),
         space0,
     )(input)
+}
+
+fn a_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
+    delimited(
+        space0,
+        preceded(
+            tag("@"),
+            alt((parse_at_number_instruction, parse_at_identifier_instruction)),
+        ),
+        space0,
+    )(input)
+}
+
+fn label(input: &str) -> IResult<&str, AssemblyInstruction> {
+    delimited(space0, delimited(tag("("), parse_label, tag(")")), space0)(input)
+}
+
+fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
+    alt((a_instruction, c_instruction, label))(input)
 }
 
 fn non_command_lines(input: &str) -> IResult<&str, ()> {
@@ -230,6 +283,33 @@ mod tests {
                 "",
                 AssemblyInstruction::Instruction(Instruction::new(58248))
             ))
+        );
+    }
+
+    #[test]
+    fn test_at_number() {
+        assert_eq!(
+            instruction("@1337"),
+            Ok(("", AssemblyInstruction::AtNumberInstruction(1337)))
+        );
+    }
+
+    #[test]
+    fn test_at_identifier() {
+        assert_eq!(
+            instruction("@Bob"),
+            Ok((
+                "",
+                AssemblyInstruction::AtIdentifierInstruction("Bob".to_string())
+            ))
+        );
+    }
+
+    #[test]
+    fn test_at_label() {
+        assert_eq!(
+            instruction("(Bob)"),
+            Ok(("", AssemblyInstruction::Label("Bob".to_string())))
         );
     }
 

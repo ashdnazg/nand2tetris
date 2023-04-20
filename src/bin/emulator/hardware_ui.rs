@@ -4,7 +4,7 @@ use eframe::{
     egui,
     epaint::{mutex::Mutex, Vec2},
 };
-use egui_extras::{Size, StripBuilder, TableBuilder, Column};
+use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 use nand2tetris::hardware::BreakpointVar;
 
 use crate::common_state::{Action, CommonAction, UIStyle};
