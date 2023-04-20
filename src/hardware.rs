@@ -1,4 +1,6 @@
-use std::ops::{Index, IndexMut};
+use std::{ops::{Index, IndexMut}, path::Path, fs};
+
+use crate::hardware_parse::read_instructions;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Instruction {
@@ -452,6 +454,19 @@ impl Hardware {
         }
 
         false
+    }
+
+    pub fn from_file(path: impl AsRef<Path>) -> Self {
+        let mut instance = Self::default();
+        let instructions = read_instructions(fs::read_to_string(path).unwrap().as_str())
+            .unwrap()
+            .1;
+
+        for (i, instruction) in instructions.into_iter().enumerate() {
+            instance.rom[i] = instruction;
+        }
+
+        instance
     }
 
     pub fn load_program<I: Iterator<Item = Instruction>>(&mut self, program: I) {

@@ -39,7 +39,12 @@ impl Default for HardwareState {
 
 impl HardwareState {
     pub fn from_file(path: &PathBuf) -> Self {
-        HardwareState::default()
+        HardwareState {
+            selected_breakpoint_var: BreakpointVar::A,
+            breakpoint_value: 0,
+            breakpoints_open: false,
+            hardware: Hardware::from_file(path),
+        }
     }
 }
 

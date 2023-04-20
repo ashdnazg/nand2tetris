@@ -1,5 +1,6 @@
 use crate::hardware::*;
 
+use hashbrown::HashMap;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
@@ -239,12 +240,12 @@ fn a_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
     )(input)
 }
 
-fn label(input: &str) -> IResult<&str, AssemblyInstruction> {
+fn create_label(input: &str) -> IResult<&str, AssemblyInstruction> {
     delimited(space0, delimited(tag("("), parse_label, tag(")")), space0)(input)
 }
 
 fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
-    alt((a_instruction, c_instruction, label))(input)
+    alt((a_instruction, c_instruction, create_label))(input)
 }
 
 fn non_command_lines(input: &str) -> IResult<&str, ()> {
@@ -263,12 +264,52 @@ fn non_command_lines(input: &str) -> IResult<&str, ()> {
     )(input)
 }
 
-fn commands(input: &str) -> IResult<&str, Vec<AssemblyInstruction>> {
+fn assembly_instructions(input: &str) -> IResult<&str, Vec<AssemblyInstruction>> {
     all_consuming(delimited(
         opt(non_command_lines),
         separated_list1(non_command_lines, instruction),
         opt(non_command_lines),
     ))(input)
+}
+
+pub fn read_instructions(input: &str) -> IResult<&str, Vec<Instruction>> {
+    assembly_instructions(input).map(|assembly_instructions| (assembly_instructions.0, assemble(&assembly_instructions.1)))
+}
+
+fn assemble(assembly_instructions: &Vec<AssemblyInstruction>) -> Vec<Instruction> {
+    let mut at_identifier_map: HashMap<String, i16> = HashMap::new();
+    let mut index = 0;
+    for assembly_instruction in assembly_instructions.iter() {
+        let AssemblyInstruction::Label(label) = assembly_instruction else {
+            index += 1;
+            continue;
+        };
+        if at_identifier_map.contains_key(label) {
+            // angry
+        }
+
+        at_identifier_map.insert(label.clone(), index);
+    }
+
+    let mut rom: Vec<Instruction> = vec![];
+
+    let mut static_var_index = 16;
+    for assembly_instruction in assembly_instructions.iter() {
+        match assembly_instruction {
+            AssemblyInstruction::Instruction(instruction) => rom.push(instruction.clone()),
+            AssemblyInstruction::Label(_) => {},
+            AssemblyInstruction::AtIdentifierInstruction(identifier) => {
+                if !at_identifier_map.contains_key(identifier) {
+                    at_identifier_map.insert(identifier.clone(), static_var_index);
+                    static_var_index += 1;
+                }
+                rom.push(Instruction::new(at_identifier_map[identifier] as u16));
+            },
+            AssemblyInstruction::AtNumberInstruction(value) => rom.push(Instruction::new(*value as u16)),
+        }
+    }
+
+    rom
 }
 
 #[cfg(test)]
@@ -297,10 +338,10 @@ mod tests {
     #[test]
     fn test_at_identifier() {
         assert_eq!(
-            instruction("@Bob"),
+            instruction("@Bob123"),
             Ok((
                 "",
-                AssemblyInstruction::AtIdentifierInstruction("Bob".to_string())
+                AssemblyInstruction::AtIdentifierInstruction("Bob123".to_string())
             ))
         );
     }
@@ -308,8 +349,8 @@ mod tests {
     #[test]
     fn test_at_label() {
         assert_eq!(
-            instruction("(Bob)"),
-            Ok(("", AssemblyInstruction::Label("Bob".to_string())))
+            instruction("(Bob321)"),
+            Ok(("", AssemblyInstruction::Label("Bob321".to_string())))
         );
     }
 

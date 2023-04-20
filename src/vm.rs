@@ -109,7 +109,7 @@ pub struct VM {
 }
 
 impl VM {
-    pub fn from_dir<P: AsRef<Path>>(path: P) -> Self {
+    pub fn from_dir(path: impl AsRef<Path>) -> Self {
         let paths = fs::read_dir(path).unwrap();
         let files = paths
             .map(|path| path.unwrap())
