@@ -245,7 +245,7 @@ fn create_label(input: &str) -> IResult<&str, AssemblyInstruction> {
 }
 
 fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
-    alt((a_instruction, c_instruction, create_label))(input)
+    alt((c_instruction,))(input)
 }
 
 fn non_command_lines(input: &str) -> IResult<&str, ()> {
@@ -273,7 +273,15 @@ fn assembly_instructions(input: &str) -> IResult<&str, Vec<AssemblyInstruction>>
 }
 
 pub fn read_instructions(input: &str) -> IResult<&str, Vec<Instruction>> {
-    assembly_instructions(input).map(|assembly_instructions| (assembly_instructions.0, assemble(&assembly_instructions.1)))
+    let instructions: Vec<_> = input.lines().filter_map(|line| {
+        if non_command_lines(line).is_ok() {
+            return None;
+        }
+
+        Some(instruction(line).unwrap().1)
+    }).collect();
+    // assembly_instructions(input).map(|assembly_instructions| (assembly_instructions.0, assemble(&assembly_instructions.1)))
+   Ok(("", assemble(&instructions)))
 }
 
 fn assemble(assembly_instructions: &Vec<AssemblyInstruction>) -> Vec<Instruction> {
@@ -315,6 +323,53 @@ fn assemble(assembly_instructions: &Vec<AssemblyInstruction>) -> Vec<Instruction
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_integration() {
+        let program = r#"
+        D
+        D"#;
+        // M=D-1
+        // @17
+        // M=0
+        // @24576
+        // D=M
+        // @12
+        // D;JEQ
+        // @17
+        // M=-1
+        // @17
+        // D=M
+        // @16
+        // AM=M+1
+        // M=D
+        // @24576
+        // D=A-1
+        // @16
+        // D=D-M
+        // @4
+        // D;JGE
+        // @16384
+        // D=A
+        // @16
+        // M=D-1
+        // @4
+        // 0;JMP"#;
+
+        let expected_program: Vec<_> = [
+            16384, 60432, 16, 58248, 17, 60040, 24576, 64528, 12, 58114, 17, 61064, 17, 64528, 16,
+            65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
+        ].iter().map(|raw| Instruction::new(*raw)).collect();
+        read_instructions(program).unwrap();
+
+        // assert_eq!(
+        //     read_instructions(program),
+        //     Ok((
+        //         "",
+        //         expected_program
+        //     ))
+        // )
+    }
 
     #[test]
     fn test_target_a() {

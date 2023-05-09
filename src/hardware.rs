@@ -1,4 +1,8 @@
-use std::{ops::{Index, IndexMut}, path::Path, fs};
+use std::{
+    fs,
+    ops::{Index, IndexMut},
+    path::Path,
+};
 
 use crate::hardware_parse::read_instructions;
 
