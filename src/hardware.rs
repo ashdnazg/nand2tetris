@@ -263,7 +263,7 @@ impl IndexMut<i16> for RAM {
 
 impl RAM {
     pub const SCREEN: i16 = 0x4000;
-    const KBD: i16 = 0x6000;
+    pub const KBD: i16 = 0x6000;
     pub const SCREEN_ROW_LENGTH: i16 = 32;
 
     pub fn get_pixel(&self, x: i16, y: i16) -> bool {

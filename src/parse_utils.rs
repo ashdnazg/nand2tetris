@@ -9,7 +9,6 @@ use nom::{
     FindToken, InputLength, InputTakeAtPosition, Parser,
 };
 
-
 pub type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;
 
 pub trait AndThenConsuming<I, O, E> {
@@ -43,7 +42,9 @@ pub fn strip_comment(input: &str) -> IResult<&str, &str> {
     terminated(is_not0("/"), opt(preceded(tag("//"), rest)))(input)
 }
 
-pub fn non_comment_lines<'a, O, F>(line_parser: F) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<O>>
+pub fn non_comment_lines<'a, O, F>(
+    line_parser: F,
+) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<O>>
 where
     F: FnMut(&'a str) -> IResult<&'a str, O>,
     O: Clone,

@@ -1,4 +1,7 @@
-use crate::{hardware::*, parse_utils::{is_not0, non_comment_lines, IResult, AndThenConsuming}};
+use crate::{
+    hardware::*,
+    parse_utils::{is_not0, non_comment_lines, AndThenConsuming, IResult},
+};
 
 use hashbrown::HashMap;
 use nom::{
@@ -9,7 +12,7 @@ use nom::{
     error::{ParseError, VerboseError},
     multi::{many1, many1_count},
     sequence::{delimited, preceded, terminated, tuple},
-    Parser
+    Parser,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -240,18 +243,43 @@ pub fn assemble_hack_file(input: &str) -> IResult<&str, Vec<Instruction>> {
 }
 
 fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
-    let mut at_identifier_map: HashMap<String, i16> = HashMap::new();
+    let mut at_identifier_map: HashMap<&str, i16> = HashMap::from([
+        ("R0", 0),
+        ("R1", 1),
+        ("R2", 2),
+        ("R3", 3),
+        ("R4", 4),
+        ("R5", 5),
+        ("R6", 6),
+        ("R7", 7),
+        ("R8", 8),
+        ("R9", 9),
+        ("R10", 10),
+        ("R11", 11),
+        ("R12", 12),
+        ("R13", 13),
+        ("R14", 14),
+        ("R15", 15),
+        ("SP", 0),
+        ("LCL", 1),
+        ("ARG", 2),
+        ("THIS", 3),
+        ("THAT", 4),
+        ("SCREEN", RAM::SCREEN),
+        ("SCREEN", RAM::KBD),
+    ]);
+
     let mut index = 0;
     for assembly_instruction in assembly_instructions.iter() {
         let AssemblyInstruction::Label(label) = assembly_instruction else {
             index += 1;
             continue;
         };
-        if at_identifier_map.contains_key(label) {
-            // angry
+        if at_identifier_map.contains_key(label.as_str()) {
+            panic!("already encountered label {label}");
         }
 
-        at_identifier_map.insert(label.clone(), index);
+        at_identifier_map.insert(label.as_str(), index);
     }
 
     let mut rom: Vec<Instruction> = vec![];
@@ -262,11 +290,13 @@ fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
             AssemblyInstruction::Instruction(instruction) => rom.push(instruction.clone()),
             AssemblyInstruction::Label(_) => {}
             AssemblyInstruction::AtIdentifierInstruction(identifier) => {
-                if !at_identifier_map.contains_key(identifier) {
-                    at_identifier_map.insert(identifier.clone(), static_var_index);
+                if !at_identifier_map.contains_key(identifier.as_str()) {
+                    at_identifier_map.insert(identifier.as_str(), static_var_index);
                     static_var_index += 1;
                 }
-                rom.push(Instruction::new(at_identifier_map[identifier] as u16));
+                rom.push(Instruction::new(
+                    at_identifier_map[identifier.as_str()] as u16,
+                ));
             }
             AssemblyInstruction::AtNumberInstruction(value) => {
                 rom.push(Instruction::new(*value as u16))

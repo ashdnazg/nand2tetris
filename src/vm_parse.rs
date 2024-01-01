@@ -1,4 +1,7 @@
-use crate::{parse_utils::{non_comment_lines, IResult}, vm::*};
+use crate::{
+    parse_utils::{non_comment_lines, IResult},
+    vm::*,
+};
 
 use nom::{
     branch::alt,
@@ -6,7 +9,7 @@ use nom::{
     character::complete::{alphanumeric1, i16, space1},
     combinator::{map, recognize, value},
     multi::many1_count,
-    sequence::{pair, preceded, separated_pair}
+    sequence::{pair, preceded, separated_pair},
 };
 
 fn pop_segment(input: &str) -> IResult<&str, PopSegment> {
