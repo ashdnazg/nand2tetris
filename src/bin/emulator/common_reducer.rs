@@ -105,5 +105,5 @@ pub fn steps_to_run(
     performance_data.steps_during_last_frame = steps_to_run;
     performance_data.total_steps += steps_to_run;
 
-    return steps_to_run;
+    steps_to_run
 }

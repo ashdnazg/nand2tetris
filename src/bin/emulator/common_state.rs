@@ -5,9 +5,12 @@ use nand2tetris::hardware::RAM;
 use std::path::PathBuf;
 use std::time::Instant;
 
+#[allow(clippy::large_enum_variant)]
+#[derive(Default)]
 pub enum AppState {
     Hardware(HardwareState),
     VM(VMState),
+    #[default]
     Start,
 }
 
@@ -15,12 +18,6 @@ pub enum AppState {
 pub enum UIStyle {
     Hardware,
     VM,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        AppState::Start
-    }
 }
 
 pub trait CommonState {
@@ -51,22 +48,12 @@ pub enum Action {
     Quit,
 }
 
+#[derive(Default)]
 pub struct PerformanceData {
     pub steps_during_last_frame: u64,
     pub total_steps: u64,
     pub run_start: Option<Instant>,
     pub previous_desired_steps_per_second: u64,
-}
-
-impl Default for PerformanceData {
-    fn default() -> Self {
-        PerformanceData {
-            steps_during_last_frame: 0,
-            total_steps: 0,
-            run_start: None,
-            previous_desired_steps_per_second: 0,
-        }
-    }
 }
 
 pub struct SharedState {
@@ -105,7 +92,7 @@ impl<T: CommonState> StepRunnable for T {
                 return false;
             }
         }
-        return true;
+        true
     }
 }
 
@@ -174,7 +161,7 @@ fn keyboard_value_from_key(key: Option<Key>, modifiers: Modifiers) -> i16 {
         Some(Key::Z) => 90,
         _ => 0,
     };
-    if value >= 65 && value <= 90 && !modifiers.shift {
+    if (65..=90).contains(&value) && !modifiers.shift {
         value += 32;
     }
 

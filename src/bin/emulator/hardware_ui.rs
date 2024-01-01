@@ -184,12 +184,10 @@ impl HardwareState {
                                     );
                                 });
                                 row.col(|ui| {
-                                    if breakpoint.is_some() {
-                                        if ui.button("Remove").clicked() {
-                                            *action = Some(Action::Breakpoint(
-                                                BreakpointAction::RemoveClicked(row_index),
-                                            ));
-                                        }
+                                    if breakpoint.is_some() && ui.button("Remove").clicked() {
+                                        *action = Some(Action::Breakpoint(
+                                            BreakpointAction::RemoveClicked(row_index),
+                                        ));
                                     }
                                 });
                             },

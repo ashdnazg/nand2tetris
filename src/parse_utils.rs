@@ -59,6 +59,6 @@ where
                     value(None, space0),
                 ))),
         ),
-        |v| v.into_iter().filter_map(|i| i).collect::<Vec<_>>(),
+        |v| v.into_iter().flatten().collect::<Vec<_>>(),
     ))
 }

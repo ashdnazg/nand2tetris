@@ -37,7 +37,7 @@ impl EmulatorApp {
             performance_data: Default::default(),
             shared_state: Default::default(),
             state: Default::default(),
-            screen: Arc::new(Mutex::new(Screen::new(&cc.gl.as_ref().unwrap()))),
+            screen: Arc::new(Mutex::new(Screen::new(cc.gl.as_ref().unwrap()))),
         }
     }
 }
@@ -86,9 +86,9 @@ impl eframe::App for EmulatorApp {
 
         match &self.state {
             AppState::Hardware(state) => {
-                state.draw(ctx, &mut action, &self.screen, &frame);
+                state.draw(ctx, &mut action, &self.screen, frame);
             }
-            AppState::VM(state) => draw_vm(state, ctx, &mut action, &self.screen, &frame),
+            AppState::VM(state) => draw_vm(state, ctx, &mut action, &self.screen, frame),
             AppState::Start => {}
         };
 
@@ -122,7 +122,7 @@ fn main() {
         Box::new(|cc| {
             cc.egui_ctx.set_pixels_per_point(1.5);
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            Box::new(EmulatorApp::new(&cc))
+            Box::new(EmulatorApp::new(cc))
         }),
     )
     .unwrap();

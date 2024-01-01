@@ -11,6 +11,7 @@ pub struct Instruction {
     raw: u16,
 }
 
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DestinationRegisters {
     NoDestination,
@@ -448,10 +449,7 @@ impl Hardware {
     }
 
     pub fn reset(&mut self) {
-        let mut new_instance = Hardware::default();
-        new_instance.rom = self.rom;
-        new_instance.breakpoints = self.breakpoints.clone();
-        *self = new_instance;
+        *self = Hardware { rom: self.rom, breakpoints: self.breakpoints.clone(), ..Default::default() };
     }
 
     pub fn get_breakpoints(&self) -> &Vec<Breakpoint> {
@@ -479,10 +477,10 @@ pub enum BreakpointVar {
 impl std::fmt::Display for BreakpointVar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BreakpointVar::A => write!(f, "{}", "A"),
-            BreakpointVar::D => write!(f, "{}", "D"),
-            BreakpointVar::M => write!(f, "{}", "M"),
-            BreakpointVar::PC => write!(f, "{}", "PC"),
+            BreakpointVar::A => write!(f, "A"),
+            BreakpointVar::D => write!(f, "D"),
+            BreakpointVar::M => write!(f, "M"),
+            BreakpointVar::PC => write!(f, "PC"),
             BreakpointVar::Mem(address) => write!(f, "RAM[{}]", address),
         }
     }

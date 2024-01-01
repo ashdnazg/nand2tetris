@@ -155,10 +155,9 @@ enum CompareResult {
 }
 
 fn compare_no_whitespace(actual: &str, expected: &str) -> CompareResult {
-    let mut actual_iter = actual.chars();
     let mut expected_iter = expected.chars();
     let mut expected_char = expected_iter.next();
-    while let Some(actual_char) = actual_iter.next() {
+    for actual_char in actual.chars() {
         if actual_char.is_whitespace() {
             continue;
         }
@@ -167,7 +166,7 @@ fn compare_no_whitespace(actual: &str, expected: &str) -> CompareResult {
         }
         expected_char = expected_iter.next();
     }
-    if expected_char == None {
+    if expected_char.is_none() {
         CompareResult::Ok
     } else {
         CompareResult::Incomplete
@@ -287,7 +286,7 @@ fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
     let mut static_var_index = 16;
     for assembly_instruction in assembly_instructions.iter() {
         match assembly_instruction {
-            AssemblyInstruction::Instruction(instruction) => rom.push(instruction.clone()),
+            AssemblyInstruction::Instruction(instruction) => rom.push(*instruction),
             AssemblyInstruction::Label(_) => {}
             AssemblyInstruction::AtIdentifierInstruction(identifier) => {
                 if !at_identifier_map.contains_key(identifier.as_str()) {
