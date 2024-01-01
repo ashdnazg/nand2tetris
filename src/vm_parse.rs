@@ -1,16 +1,13 @@
-use crate::vm::*;
+use crate::{parse_utils::{non_comment_lines, IResult}, vm::*};
 
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag},
-    character::complete::{alphanumeric1, i16, line_ending, space0, space1},
-    combinator::{all_consuming, eof, map, opt, recognize, value},
-    error::VerboseError,
-    multi::{many1_count, separated_list1},
-    sequence::{delimited, pair, preceded, separated_pair, tuple},
+    bytes::complete::tag,
+    character::complete::{alphanumeric1, i16, space1},
+    combinator::{map, recognize, value},
+    multi::many1_count,
+    sequence::{pair, preceded, separated_pair}
 };
-
-type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;
 
 fn pop_segment(input: &str) -> IResult<&str, PopSegment> {
     alt((
@@ -102,53 +99,29 @@ fn command_one_arg<'a>(keyword: &'a str) -> impl FnMut(&'a str) -> IResult<&'a s
 }
 
 fn command(input: &str) -> IResult<&str, VMCommand> {
-    delimited(
-        space0,
-        alt((
-            map(command_two_args("push", push_segment), create_push),
-            map(command_two_args("pop", pop_segment), create_pop),
-            map(command_one_arg("label"), create_label),
-            map(command_one_arg("goto"), create_goto),
-            map(command_one_arg("if-goto"), create_if_goto),
-            map(command_two_args("function", identifier), create_function),
-            map(command_two_args("call", identifier), create_call),
-            value(VMCommand::Add, tag("add")),
-            value(VMCommand::Sub, tag("sub")),
-            value(VMCommand::Neg, tag("neg")),
-            value(VMCommand::Eq, tag("eq")),
-            value(VMCommand::Gt, tag("gt")),
-            value(VMCommand::Lt, tag("lt")),
-            value(VMCommand::And, tag("and")),
-            value(VMCommand::Or, tag("or")),
-            value(VMCommand::Not, tag("not")),
-            value(VMCommand::Return, tag("return")),
-        )),
-        space0,
-    )(input)
-}
-
-fn non_command_lines(input: &str) -> IResult<&str, ()> {
-    value(
-        (),
-        many1_count(alt((
-            recognize(tuple((
-                space0,
-                tag("//"),
-                opt(is_not("\n\r")),
-                alt((line_ending, eof)),
-            ))),
-            recognize(pair(space1, alt((line_ending, eof)))),
-            line_ending,
-        ))),
-    )(input)
+    alt((
+        map(command_two_args("push", push_segment), create_push),
+        map(command_two_args("pop", pop_segment), create_pop),
+        map(command_one_arg("label"), create_label),
+        map(command_one_arg("goto"), create_goto),
+        map(command_one_arg("if-goto"), create_if_goto),
+        map(command_two_args("function", identifier), create_function),
+        map(command_two_args("call", identifier), create_call),
+        value(VMCommand::Add, tag("add")),
+        value(VMCommand::Sub, tag("sub")),
+        value(VMCommand::Neg, tag("neg")),
+        value(VMCommand::Eq, tag("eq")),
+        value(VMCommand::Gt, tag("gt")),
+        value(VMCommand::Lt, tag("lt")),
+        value(VMCommand::And, tag("and")),
+        value(VMCommand::Or, tag("or")),
+        value(VMCommand::Not, tag("not")),
+        value(VMCommand::Return, tag("return")),
+    ))(input)
 }
 
 pub fn commands(input: &str) -> IResult<&str, Vec<VMCommand>> {
-    all_consuming(delimited(
-        opt(non_command_lines),
-        separated_list1(non_command_lines, command),
-        opt(non_command_lines),
-    ))(input)
+    non_comment_lines(command)(input)
 }
 
 #[cfg(test)]
@@ -207,14 +180,6 @@ mod tests {
                     local_var_count: 1337
                 }
             ))
-        );
-    }
-
-    #[test]
-    fn test_read_non_command_lines() {
-        assert_eq!(
-            non_command_lines("// comment 1 \n //comment2 \n\n"),
-            Ok(("", ()))
         );
     }
 

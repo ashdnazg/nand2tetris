@@ -1,45 +1,16 @@
-use crate::hardware::*;
+use crate::{hardware::*, parse_utils::{is_not0, non_comment_lines, IResult, AndThenConsuming}};
 
 use hashbrown::HashMap;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
-    character::complete::{alphanumeric1, char, i16, line_ending, not_line_ending, space0},
-    combinator::{all_consuming, cut, map, opt, recognize, rest, success, value},
+    character::complete::{alphanumeric1, char, i16, space0},
+    combinator::{cut, map, recognize, success, value},
     error::{ParseError, VerboseError},
-    multi::{many1, many1_count, separated_list0},
+    multi::{many1, many1_count},
     sequence::{delimited, preceded, terminated, tuple},
-    FindToken, InputLength, InputTakeAtPosition, Parser,
+    Parser
 };
-
-type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;
-
-trait AndThenConsuming<I, O, E> {
-    fn and_then_consuming<O2, G>(self, g: G) -> impl Parser<I, O2, E>
-    where
-        I: InputLength,
-        G: Parser<O, O2, E>,
-        Self: core::marker::Sized;
-}
-
-impl<I, O: InputLength, E: ParseError<O>, T: Parser<I, O, E>> AndThenConsuming<I, O, E> for T {
-    fn and_then_consuming<O2, G>(self, g: G) -> impl Parser<I, O2, E>
-    where
-        I: InputLength,
-        G: Parser<O, O2, E>,
-        Self: core::marker::Sized,
-    {
-        self.and_then(all_consuming(g))
-    }
-}
-
-fn is_not0<T, Input>(arr: T) -> impl Fn(Input) -> IResult<Input, Input>
-where
-    Input: InputTakeAtPosition,
-    T: FindToken<<Input as InputTakeAtPosition>::Item>,
-{
-    move |i: Input| i.split_at_position_complete(|c| arr.find_token(c))
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum AssemblyInstruction {
@@ -91,8 +62,7 @@ fn parse_label(input: &str) -> IResult<&str, AssemblyInstruction> {
 fn parse_destination_registers(input: &str) -> IResult<&str, DestinationRegisters> {
     alt((
         terminated(is_not0("="), char('='))
-            .and_then_consuming(cut(delimited(
-                space0,
+            .and_then_consuming(cut(terminated(
                 recognize(many1(alt((tag("A"), tag("M"), tag("D"))))),
                 space0,
             )))
@@ -154,7 +124,7 @@ fn parse_jump_condition(input: &str) -> IResult<&str, JumpCondition> {
     alt((
         preceded(
             char(';'),
-            delimited(
+            preceded(
                 space0,
                 alt((
                     value(JumpCondition::JEQ, tag("JEQ")),
@@ -165,7 +135,6 @@ fn parse_jump_condition(input: &str) -> IResult<&str, JumpCondition> {
                     value(JumpCondition::JMP, tag("JMP")),
                     value(JumpCondition::JNE, tag("JNE")),
                 )),
-                space0,
             ),
         ),
         success(JumpCondition::NoJump),
@@ -248,48 +217,26 @@ fn c_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
 }
 
 fn a_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
-    delimited(
-        space0,
-        preceded(
-            tag("@"),
-            alt((parse_at_number_instruction, parse_at_identifier_instruction)),
-        ),
-        space0,
+    preceded(
+        tag("@"),
+        alt((parse_at_number_instruction, parse_at_identifier_instruction)),
     )(input)
 }
 
 fn create_label(input: &str) -> IResult<&str, AssemblyInstruction> {
-    delimited(space0, delimited(tag("("), parse_label, tag(")")), space0)(input)
+    delimited(tag("("), parse_label, tag(")"))(input)
 }
 
-fn strip_comment(input: &str) -> IResult<&str, &str> {
-    terminated(is_not0("/"), opt(preceded(tag("//"), rest)))(input)
-}
-
-fn instruction(input: &str) -> IResult<&str, Option<AssemblyInstruction>> {
-    not_line_ending
-        .and_then_consuming(strip_comment)
-        .and_then_consuming(alt((
-            map(alt((c_instruction, a_instruction, create_label)), |i| {
-                Some(i)
-            }),
-            value(None, space0),
-        )))
-        .parse(input)
+fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
+    alt((c_instruction, a_instruction, create_label))(input)
 }
 
 fn parse_instructions(input: &str) -> IResult<&str, Vec<AssemblyInstruction>> {
-    all_consuming(map(separated_list0(line_ending, instruction), |v| {
-        v.into_iter().filter_map(|i| i).collect::<Vec<_>>()
-    }))(input)
+    non_comment_lines(instruction)(input)
 }
 
 pub fn assemble_hack_file(input: &str) -> IResult<&str, Vec<Instruction>> {
-    map(
-        parse_instructions,
-        |v| assemble(&v)
-    )
-    (input)
+    map(parse_instructions, |v| assemble(&v))(input)
 }
 
 fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
@@ -385,7 +332,7 @@ mod tests {
             instruction("M = D  -   1   "),
             Ok((
                 "",
-                Some(AssemblyInstruction::Instruction(Instruction::new(58248)))
+                AssemblyInstruction::Instruction(Instruction::new(58248))
             ))
         );
     }
@@ -399,7 +346,7 @@ mod tests {
     fn test_at_number() {
         assert_eq!(
             instruction("@1337"),
-            Ok(("", Some(AssemblyInstruction::AtNumberInstruction(1337))))
+            Ok(("", AssemblyInstruction::AtNumberInstruction(1337)))
         );
     }
 
@@ -409,9 +356,7 @@ mod tests {
             instruction("@Bob123"),
             Ok((
                 "",
-                Some(AssemblyInstruction::AtIdentifierInstruction(
-                    "Bob123".to_string()
-                ))
+                AssemblyInstruction::AtIdentifierInstruction("Bob123".to_string())
             ))
         );
     }
@@ -420,7 +365,7 @@ mod tests {
     fn test_at_label() {
         assert_eq!(
             instruction("(Bob321)"),
-            Ok(("", Some(AssemblyInstruction::Label("Bob321".to_string()))))
+            Ok(("", AssemblyInstruction::Label("Bob321".to_string())))
         );
     }
 
