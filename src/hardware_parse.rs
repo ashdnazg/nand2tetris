@@ -7,7 +7,7 @@ use nom::{
     character::complete::{alphanumeric1, char, i16, line_ending, not_line_ending, space0},
     combinator::{all_consuming, cut, map, opt, recognize, rest, success, value},
     error::{ParseError, VerboseError},
-    multi::{many1, many1_count},
+    multi::{many1, many1_count, separated_list0},
     sequence::{delimited, preceded, terminated, tuple},
     FindToken, InputLength, InputTakeAtPosition, Parser,
 };
@@ -262,16 +262,13 @@ fn create_label(input: &str) -> IResult<&str, AssemblyInstruction> {
     delimited(space0, delimited(tag("("), parse_label, tag(")")), space0)(input)
 }
 
-fn strip_eol(input: &str) -> IResult<&str, &str> {
-    all_consuming(terminated(not_line_ending, opt(line_ending)))(input)
-}
 fn strip_comment(input: &str) -> IResult<&str, &str> {
-    all_consuming(terminated(is_not0("/"), opt(preceded(tag("//"), rest))))(input)
+    terminated(is_not0("/"), opt(preceded(tag("//"), rest)))(input)
 }
 
 fn instruction(input: &str) -> IResult<&str, Option<AssemblyInstruction>> {
-    strip_eol
-        .and_then(strip_comment)
+    not_line_ending
+        .and_then_consuming(strip_comment)
         .and_then_consuming(alt((
             map(alt((c_instruction, a_instruction, create_label)), |i| {
                 Some(i)
@@ -281,16 +278,21 @@ fn instruction(input: &str) -> IResult<&str, Option<AssemblyInstruction>> {
         .parse(input)
 }
 
-pub fn read_instructions(input: &str) -> IResult<&str, Vec<Instruction>> {
-    let instructions: Vec<_> = input
-        .lines()
-        .filter_map(|line| instruction(line).unwrap().1)
-        .collect();
-    // assembly_instructions(input).map(|assembly_instructions| (assembly_instructions.0, assemble(&assembly_instructions.1)))
-    Ok(("", assemble(&instructions)))
+fn parse_instructions(input: &str) -> IResult<&str, Vec<AssemblyInstruction>> {
+    all_consuming(map(separated_list0(line_ending, instruction), |v| {
+        v.into_iter().filter_map(|i| i).collect::<Vec<_>>()
+    }))(input)
 }
 
-fn assemble(assembly_instructions: &Vec<AssemblyInstruction>) -> Vec<Instruction> {
+pub fn assemble_hack_file(input: &str) -> IResult<&str, Vec<Instruction>> {
+    map(
+        parse_instructions,
+        |v| assemble(&v)
+    )
+    (input)
+}
+
+fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
     let mut at_identifier_map: HashMap<String, i16> = HashMap::new();
     let mut index = 0;
     for assembly_instruction in assembly_instructions.iter() {
@@ -335,9 +337,10 @@ mod tests {
     #[test]
     fn test_integration() {
         let program = r#"
+        // some comments
         @16384
         D=A
-        @16
+        @16 // inline comments
         M=D-1
         @17
         M=0
@@ -373,7 +376,7 @@ mod tests {
         .map(|raw| Instruction::new(*raw))
         .collect();
 
-        assert_eq!(read_instructions(program), Ok(("", expected_program)))
+        assert_eq!(assemble_hack_file(program), Ok(("", expected_program)))
     }
 
     #[test]
