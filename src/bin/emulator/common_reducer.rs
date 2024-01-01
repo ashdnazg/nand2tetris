@@ -24,11 +24,17 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
             AppState::Hardware(hardware_state) => {
                 reduce_breakpoint_hardware(hardware_state, breakpoint_action)
             }
-            AppState::VM(vm_state) => todo!(),
+            AppState::VM(_) => todo!(),
             AppState::Start => todo!(),
         },
-        Action::FolderPicked(path) => app.state = AppState::VM(VMState::from_dir(path)),
-        Action::FilePicked(path) => app.state = AppState::Hardware(HardwareState::from_file(path)),
+        Action::FolderPicked(path) => {
+            app.state = AppState::VM(VMState::from_dir(path));
+            app.shared_state = Default::default();
+        },
+        Action::FilePicked(path) => {
+            app.state = AppState::Hardware(HardwareState::from_file(path));
+            app.shared_state = Default::default();
+        },
         Action::Quit => todo!(),
     }
 }

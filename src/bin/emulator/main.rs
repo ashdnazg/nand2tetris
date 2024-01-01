@@ -118,7 +118,7 @@ fn main() {
         "Emulator",
         native_options,
         Box::new(|cc| {
-            cc.egui_ctx.set_pixels_per_point(2.0);
+            cc.egui_ctx.set_pixels_per_point(1.5);
             cc.egui_ctx.set_visuals(egui::Visuals::dark());
             Box::new(EmulatorApp::new(&cc))
         }),
