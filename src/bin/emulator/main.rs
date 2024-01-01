@@ -93,7 +93,7 @@ impl eframe::App for EmulatorApp {
         };
 
         if action == Some(Action::Quit) {
-            frame.close();
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
 
@@ -102,7 +102,7 @@ impl eframe::App for EmulatorApp {
         }
     }
 
-    fn on_exit(&mut self, gl: Option<&glow::Context>) {
+    fn on_exit(&mut self, gl: Option<&eframe::glow::Context>) {
         if let Some(context) = gl {
             self.screen.lock().destroy(context);
         }
@@ -112,8 +112,10 @@ impl eframe::App for EmulatorApp {
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    let mut native_options = eframe::NativeOptions::default();
-    native_options.initial_window_size = Some(Vec2::new(1600.0, 1200.0));
+    let native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size(Vec2::new(1600.0, 1200.0)),
+        ..Default::default()
+    };
     eframe::run_native(
         "Emulator",
         native_options,

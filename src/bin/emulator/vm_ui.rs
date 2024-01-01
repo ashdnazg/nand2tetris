@@ -14,7 +14,7 @@ use crate::Action;
 pub fn draw_vm(
     state: &VMState,
     ctx: &egui::Context,
-    action: &mut Option<Action>,
+    _action: &mut Option<Action>,
     screen: &Arc<Mutex<Screen>>,
     frame: &eframe::Frame,
 ) {

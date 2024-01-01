@@ -4,6 +4,7 @@ use std::{ops::RangeInclusive, sync::Arc, time::Instant};
 use eframe::{
     egui::{self, Slider},
     epaint::Rect,
+    glow
 };
 use egui_extras::{Column, TableBuilder};
 use nand2tetris::hardware::{Instruction, RAM};
@@ -177,7 +178,7 @@ pub fn draw_screen(
         context.bind_texture(glow::TEXTURE_2D, None);
     }
 
-    let cb = egui_glow::CallbackFn::new(move |_info, painter| {
+    let cb = eframe::egui_glow::CallbackFn::new(move |_info, painter| {
         screen.lock().paint(painter.gl());
     });
 
