@@ -11,6 +11,7 @@ pub struct Instruction {
     raw: u16,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DestinationRegisters {
     NoDestination,
     A,
@@ -173,7 +174,7 @@ enum InstructionType {
 }
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Clone)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum JumpCondition {
     NoJump,
     JGT,
