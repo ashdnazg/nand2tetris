@@ -449,7 +449,11 @@ impl Hardware {
     }
 
     pub fn reset(&mut self) {
-        *self = Hardware { rom: self.rom, breakpoints: self.breakpoints.clone(), ..Default::default() };
+        *self = Hardware {
+            rom: self.rom,
+            breakpoints: self.breakpoints.clone(),
+            ..Default::default()
+        };
     }
 
     pub fn get_breakpoints(&self) -> &Vec<Breakpoint> {

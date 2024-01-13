@@ -30,11 +30,11 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
         Action::FolderPicked(path) => {
             app.state = AppState::VM(VMState::from_dir(path));
             app.shared_state = Default::default();
-        },
+        }
         Action::FilePicked(path) => {
             app.state = AppState::Hardware(HardwareState::from_file(path));
             app.shared_state = Default::default();
-        },
+        }
         Action::Quit => todo!(),
     }
 }

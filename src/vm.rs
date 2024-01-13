@@ -398,7 +398,7 @@ pub struct FunctionMetadata {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct File {
-    commands: Vec<VMCommand>,
+    pub commands: Vec<VMCommand>,
     label_name_to_command_index: HashMap<(String, String), usize>,
     function_name_to_command_index: HashMap<String, usize>,
     pub function_metadata: HashMap<String, FunctionMetadata>,
@@ -506,6 +506,36 @@ pub enum VMCommand {
     Return,
 }
 
+impl std::fmt::Display for VMCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VMCommand::Add => write!(f, "add"),
+            VMCommand::Push { segment, offset } => write!(f, "push {segment} {offset}"),
+            VMCommand::Pop { segment, offset } => write!(f, "pop {segment} {offset}"),
+            VMCommand::Sub => write!(f, "sub"),
+            VMCommand::Neg => write!(f, "neg"),
+            VMCommand::Eq => write!(f, "eq"),
+            VMCommand::Gt => write!(f, "gt"),
+            VMCommand::Lt => write!(f, "lt"),
+            VMCommand::And => write!(f, "and"),
+            VMCommand::Or => write!(f, "or"),
+            VMCommand::Not => write!(f, "not"),
+            VMCommand::Label { name } => write!(f, "label {name}"),
+            VMCommand::Goto { label_name } => write!(f, "goto {label_name}"),
+            VMCommand::IfGoto { label_name } => write!(f, "if-goto {label_name}"),
+            VMCommand::Function {
+                name,
+                local_var_count,
+            } => write!(f, "function {name} {local_var_count}"),
+            VMCommand::Call {
+                function_name,
+                argument_count,
+            } => write!(f, "call {function_name} {argument_count}"),
+            VMCommand::Return => write!(f, "return"),
+        }
+    }
+}
+
 #[allow(clippy::upper_case_acronyms)]
 pub enum Register {
     SP,
@@ -541,6 +571,22 @@ pub enum PushSegment {
     Pointer,
 }
 
+impl std::fmt::Display for PushSegment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            PushSegment::Constant => "constant",
+            PushSegment::Static => "static",
+            PushSegment::Local => "local",
+            PushSegment::Argument => "argument",
+            PushSegment::This => "this",
+            PushSegment::That => "that",
+            PushSegment::Temp => "temp",
+            PushSegment::Pointer => "pointer",
+        };
+        write!(f, "{name}")
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PopSegment {
     Static,
@@ -550,6 +596,21 @@ pub enum PopSegment {
     That,
     Temp,
     Pointer,
+}
+
+impl std::fmt::Display for PopSegment {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            PopSegment::Static => "static",
+            PopSegment::Local => "local",
+            PopSegment::Argument => "argument",
+            PopSegment::This => "this",
+            PopSegment::That => "that",
+            PopSegment::Temp => "temp",
+            PopSegment::Pointer => "pointer",
+        };
+        write!(f, "{name}")
+    }
 }
 
 #[cfg(test)]

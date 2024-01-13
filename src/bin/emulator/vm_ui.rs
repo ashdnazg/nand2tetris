@@ -28,7 +28,9 @@ pub fn draw_vm(
                         .size(Size::relative(0.5))
                         .size(Size::remainder())
                         .horizontal(|mut strip| {
-                            strip.cell(|_| {});
+                            strip.cell(|ui| {
+                                ui.vm_grid(&state.vm.program, &state.vm.run_state);
+                            });
                             strip.strip(|builder| {
                                 builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
                                     |mut strip| {

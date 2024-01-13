@@ -4,10 +4,13 @@ use std::{ops::RangeInclusive, sync::Arc, time::Instant};
 use eframe::{
     egui::{self, Slider},
     epaint::Rect,
-    glow
+    glow,
 };
 use egui_extras::{Column, TableBuilder};
-use nand2tetris::hardware::{Instruction, RAM};
+use nand2tetris::{
+    hardware::{Instruction, RAM},
+    vm::{Program, RunState},
+};
 
 use crate::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
 
@@ -278,6 +281,7 @@ pub trait EmulatorWidgets {
         range: &RangeInclusive<i16>,
         highlight_address: i16,
     );
+    fn vm_grid(&mut self, program: &Program, run_state: &RunState);
 }
 
 impl EmulatorWidgets for egui::Ui {
@@ -363,6 +367,55 @@ impl EmulatorWidgets for egui::Ui {
                                     .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
                             }
                             ui.monospace(rom[row_index].to_string());
+                        });
+                    });
+                });
+        });
+    }
+
+    fn vm_grid(&mut self, program: &Program, run_state: &RunState) {
+        let file = &program.files[&run_state.current_file_name];
+        self.push_id("VM", |ui| {
+            ui.label(&run_state.current_file_name);
+            let header_height = ui.text_style_height(&egui::TextStyle::Body);
+            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
+
+            TableBuilder::new(ui)
+                .striped(true)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::initial(45.0).at_least(45.0))
+                .column(Column::remainder().at_least(70.0))
+                .header(header_height, |mut header| {
+                    header.col(|ui| {
+                        ui.label("Address");
+                    });
+                    header.col(|ui| {
+                        ui.label("Instruction");
+                    });
+                })
+                .body(|body| {
+                    body.rows(row_height, file.commands.len(), |row_index, mut row| {
+                        row.col(|ui| {
+                            if row_index == run_state.current_command_index {
+                                let rect = ui.max_rect();
+                                let rect =
+                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
+
+                                ui.painter()
+                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
+                            }
+                            ui.monospace(row_index.to_string());
+                        });
+                        row.col(|ui| {
+                            if row_index == run_state.current_command_index {
+                                let rect = ui.max_rect();
+                                let rect =
+                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
+
+                                ui.painter()
+                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
+                            }
+                            ui.monospace(file.commands[row_index].to_string());
                         });
                     });
                 });
