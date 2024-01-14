@@ -45,6 +45,7 @@ pub enum Action {
     FilePicked(PathBuf),
     Breakpoint(BreakpointAction),
     Common(CommonAction),
+    VMFileSelected(String),
     Quit,
 }
 

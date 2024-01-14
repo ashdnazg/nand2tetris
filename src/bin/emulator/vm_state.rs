@@ -7,21 +7,14 @@ use crate::common_state::CommonState;
 
 pub struct VMState {
     pub vm: VM,
-}
-
-impl Default for VMState {
-    fn default() -> Self {
-        Self {
-            vm: VM::from_dir("hackenstein3DVM"),
-        }
-    }
+    pub selected_file: String,
 }
 
 impl VMState {
     pub fn from_dir(path_buf: &PathBuf) -> Self {
-        VMState {
-            vm: VM::from_dir(path_buf),
-        }
+        let vm = VM::from_dir(path_buf);
+        let selected_file = vm.run_state.current_file_name.clone();
+        VMState { vm, selected_file }
     }
 }
 

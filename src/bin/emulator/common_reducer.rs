@@ -5,6 +5,7 @@ use crate::common_state::{
 };
 use crate::hardware_reducer::reduce_breakpoint_hardware;
 use crate::hardware_state::HardwareState;
+use crate::vm_reducer::reduce_vm_file_selected;
 use crate::vm_state::VMState;
 use crate::EmulatorApp;
 
@@ -36,6 +37,13 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
             app.shared_state = Default::default();
         }
         Action::Quit => todo!(),
+        Action::VMFileSelected(file) => match &mut app.state {
+            AppState::Hardware(_) => {
+                panic!("Received action {:?} when in state AppState::Start", action)
+            }
+            AppState::VM(vm_state) => reduce_vm_file_selected(vm_state, file),
+            AppState::Start => todo!(),
+        },
     }
 }
 

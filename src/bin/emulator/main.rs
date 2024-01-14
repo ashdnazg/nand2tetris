@@ -8,6 +8,7 @@ mod hardware_reducer;
 mod hardware_state;
 mod hardware_ui;
 mod shared_ui;
+mod vm_reducer;
 mod vm_state;
 mod vm_ui;
 

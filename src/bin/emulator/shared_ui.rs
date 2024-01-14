@@ -281,7 +281,7 @@ pub trait EmulatorWidgets {
         range: &RangeInclusive<i16>,
         highlight_address: i16,
     );
-    fn vm_grid(&mut self, program: &Program, run_state: &RunState);
+    fn vm_grid(&mut self, program: &Program, run_state: &RunState, selected_file: &mut String);
 }
 
 impl EmulatorWidgets for egui::Ui {
@@ -373,12 +373,18 @@ impl EmulatorWidgets for egui::Ui {
         });
     }
 
-    fn vm_grid(&mut self, program: &Program, run_state: &RunState) {
-        let file = &program.files[&run_state.current_file_name];
+    fn vm_grid(&mut self, program: &Program, run_state: &RunState, selected_file: &mut String) {
         self.push_id("VM", |ui| {
-            ui.label(&run_state.current_file_name);
+            egui::ComboBox::from_id_source("VM combo")
+                .selected_text(&*selected_file)
+                .show_ui(ui, |ui| {
+                    for file_name in program.files.keys() {
+                        ui.selectable_value(selected_file, file_name.clone(), file_name);
+                    }
+                });
             let header_height = ui.text_style_height(&egui::TextStyle::Body);
             let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
+            let file = &program.files[selected_file];
 
             TableBuilder::new(ui)
                 .striped(true)
@@ -387,16 +393,18 @@ impl EmulatorWidgets for egui::Ui {
                 .column(Column::remainder().at_least(70.0))
                 .header(header_height, |mut header| {
                     header.col(|ui| {
-                        ui.label("Address");
+                        ui.label("Line");
                     });
                     header.col(|ui| {
-                        ui.label("Instruction");
+                        ui.label("Command");
                     });
                 })
                 .body(|body| {
                     body.rows(row_height, file.commands.len(), |row_index, mut row| {
+                        let is_highlighted = row_index == run_state.current_command_index
+                            && *selected_file == run_state.current_file_name;
                         row.col(|ui| {
-                            if row_index == run_state.current_command_index {
+                            if is_highlighted {
                                 let rect = ui.max_rect();
                                 let rect =
                                     rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
@@ -407,7 +415,7 @@ impl EmulatorWidgets for egui::Ui {
                             ui.monospace(row_index.to_string());
                         });
                         row.col(|ui| {
-                            if row_index == run_state.current_command_index {
+                            if is_highlighted {
                                 let rect = ui.max_rect();
                                 let rect =
                                     rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));

@@ -14,7 +14,7 @@ use crate::Action;
 pub fn draw_vm(
     state: &VMState,
     ctx: &egui::Context,
-    _action: &mut Option<Action>,
+    action: &mut Option<Action>,
     screen: &Arc<Mutex<Screen>>,
     frame: &eframe::Frame,
 ) {
@@ -29,7 +29,15 @@ pub fn draw_vm(
                         .size(Size::remainder())
                         .horizontal(|mut strip| {
                             strip.cell(|ui| {
-                                ui.vm_grid(&state.vm.program, &state.vm.run_state);
+                                let mut selected_file = state.selected_file.clone();
+                                ui.vm_grid(
+                                    &state.vm.program,
+                                    &state.vm.run_state,
+                                    &mut selected_file,
+                                );
+                                if selected_file != state.selected_file {
+                                    *action = Some(Action::VMFileSelected(selected_file));
+                                }
                             });
                             strip.strip(|builder| {
                                 builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
