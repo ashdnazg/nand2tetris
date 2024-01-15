@@ -5,7 +5,7 @@ use std::{
     path::Path,
 };
 
-use crate::{hardware::RAM, vm_parse::commands};
+use crate::{hardware::RAM, os::OS, vm_parse::commands};
 
 impl Index<Register> for RAM {
     type Output = i16;
@@ -21,6 +21,17 @@ impl IndexMut<Register> for RAM {
     }
 }
 
+impl Default for RAM {
+    fn default() -> Self {
+        let mut instance = Self {
+            contents: [0; 32 * 1024],
+        };
+        instance[Register::SP] = 256;
+
+        instance
+    }
+}
+
 impl RAM {
     fn new() -> Self {
         let mut instance = Self {
@@ -31,7 +42,7 @@ impl RAM {
         instance
     }
 
-    fn push(&mut self, value: i16) {
+    pub fn push(&mut self, value: i16) {
         let sp = self[Register::SP];
         self[sp] = value;
         self[Register::SP] += 1;
@@ -77,7 +88,7 @@ impl RAM {
         }
     }
 
-    fn get(&self, static_segment: i16, segment: PushSegment, offset: i16) -> i16 {
+    pub fn get(&self, static_segment: i16, segment: PushSegment, offset: i16) -> i16 {
         match segment {
             PushSegment::Constant => offset,
             PushSegment::Static => self[static_segment + offset],
@@ -100,6 +111,7 @@ pub struct RunState {
     pub current_file_name: String,
     pub current_command_index: usize,
     pub ram: RAM,
+    pub os: OS,
     pub call_stack: Vec<Frame>,
 }
 
@@ -148,6 +160,7 @@ impl VM {
                 current_file_name: "Sys".to_owned(),
                 current_command_index: 0,
                 ram: RAM::new(),
+                os: Default::default(),
                 call_stack: vec![Frame {
                     file_name: "Sys".to_owned(),
                     function_name: "Sys.init".to_owned(),
@@ -331,21 +344,35 @@ impl VM {
                         run_state.ram.push(value);
                     }
 
-                    let (file_name, _) = function_name.split_once('.').unwrap();
-                    run_state.call_stack.push(Frame {
-                        file_name: file_name.to_owned(),
-                        function_name: function_name.to_owned(),
-                    });
                     // println!("{function_name}");
 
                     let local_segment = run_state.ram[Register::SP];
                     run_state.ram[Register::LCL] = local_segment;
                     run_state.ram[Register::ARG] = argument_segment;
-                    run_state.current_file_name = file_name.to_owned();
-                    run_state.current_command_index =
-                        files[file_name].function_name_to_command_index[function_name];
+                    if run_state.call_os(function_name) {
+                        let frame = run_state.ram[Register::LCL];
+                        run_state.current_command_index = run_state.ram[frame - 5] as usize;
+                        let return_value = run_state.ram.pop();
+                        run_state
+                            .ram
+                            .set(static_segment, PopSegment::Argument, 0, return_value);
+                        run_state.ram[Register::SP] = run_state.ram[Register::ARG] + 1;
+                        for i in 1..=4 {
+                            run_state.ram[i] = run_state.ram[frame - 5 + i];
+                        }
+                    } else {
+                        let (file_name, _) = function_name.split_once('.').unwrap();
+                        run_state.call_stack.push(Frame {
+                            file_name: file_name.to_owned(),
+                            function_name: function_name.to_owned(),
+                        });
 
-                    return steps_done;
+                        run_state.current_file_name = file_name.to_owned();
+                        run_state.current_command_index =
+                            files[file_name].function_name_to_command_index[function_name];
+
+                        return steps_done;
+                    }
                 }
                 VMCommand::Return => {
                     // println!("return");

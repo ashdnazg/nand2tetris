@@ -124,6 +124,8 @@ fn keyboard_value_from_key(key: Option<Key>, modifiers: Modifiers) -> i16 {
         Some(Key::F8) => 148,
         Some(Key::F9) => 149,
         Some(Key::F10) => 150,
+        Some(Key::F11) => 151,
+        Some(Key::F12) => 152,
         Some(Key::Num0) => 48,
         Some(Key::Num1) => 49,
         Some(Key::Num2) => 50,

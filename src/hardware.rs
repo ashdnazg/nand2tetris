@@ -273,6 +273,14 @@ impl RAM {
             != 0
     }
 
+    pub fn set_pixel(&mut self, x: i16, y: i16, value: bool) {
+        if value {
+            self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (i16::BITS as i16)] |= 1 << (x % (i16::BITS as i16));
+        } else {
+            self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (i16::BITS as i16)] &= !(1 << (x % (i16::BITS as i16)));
+        }
+    }
+
     pub fn set_keyboard(&mut self, value: i16) {
         self[Self::KBD] = value;
     }
