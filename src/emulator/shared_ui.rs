@@ -307,7 +307,8 @@ impl EmulatorWidgets for egui::Ui {
                     }
                 })
                 .body(|body| {
-                    body.rows(row_height, range.len(), |row_index, mut row| {
+                    body.rows(row_height, range.len(), |mut row| {
+                        let row_index = row.index();
                         row.col(|ui| {
                             ui.monospace(row_index.to_string());
                         });
@@ -345,7 +346,8 @@ impl EmulatorWidgets for egui::Ui {
                     });
                 })
                 .body(|body| {
-                    body.rows(row_height, range.len(), |row_index, mut row| {
+                    body.rows(row_height, range.len(), |mut row| {
+                        let row_index = row.index();
                         row.col(|ui| {
                             if row_index == highlight_address as usize {
                                 let rect = ui.max_rect();
@@ -400,7 +402,8 @@ impl EmulatorWidgets for egui::Ui {
                     });
                 })
                 .body(|body| {
-                    body.rows(row_height, file.commands.len(), |row_index, mut row| {
+                    body.rows(row_height, file.commands.len(), |mut row| {
+                        let row_index = row.index();
                         let is_highlighted = row_index == run_state.current_command_index
                             && *selected_file == run_state.current_file_name;
                         row.col(|ui| {

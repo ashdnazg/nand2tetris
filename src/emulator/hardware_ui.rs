@@ -164,34 +164,31 @@ impl HardwareState {
                         header.col(|_| {});
                     })
                     .body(|body| {
-                        body.rows(
-                            row_height,
-                            usize::max(breakpoints.len(), 10),
-                            |row_index, mut row| {
-                                let breakpoint = breakpoints.get(row_index);
-                                row.col(|ui| {
-                                    ui.monospace(
-                                        breakpoint
-                                            .map(|b| b.var.to_string())
-                                            .unwrap_or("".to_string()),
-                                    );
-                                });
-                                row.col(|ui| {
-                                    ui.monospace(
-                                        breakpoint
-                                            .map(|b| b.value.to_string())
-                                            .unwrap_or("".to_string()),
-                                    );
-                                });
-                                row.col(|ui| {
-                                    if breakpoint.is_some() && ui.button("Remove").clicked() {
-                                        *action = Some(Action::Breakpoint(
-                                            BreakpointAction::RemoveClicked(row_index),
-                                        ));
-                                    }
-                                });
-                            },
-                        );
+                        body.rows(row_height, usize::max(breakpoints.len(), 10), |mut row| {
+                            let row_index = row.index();
+                            let breakpoint = breakpoints.get(row_index);
+                            row.col(|ui| {
+                                ui.monospace(
+                                    breakpoint
+                                        .map(|b| b.var.to_string())
+                                        .unwrap_or("".to_string()),
+                                );
+                            });
+                            row.col(|ui| {
+                                ui.monospace(
+                                    breakpoint
+                                        .map(|b| b.value.to_string())
+                                        .unwrap_or("".to_string()),
+                                );
+                            });
+                            row.col(|ui| {
+                                if breakpoint.is_some() && ui.button("Remove").clicked() {
+                                    *action = Some(Action::Breakpoint(
+                                        BreakpointAction::RemoveClicked(row_index),
+                                    ));
+                                }
+                            });
+                        });
                     });
             });
 
