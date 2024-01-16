@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 
 use crate::{
     hardware::RAM,
-    vm::{PushSegment, RunState, Register},
+    vm::{PushSegment, RunState},
 };
 
 pub struct OS {
@@ -14,7 +14,7 @@ impl Default for OS {
     fn default() -> Self {
         Self {
             memory: Memory::new(0x0800, RAM::SCREEN - 0x0800),
-            screen: Screen { color: false }
+            screen: Screen { color: false },
         }
     }
 }
@@ -144,7 +144,7 @@ struct Memory {
 }
 
 struct Screen {
-    color: bool
+    color: bool,
 }
 
 impl Memory {

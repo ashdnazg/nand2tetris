@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use crate::hardware::BreakpointVar;
 use eframe::{
     egui,
     epaint::{mutex::Mutex, Vec2},
 };
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
-use crate::hardware::BreakpointVar;
 
 use super::common_state::{Action, CommonAction, UIStyle};
 use super::hardware_state::{BreakpointAction, HardwareState};

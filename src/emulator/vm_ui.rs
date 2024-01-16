@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use crate::vm::Register;
 use eframe::egui;
 use eframe::epaint::mutex::Mutex;
 use eframe::epaint::Vec2;
 use egui_extras::{Size, StripBuilder};
-use crate::vm::Register;
 
 use super::common_state::UIStyle;
 use super::shared_ui::{draw_screen, EmulatorWidgets, Screen};

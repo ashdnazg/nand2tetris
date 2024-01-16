@@ -1,16 +1,16 @@
 use egui::mutex::Mutex;
 use std::{ops::RangeInclusive, sync::Arc, time::Instant};
 
+use crate::{
+    hardware::{Instruction, RAM},
+    vm::{Program, RunState},
+};
 use eframe::{
     egui::{self, Slider},
     epaint::Rect,
     glow,
 };
 use egui_extras::{Column, TableBuilder};
-use crate::{
-    hardware::{Instruction, RAM},
-    vm::{Program, RunState},
-};
 
 use super::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
 

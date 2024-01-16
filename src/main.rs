@@ -6,7 +6,8 @@
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     let native_options = eframe::NativeOptions {
-        viewport: eframe::egui::ViewportBuilder::default().with_inner_size(eframe::epaint::Vec2::new(1600.0, 1200.0)),
+        viewport: eframe::egui::ViewportBuilder::default()
+            .with_inner_size(eframe::epaint::Vec2::new(1600.0, 1200.0)),
         ..Default::default()
     };
     eframe::run_native(

@@ -1,7 +1,7 @@
 use super::hardware_state::{BreakpointAction, HardwareState};
 use super::vm_state::VMState;
-use eframe::egui::{Key, Modifiers};
 use crate::hardware::RAM;
+use eframe::egui::{Key, Modifiers};
 use std::path::PathBuf;
 use std::time::Instant;
 
