@@ -3,6 +3,7 @@ mod common_state;
 mod hardware_reducer;
 mod hardware_state;
 mod hardware_ui;
+mod instant;
 mod shared_ui;
 mod vm_reducer;
 mod vm_state;
@@ -43,6 +44,12 @@ impl eframe::App for EmulatorApp {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let mut action = None;
+        ctx.input(|i| {
+            if !i.raw.dropped_files.is_empty() {
+                reduce(self, &Action::FilesDropped(i.raw.dropped_files.clone()));
+            }
+        });
+
         draw_shared(
             &self.shared_state,
             ctx,
@@ -88,7 +95,7 @@ impl eframe::App for EmulatorApp {
             AppState::Start => {}
         };
 
-        if action == Some(Action::Quit) {
+        if matches!(action, Some(Action::Quit)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }

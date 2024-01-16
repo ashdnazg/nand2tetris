@@ -1,9 +1,9 @@
 use super::hardware_state::{BreakpointAction, HardwareState};
 use super::vm_state::VMState;
 use crate::hardware::RAM;
-use eframe::egui::{Key, Modifiers};
+use eframe::egui::{Key, Modifiers, DroppedFile};
 use std::path::PathBuf;
-use std::time::Instant;
+use super::instant::Instant;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Default)]
@@ -39,10 +39,11 @@ pub enum CommonAction {
     SpeedSliderMoved(u64),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Action {
     FolderPicked(PathBuf),
     FilePicked(PathBuf),
+    FilesDropped(Vec<DroppedFile>),
     Breakpoint(BreakpointAction),
     Common(CommonAction),
     VMFileSelected(String),

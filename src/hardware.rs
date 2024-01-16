@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    ops::{Index, IndexMut},
-    path::Path,
-};
+use std::ops::{Index, IndexMut};
 
 use crate::hardware_parse::assemble_hack_file;
 
@@ -293,7 +289,7 @@ pub struct Hardware {
     pub a: i16,
     pub d: i16,
     pub pc: i16,
-    pub rom: [Instruction; 32 * 1024],
+    pub rom: Box<[Instruction; 32 * 1024]>,
     pub ram: RAM,
     pub breakpoints: Vec<Breakpoint>,
 }
@@ -304,7 +300,7 @@ impl Default for Hardware {
             a: 0,
             d: 0,
             pc: 0,
-            rom: [Instruction { raw: 0 }; 32 * 1024],
+            rom: Box::new([Instruction { raw: 0 }; 32 * 1024]),
             ram: RAM {
                 contents: [0; 32 * 1024],
             },
@@ -432,9 +428,9 @@ impl Hardware {
         false
     }
 
-    pub fn from_file(path: impl AsRef<Path>) -> Self {
+    pub fn from_file_contents(contents: &str) -> Self {
         let mut instance = Self::default();
-        let instructions = assemble_hack_file(fs::read_to_string(path).unwrap().as_str())
+        let instructions = assemble_hack_file(contents)
             .unwrap()
             .1;
 
@@ -446,7 +442,7 @@ impl Hardware {
     }
 
     pub fn load_program<I: Iterator<Item = Instruction>>(&mut self, program: I) {
-        self.rom = [Instruction { raw: 0 }; 32 * 1024];
+        self.rom = Box::new([Instruction { raw: 0 }; 32 * 1024]);
         for (i, instruction) in program.enumerate() {
             self.rom[i] = instruction;
         }
@@ -460,7 +456,7 @@ impl Hardware {
 
     pub fn reset(&mut self) {
         *self = Hardware {
-            rom: self.rom,
+            rom: self.rom.clone(),
             breakpoints: self.breakpoints.clone(),
             ..Default::default()
         };

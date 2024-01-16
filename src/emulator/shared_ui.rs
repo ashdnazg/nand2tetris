@@ -1,6 +1,6 @@
 use egui::mutex::Mutex;
-use std::{ops::RangeInclusive, sync::Arc, time::Instant};
-
+use std::{ops::RangeInclusive, sync::Arc};
+use super::instant::Instant;
 use crate::{
     hardware::{Instruction, RAM},
     vm::{Program, RunState},
@@ -17,7 +17,7 @@ use super::common_state::{Action, CommonAction, PerformanceData, SharedState, UI
 pub struct Screen {
     program: glow::Program,
     vertex_array: glow::VertexArray,
-    texture: glow::NativeTexture,
+    texture: glow::Texture,
 }
 
 impl Screen {
@@ -50,12 +50,12 @@ impl Screen {
                 "#,
                 r#"
                     precision mediump float;
-                    uniform usampler2D u_screen;
+                    uniform lowp usampler2D u_screen;
                     in vec2 v_pos;
                     out vec4 out_color;
                     void main() {
-                        ivec2 coord = ivec2((v_pos + 1) * vec2(256.0, 128.0));
-                        uint i_color = 1 - ((texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & uint(1));
+                        ivec2 coord = ivec2((v_pos + 1.0) * vec2(256.0, 128.0));
+                        uint i_color = uint(1) - ((texelFetch(u_screen, coord / ivec2(8, 1) ,0).r >> (coord.x % 8)) & uint(1));
                         out_color = vec4(vec3(i_color), 1.0);
                     }
                 "#,
@@ -204,24 +204,24 @@ pub fn draw_shared(
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Load VM Folder").clicked() {
-                    let mut dialog = rfd::FileDialog::new();
-                    if let Ok(current_dir) = std::env::current_dir() {
-                        dialog = dialog.set_directory(current_dir);
-                    }
-                    if let Some(path) = dialog.pick_folder() {
-                        *action = Some(Action::FolderPicked(path));
-                        ui.close_menu();
-                    }
+                    // let mut dialog = rfd::AsyncFileDialog::new();
+                    // if let Ok(current_dir) = std::env::current_dir() {
+                    //     dialog = dialog.set_directory(current_dir);
+                    // }
+                    // if let Some(path) = dialog.pick_folder() {
+                    //     *action = Some(Action::FolderPicked(path));
+                    //     ui.close_menu();
+                    // }
                 }
                 if ui.button("Load Hack File").clicked() {
-                    let mut dialog = rfd::FileDialog::new();
-                    if let Ok(current_dir) = std::env::current_dir() {
-                        dialog = dialog.set_directory(current_dir);
-                    }
-                    if let Some(path) = dialog.add_filter("Hack", &[&"asm"]).pick_file() {
-                        *action = Some(Action::FilePicked(path));
-                        ui.close_menu();
-                    }
+                    // let mut dialog = rfd::AsyncFileDialog::new();
+                    // if let Ok(current_dir) = std::env::current_dir() {
+                    //     dialog = dialog.set_directory(current_dir);
+                    // }
+                    // if let Some(handle) = futures::executor::block_on(dialog.add_filter("Hack", &[&"asm"]).pick_file()) {
+                    //     *action = Some(Action::FilePicked(handle));
+                    //     ui.close_menu();
+                    // }
                 }
                 if ui.button("Quit").clicked() {
                     *action = Some(Action::Quit);

@@ -1,4 +1,5 @@
-use std::time::Instant;
+use std::fs;
+use super::instant::Instant;
 
 use super::common_state::{
     Action, AppState, CommonAction, CommonState, PerformanceData, SharedState,
@@ -33,7 +34,13 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
             app.shared_state = Default::default();
         }
         Action::FilePicked(path) => {
-            app.state = AppState::Hardware(HardwareState::from_file(path));
+            app.state = AppState::Hardware(HardwareState::from_file_contents(&fs::read_to_string(path).unwrap()));
+            app.shared_state = Default::default();
+        }
+        Action::FilesDropped(dropped_files) =>  {
+            app.state = AppState::Hardware(HardwareState::from_file_contents(&fs::read_to_string(dropped_files[0].clone().path.unwrap()).unwrap()));
+            // let bytes = dropped_files[0].bytes.clone().unwrap().as_ref().to_vec();
+            // app.state = AppState::Hardware(HardwareState::from_file_contents(&String::from_utf8(bytes).unwrap()));
             app.shared_state = Default::default();
         }
         Action::Quit => todo!(),
@@ -93,7 +100,7 @@ pub fn steps_to_run(
     }
 
     if !run_started {
-        return (action == &Some(Action::Common(CommonAction::StepClicked))) as u64;
+        return matches!(action, Some(Action::Common(CommonAction::StepClicked))) as u64;
     }
 
     let run_start = performance_data.run_start.get_or_insert(Instant::now());
