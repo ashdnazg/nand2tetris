@@ -1,6 +1,6 @@
-use crate::hardware_state::{BreakpointAction, HardwareState};
+use super::hardware_state::{BreakpointAction, HardwareState};
 
-use nand2tetris::hardware::Breakpoint;
+use crate::hardware::Breakpoint;
 
 pub fn reduce_breakpoint_hardware(hardware_state: &mut HardwareState, action: &BreakpointAction) {
     match action {

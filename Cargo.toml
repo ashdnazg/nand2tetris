@@ -24,5 +24,5 @@ default = ["emulator"]
 emulator = ["dep:eframe", "dep:egui_extras", "dep:rfd"]
 
 [[bin]]
-name = "emulator"
+name = "nand2tetris"
 required-features = ["emulator"]

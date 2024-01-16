@@ -4,12 +4,12 @@ use eframe::egui;
 use eframe::epaint::mutex::Mutex;
 use eframe::epaint::Vec2;
 use egui_extras::{Size, StripBuilder};
-use nand2tetris::vm::Register;
+use crate::vm::Register;
 
-use crate::common_state::UIStyle;
-use crate::shared_ui::{draw_screen, EmulatorWidgets, Screen};
-use crate::vm_state::VMState;
-use crate::Action;
+use super::common_state::UIStyle;
+use super::shared_ui::{draw_screen, EmulatorWidgets, Screen};
+use super::vm_state::VMState;
+use super::Action;
 
 pub fn draw_vm(
     state: &VMState,

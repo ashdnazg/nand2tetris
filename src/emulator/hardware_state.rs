@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use nand2tetris::hardware::{BreakpointVar, Hardware, Instruction, RAM};
+use crate::hardware::{BreakpointVar, Hardware, Instruction, RAM};
 
-use crate::common_state::CommonState;
+use super::common_state::CommonState;
 
 pub struct HardwareState {
     pub selected_breakpoint_var: BreakpointVar,

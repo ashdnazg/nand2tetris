@@ -1,7 +1,7 @@
-use crate::hardware_state::{BreakpointAction, HardwareState};
-use crate::vm_state::VMState;
+use super::hardware_state::{BreakpointAction, HardwareState};
+use super::vm_state::VMState;
 use eframe::egui::{Key, Modifiers};
-use nand2tetris::hardware::RAM;
+use crate::hardware::RAM;
 use std::path::PathBuf;
 use std::time::Instant;
 

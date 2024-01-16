@@ -1,7 +1,3 @@
-// #![cfg_attr(not(debug_assertions), deny(warnings))] // Forbid warnings in release builds
-#![warn(clippy::all, rust_2018_idioms)]
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] //Hide console window in release builds on Windows, this blocks stdout.
-
 mod common_reducer;
 mod common_state;
 mod hardware_reducer;
@@ -14,16 +10,15 @@ mod vm_ui;
 
 use common_state::SharedState;
 use eframe::egui;
-use eframe::epaint::Vec2;
 
 use egui::mutex::Mutex;
 use std::sync::Arc;
 
-use crate::common_reducer::reduce;
-use crate::common_reducer::steps_to_run;
-use crate::common_state::{Action, AppState, PerformanceData, StepRunnable};
-use crate::shared_ui::{draw_shared, Screen};
-use crate::vm_ui::draw_vm;
+use common_reducer::reduce;
+use common_reducer::steps_to_run;
+use common_state::{Action, AppState, PerformanceData, StepRunnable};
+use shared_ui::{draw_shared, Screen};
+use vm_ui::draw_vm;
 
 pub struct EmulatorApp {
     performance_data: PerformanceData,
@@ -33,7 +28,7 @@ pub struct EmulatorApp {
 }
 
 impl EmulatorApp {
-    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         Self {
             performance_data: Default::default(),
             shared_state: Default::default(),
@@ -108,23 +103,4 @@ impl eframe::App for EmulatorApp {
             self.screen.lock().destroy(context);
         }
     }
-}
-
-// When compiling natively:
-#[cfg(not(target_arch = "wasm32"))]
-fn main() {
-    let native_options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size(Vec2::new(1600.0, 1200.0)),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "Emulator",
-        native_options,
-        Box::new(|cc| {
-            cc.egui_ctx.set_pixels_per_point(1.0);
-            cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            Box::new(EmulatorApp::new(cc))
-        }),
-    )
-    .unwrap();
 }

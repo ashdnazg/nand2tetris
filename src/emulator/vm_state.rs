@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use nand2tetris::hardware::RAM;
-use nand2tetris::vm::VM;
+use crate::hardware::RAM;
+use crate::vm::VM;
 
-use crate::common_state::CommonState;
+use super::common_state::CommonState;
 
 pub struct VMState {
     pub vm: VM,

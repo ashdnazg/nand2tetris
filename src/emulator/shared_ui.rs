@@ -7,12 +7,12 @@ use eframe::{
     glow,
 };
 use egui_extras::{Column, TableBuilder};
-use nand2tetris::{
+use crate::{
     hardware::{Instruction, RAM},
     vm::{Program, RunState},
 };
 
-use crate::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
+use super::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
 
 pub struct Screen {
     program: glow::Program,

@@ -5,11 +5,11 @@ use eframe::{
     epaint::{mutex::Mutex, Vec2},
 };
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
-use nand2tetris::hardware::BreakpointVar;
+use crate::hardware::BreakpointVar;
 
-use crate::common_state::{Action, CommonAction, UIStyle};
-use crate::hardware_state::{BreakpointAction, HardwareState};
-use crate::shared_ui::*;
+use super::common_state::{Action, CommonAction, UIStyle};
+use super::hardware_state::{BreakpointAction, HardwareState};
+use super::shared_ui::*;
 
 impl HardwareState {
     pub fn draw(
