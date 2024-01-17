@@ -250,6 +250,10 @@ pub fn draw_shared(
                             }
                         });
                     }
+                    if ui.button("Close File(s)").clicked() {
+                        ui.close_menu();
+                        *action = Some(Action::CloseFile)
+                    }
                     if ui.button("Quit").clicked() {
                         *action = Some(Action::Quit);
                     }

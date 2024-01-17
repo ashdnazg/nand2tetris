@@ -75,6 +75,10 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
             AppState::VM(vm_state) => reduce_vm_file_selected(vm_state, file),
             AppState::Start => todo!(),
         },
+        Action::CloseFile => {
+            app.state = Default::default();
+            app.shared_state = Default::default();
+        },
     }
 }
 

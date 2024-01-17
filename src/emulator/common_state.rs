@@ -46,6 +46,7 @@ pub enum Action {
     Breakpoint(BreakpointAction),
     Common(CommonAction),
     VMFileSelected(String),
+    CloseFile,
     Quit,
 }
 
