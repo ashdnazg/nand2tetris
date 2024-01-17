@@ -1,0 +1,294 @@
+function Rectangle.convert_x_from_board_to_screen 0
+push argument 0
+pop pointer 0
+push argument 1
+push this 10
+call Math.multiply 2
+return
+function Rectangle.convert_y_from_board_to_screen 0
+push argument 0
+pop pointer 0
+push argument 1
+push this 11
+call Math.multiply 2
+return
+function Rectangle.new 0
+push constant 12
+call Memory.alloc 1
+pop pointer 0
+push constant 8
+pop this 10
+push constant 5
+pop this 11
+push pointer 0
+push argument 0
+call Rectangle.convert_x_from_board_to_screen 2
+pop this 4
+push pointer 0
+push argument 1
+call Rectangle.convert_y_from_board_to_screen 2
+pop this 5
+call RectangleState.Idle 0
+pop this 9
+push argument 2
+pop this 8
+push argument 0
+pop this 0
+push argument 1
+pop this 1
+push pointer 0
+return
+function Rectangle.dispose 0
+push argument 0
+pop pointer 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function Rectangle.number 0
+push argument 0
+pop pointer 0
+push this 8
+return
+function Rectangle.countDigits 1
+push argument 0
+pop local 0
+push local 0
+push constant 999
+gt
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 4
+return
+label IF_FALSE0
+push local 0
+push constant 99
+gt
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push constant 3
+return
+label IF_FALSE1
+push local 0
+push constant 9
+gt
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push constant 2
+return
+label IF_FALSE2
+push constant 1
+return
+function Rectangle.draw 7
+push argument 0
+pop pointer 0
+push constant 2
+pop local 6
+push constant 35
+pop local 2
+push constant 35
+pop local 3
+push constant 0
+pop local 4
+push constant 0
+pop local 5
+push this 8
+call Rectangle.countDigits 1
+pop local 0
+push this 5
+push constant 2
+add
+push this 4
+call Output.moveCursor 2
+pop temp 0
+push this 10
+push local 0
+sub
+push constant 2
+call Math.divide 2
+pop local 1
+label WHILE_EXP0
+push local 4
+push this 11
+lt
+not
+if-goto WHILE_END0
+label WHILE_EXP1
+push local 5
+push this 10
+lt
+not
+if-goto WHILE_END1
+push this 5
+push local 4
+add
+push this 4
+push local 5
+add
+call Output.moveCursor 2
+pop temp 0
+push local 4
+push local 6
+eq
+push local 5
+push local 1
+eq
+and
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 8
+call Output.printInt 1
+pop temp 0
+push local 5
+push local 0
+add
+pop local 5
+label IF_FALSE0
+push local 4
+push constant 0
+eq
+push local 4
+push this 11
+push constant 1
+sub
+eq
+or
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 2
+call Output.printChar 1
+pop temp 0
+goto IF_END1
+label IF_FALSE1
+push local 5
+push constant 0
+eq
+push local 5
+push this 10
+push constant 1
+sub
+eq
+or
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push local 3
+call Output.printChar 1
+pop temp 0
+label IF_FALSE2
+label IF_END1
+push local 5
+push constant 1
+add
+pop local 5
+goto WHILE_EXP1
+label WHILE_END1
+push constant 0
+pop local 5
+push local 4
+push constant 1
+add
+pop local 4
+goto WHILE_EXP0
+label WHILE_END0
+push constant 0
+return
+function Rectangle.move 0
+push argument 0
+pop pointer 0
+push argument 1
+pop this 2
+push argument 2
+pop this 3
+push pointer 0
+push this 2
+call Rectangle.convert_x_from_board_to_screen 2
+pop this 6
+push pointer 0
+push this 3
+call Rectangle.convert_y_from_board_to_screen 2
+pop this 7
+push argument 3
+pop this 9
+push constant 0
+return
+function Rectangle.commit 1
+push argument 0
+pop pointer 0
+push this 9
+call RectangleState.Add 0
+eq
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 8
+push this 8
+add
+pop this 8
+label IF_FALSE0
+push this 9
+call RectangleState.Remove 0
+eq
+pop local 0
+call RectangleState.Idle 0
+pop this 9
+push this 2
+pop this 0
+push this 3
+pop this 1
+push local 0
+return
+function Rectangle.animate 3
+push argument 0
+pop pointer 0
+push this 4
+push this 2
+push this 0
+sub
+add
+pop local 1
+push this 5
+push this 3
+push this 1
+sub
+add
+pop local 2
+push local 1
+push this 4
+gt
+push local 2
+push this 5
+gt
+or
+pop local 0
+push local 0
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 1
+push this 6
+call Math.min 2
+pop this 4
+push local 2
+push this 7
+call Math.min 2
+pop this 5
+goto IF_END0
+label IF_FALSE0
+push local 1
+push this 6
+call Math.max 2
+pop this 4
+push local 2
+push this 7
+call Math.max 2
+pop this 5
+label IF_END0
+push constant 0
+return

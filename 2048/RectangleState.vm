@@ -1,0 +1,9 @@
+function RectangleState.Idle 0
+push constant 0
+return
+function RectangleState.Remove 0
+push constant 1
+return
+function RectangleState.Add 0
+push constant 2
+return
