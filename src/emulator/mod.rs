@@ -21,6 +21,10 @@ use common_state::{Action, AppState, PerformanceData, StepRunnable};
 use shared_ui::{draw_shared, Screen};
 use vm_ui::draw_vm;
 
+use crate::emulator::hardware_state::HardwareState;
+
+use self::vm_state::VMState;
+
 pub struct EmulatorApp {
     performance_data: PerformanceData,
     shared_state: SharedState,
@@ -92,7 +96,50 @@ impl eframe::App for EmulatorApp {
                 state.draw(ctx, &mut action, &self.screen, frame);
             }
             AppState::VM(state) => draw_vm(state, ctx, &mut action, &self.screen, frame),
-            AppState::Start => {}
+            AppState::Start => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.vertical(|ui| {
+                        fn file_contents_from_dir(dir: &include_dir::Dir) -> Vec<(String, String)> {
+                            dir.files()
+                                .map(|f| {
+                                    (
+                                        f.path().file_name().unwrap().to_str().unwrap().to_owned(),
+                                        f.contents_utf8().unwrap().to_owned(),
+                                    )
+                                })
+                                .collect()
+                        }
+                        if ui.button("VM Example 1: Ray Tracer").clicked() {
+                            let file_contents = file_contents_from_dir(&include_dir::include_dir!(
+                                "$CARGO_MANIFEST_DIR/Raytracer"
+                            ));
+                            self.state = AppState::VM(VMState::from_file_contents(file_contents));
+                            self.shared_state = Default::default();
+                        }
+                        if ui.button("VM Example 2: Hackenstein").clicked() {
+                            let file_contents = file_contents_from_dir(&include_dir::include_dir!(
+                                "$CARGO_MANIFEST_DIR/hackenstein3DVM"
+                            ));
+                            self.state = AppState::VM(VMState::from_file_contents(file_contents));
+                            self.shared_state = Default::default();
+                        }
+                        if ui.button("VM Example 3: Dino").clicked() {
+                            let file_contents = file_contents_from_dir(&include_dir::include_dir!(
+                                "$CARGO_MANIFEST_DIR/Dino"
+                            ));
+                            self.state = AppState::VM(VMState::from_file_contents(file_contents));
+                            self.shared_state = Default::default();
+                        }
+                        if ui.button("Hack Example: Fill").clicked() {
+                            let file_contents = include_str!("../../Fill.asm");
+                            self.state = AppState::Hardware(HardwareState::from_file_contents(
+                                file_contents,
+                            ));
+                            self.shared_state = Default::default();
+                        }
+                    });
+                });
+            }
         };
 
         if matches!(action, Some(Action::Quit)) {
