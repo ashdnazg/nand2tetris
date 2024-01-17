@@ -1,9 +1,9 @@
 use super::hardware_state::{BreakpointAction, HardwareState};
+use super::instant::Instant;
 use super::vm_state::VMState;
 use crate::hardware::RAM;
-use eframe::egui::{Key, Modifiers, DroppedFile};
+use eframe::egui::{DroppedFile, Key, Modifiers};
 use std::path::PathBuf;
-use super::instant::Instant;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Default)]

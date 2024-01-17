@@ -241,7 +241,7 @@ impl JumpCondition {
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RAM {
-    pub contents: [i16; 32 * 1024],
+    pub contents: Box<[i16; 32 * 1024]>,
 }
 
 impl Index<i16> for RAM {
@@ -302,7 +302,7 @@ impl Default for Hardware {
             pc: 0,
             rom: Box::new([Instruction { raw: 0 }; 32 * 1024]),
             ram: RAM {
-                contents: [0; 32 * 1024],
+                contents: Box::new([0; 32 * 1024]),
             },
             breakpoints: vec![],
         }
@@ -430,9 +430,7 @@ impl Hardware {
 
     pub fn from_file_contents(contents: &str) -> Self {
         let mut instance = Self::default();
-        let instructions = assemble_hack_file(contents)
-            .unwrap()
-            .1;
+        let instructions = assemble_hack_file(contents).unwrap().1;
 
         for (i, instruction) in instructions.into_iter().enumerate() {
             instance.rom[i] = instruction;

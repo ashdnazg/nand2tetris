@@ -1,5 +1,7 @@
-use std::fs;
+use eframe::egui::DroppedFile;
+
 use super::instant::Instant;
+use std::fs;
 
 use super::common_state::{
     Action, AppState, CommonAction, CommonState, PerformanceData, SharedState,
@@ -9,6 +11,18 @@ use super::hardware_state::HardwareState;
 use super::vm_reducer::reduce_vm_file_selected;
 use super::vm_state::VMState;
 use super::EmulatorApp;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn get_contents(dropped_file: &DroppedFile) -> String {
+    fs::read_to_string(dropped_file.path.as_ref().unwrap()).unwrap()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn get_contents(dropped_file: &DroppedFile) -> String {
+    let bytes = dropped_file.bytes.as_ref().unwrap().to_vec();
+
+    String::from_utf8(bytes).unwrap()
+}
 
 pub fn reduce(app: &mut EmulatorApp, action: &Action) {
     match action {
@@ -34,14 +48,27 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
             app.shared_state = Default::default();
         }
         Action::FilePicked(path) => {
-            app.state = AppState::Hardware(HardwareState::from_file_contents(&fs::read_to_string(path).unwrap()));
+            app.state = AppState::Hardware(HardwareState::from_file_contents(
+                &fs::read_to_string(path).unwrap(),
+            ));
             app.shared_state = Default::default();
         }
-        Action::FilesDropped(dropped_files) =>  {
-            app.state = AppState::Hardware(HardwareState::from_file_contents(&fs::read_to_string(dropped_files[0].clone().path.unwrap()).unwrap()));
-            // let bytes = dropped_files[0].bytes.clone().unwrap().as_ref().to_vec();
-            // app.state = AppState::Hardware(HardwareState::from_file_contents(&String::from_utf8(bytes).unwrap()));
-            app.shared_state = Default::default();
+        Action::FilesDropped(dropped_files) => {
+            if dropped_files.len() == 1 && dropped_files[0].name.ends_with(".asm") {
+                let file_contents = get_contents(&dropped_files[0]);
+                app.state = AppState::Hardware(HardwareState::from_file_contents(&file_contents));
+                app.shared_state = Default::default();
+            } else if dropped_files.iter().all(|d| d.name.ends_with(".vm")) {
+                let file_contents = dropped_files
+                    .iter()
+                    .map(|dropped_file| (dropped_file.name.clone(), get_contents(dropped_file)))
+                    .collect();
+
+                app.state = AppState::VM(VMState::from_file_contents(file_contents));
+                app.shared_state = Default::default();
+            } else {
+                println!("{:?}", dropped_files);
+            }
         }
         Action::Quit => todo!(),
         Action::VMFileSelected(file) => match &mut app.state {

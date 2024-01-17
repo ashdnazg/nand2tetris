@@ -1,5 +1,3 @@
-use egui::mutex::Mutex;
-use std::{ops::RangeInclusive, sync::Arc};
 use super::instant::Instant;
 use crate::{
     hardware::{Instruction, RAM},
@@ -10,7 +8,9 @@ use eframe::{
     epaint::Rect,
     glow,
 };
+use egui::mutex::Mutex;
 use egui_extras::{Column, TableBuilder};
+use std::{ops::RangeInclusive, sync::Arc};
 
 use super::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
 
@@ -201,33 +201,36 @@ pub fn draw_shared(
 ) {
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
-        egui::menu::bar(ui, |ui| {
-            ui.menu_button("File", |ui| {
-                if ui.button("Load VM Folder").clicked() {
-                    // let mut dialog = rfd::AsyncFileDialog::new();
-                    // if let Ok(current_dir) = std::env::current_dir() {
-                    //     dialog = dialog.set_directory(current_dir);
-                    // }
-                    // if let Some(path) = dialog.pick_folder() {
-                    //     *action = Some(Action::FolderPicked(path));
-                    //     ui.close_menu();
-                    // }
-                }
-                if ui.button("Load Hack File").clicked() {
-                    // let mut dialog = rfd::AsyncFileDialog::new();
-                    // if let Ok(current_dir) = std::env::current_dir() {
-                    //     dialog = dialog.set_directory(current_dir);
-                    // }
-                    // if let Some(handle) = futures::executor::block_on(dialog.add_filter("Hack", &[&"asm"]).pick_file()) {
-                    //     *action = Some(Action::FilePicked(handle));
-                    //     ui.close_menu();
-                    // }
-                }
-                if ui.button("Quit").clicked() {
-                    *action = Some(Action::Quit);
-                }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Load VM Folder").clicked() {
+                        let mut dialog = rfd::FileDialog::new();
+                        if let Ok(current_dir) = std::env::current_dir() {
+                            dialog = dialog.set_directory(current_dir);
+                        }
+                        if let Some(path) = dialog.pick_folder() {
+                            *action = Some(Action::FolderPicked(path));
+                            ui.close_menu();
+                        }
+                    }
+                    if ui.button("Load Hack File").clicked() {
+                        let mut dialog = rfd::FileDialog::new();
+                        if let Ok(current_dir) = std::env::current_dir() {
+                            dialog = dialog.set_directory(current_dir);
+                        }
+                        if let Some(handle) = dialog.add_filter("Hack", &[&"asm"]).pick_file() {
+                            *action = Some(Action::FilePicked(handle));
+                            ui.close_menu();
+                        }
+                    }
+                    if ui.button("Quit").clicked() {
+                        *action = Some(Action::Quit);
+                    }
+                });
             });
-        });
+        }
         ui.separator();
         ui.add_enabled_ui(is_top_bar_enabled, |ui| {
             ui.horizontal(|ui| {

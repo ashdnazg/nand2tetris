@@ -24,7 +24,7 @@ impl IndexMut<Register> for RAM {
 impl Default for RAM {
     fn default() -> Self {
         let mut instance = Self {
-            contents: [0; 32 * 1024],
+            contents: Box::new([0; 32 * 1024]),
         };
         instance[Register::SP] = 256;
 
@@ -35,7 +35,7 @@ impl Default for RAM {
 impl RAM {
     fn new() -> Self {
         let mut instance = Self {
-            contents: [0; 32 * 1024],
+            contents: Box::new([0; 32 * 1024]),
         };
         instance[Register::SP] = 256;
 
@@ -128,23 +128,27 @@ impl VM {
             .filter(|path| path.file_name().to_str().unwrap().ends_with(".vm"))
             .map(|path| {
                 (
-                    path.file_name()
-                        .to_str()
-                        .unwrap()
-                        .rsplit_once('.')
-                        .unwrap()
-                        .0
-                        .to_owned(),
-                    File::new(
-                        commands(fs::read_to_string(path.path()).unwrap().as_str())
-                            .unwrap()
-                            .1,
-                    ),
+                    path.file_name().to_str().unwrap().to_owned(),
+                    fs::read_to_string(path.path()).unwrap(),
                 )
             })
             .collect();
 
-        Self::new(files)
+        Self::from_file_contents(files)
+    }
+
+    pub fn from_file_contents(file_contents: Vec<(String, String)>) -> Self {
+        Self::new(
+            file_contents
+                .into_iter()
+                .map(|(name, contents)| {
+                    (
+                        name.rsplit_once('.').unwrap().0.to_owned(),
+                        File::new(commands(&contents).unwrap().1),
+                    )
+                })
+                .collect(),
+        )
     }
 
     pub fn new(files: Vec<(String, File)>) -> Self {
