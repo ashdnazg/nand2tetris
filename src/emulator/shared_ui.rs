@@ -276,6 +276,7 @@ pub fn draw_shared(
                 }
 
                 let mut new_steps_per_second = state.desired_steps_per_second;
+                ui.label("Steps per second:");
                 ui.vertical(|ui| {
                     // let height = ui.text_style_height(&egui::TextStyle::Body);
                     let old_size = ui.spacing_mut().interact_size.x;
@@ -293,6 +294,7 @@ pub fn draw_shared(
                 if let Some(run_start) = performance_data.run_start {
                     let run_time = (Instant::now() - run_start).as_secs_f64();
                     let steps_per_second = performance_data.total_steps as f64 / run_time;
+                    ui.label("Actual:");
                     ui.label((steps_per_second.round() as u64).to_string());
                 }
             });

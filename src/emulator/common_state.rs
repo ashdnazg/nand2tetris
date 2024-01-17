@@ -66,7 +66,7 @@ pub struct SharedState {
 impl Default for SharedState {
     fn default() -> Self {
         Self {
-            desired_steps_per_second: 10,
+            desired_steps_per_second: 500000,
             run_started: false,
             breakpoints_open: false,
         }
