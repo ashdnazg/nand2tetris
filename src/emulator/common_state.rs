@@ -3,7 +3,6 @@ use super::instant::Instant;
 use super::vm_state::VMState;
 use crate::hardware::RAM;
 use eframe::egui::{DroppedFile, Key, Modifiers};
-use std::path::PathBuf;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Default)]
@@ -41,8 +40,8 @@ pub enum CommonAction {
 
 #[derive(Debug)]
 pub enum Action {
-    FolderPicked(PathBuf),
-    FilePicked(PathBuf),
+    FilesPicked(Vec<(String, String)>),
+    FilePicked(String),
     FilesDropped(Vec<DroppedFile>),
     Breakpoint(BreakpointAction),
     Common(CommonAction),

@@ -2,7 +2,7 @@ use hashbrown::{HashMap, HashSet};
 use std::{
     fs,
     ops::{Index, IndexMut, RangeInclusive},
-    path::Path,
+    path::PathBuf,
 };
 
 use crate::{hardware::RAM, os::OS, vm_parse::commands};
@@ -121,15 +121,13 @@ pub struct VM {
 }
 
 impl VM {
-    pub fn from_dir(path: impl AsRef<Path>) -> Self {
-        let paths = fs::read_dir(path).unwrap();
+    pub fn from_paths(paths: &[PathBuf]) -> Self {
         let files = paths
-            .map(|path| path.unwrap())
-            .filter(|path| path.file_name().to_str().unwrap().ends_with(".vm"))
+            .iter()
             .map(|path| {
                 (
-                    path.file_name().to_str().unwrap().to_owned(),
-                    fs::read_to_string(path.path()).unwrap(),
+                    path.file_name().unwrap().to_str().unwrap().to_owned(),
+                    fs::read_to_string(path).unwrap(),
                 )
             })
             .collect();

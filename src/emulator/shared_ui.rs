@@ -10,6 +10,8 @@ use eframe::{
 };
 use egui::mutex::Mutex;
 use egui_extras::{Column, TableBuilder};
+use futures::future::join_all;
+use std::{future::Future, sync::mpsc::Sender};
 use std::{ops::RangeInclusive, sync::Arc};
 
 use super::common_state::{Action, CommonAction, PerformanceData, SharedState, UIStyle};
@@ -198,32 +200,55 @@ pub fn draw_shared(
     performance_data: &PerformanceData,
     is_top_bar_enabled: bool,
     action: &mut Option<Action>,
+    async_actions_sender: &Sender<Action>,
 ) {
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
-        #[cfg(not(target_arch = "wasm32"))]
+        // #[cfg(not(target_arch = "wasm32"))]
         {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("Load VM Folder").clicked() {
-                        let mut dialog = rfd::FileDialog::new();
+                    if ui.button("Load VM Files").clicked() {
+                        ui.close_menu();
+                        let mut dialog = rfd::AsyncFileDialog::new();
                         if let Ok(current_dir) = std::env::current_dir() {
                             dialog = dialog.set_directory(current_dir);
                         }
-                        if let Some(path) = dialog.pick_folder() {
-                            *action = Some(Action::FolderPicked(path));
-                            ui.close_menu();
-                        }
+                        let task = dialog.add_filter("VM", &[&"vm"]).pick_files();
+                        let ctx = ctx.clone();
+                        let async_actions_sender = async_actions_sender.clone();
+                        execute(async move {
+                            if let Some(files) = task.await {
+                                let file_contents_futures: Vec<_> = files
+                                    .iter()
+                                    .map(|f| async {
+                                        (f.file_name(), String::from_utf8(f.read().await).unwrap())
+                                    })
+                                    .collect();
+                                let file_contents = join_all(file_contents_futures).await;
+                                let _ =
+                                    async_actions_sender.send(Action::FilesPicked(file_contents));
+                                ctx.request_repaint();
+                            }
+                        });
                     }
                     if ui.button("Load Hack File").clicked() {
-                        let mut dialog = rfd::FileDialog::new();
+                        ui.close_menu();
+                        let mut dialog = rfd::AsyncFileDialog::new();
                         if let Ok(current_dir) = std::env::current_dir() {
                             dialog = dialog.set_directory(current_dir);
                         }
-                        if let Some(handle) = dialog.add_filter("Hack", &[&"asm"]).pick_file() {
-                            *action = Some(Action::FilePicked(handle));
-                            ui.close_menu();
-                        }
+                        let task = dialog.add_filter("Hack", &[&"asm"]).pick_file();
+                        let ctx = ctx.clone();
+                        let async_actions_sender = async_actions_sender.clone();
+                        execute(async move {
+                            if let Some(file) = task.await {
+                                let file_contents = String::from_utf8(file.read().await).unwrap();
+                                let _ =
+                                    async_actions_sender.send(Action::FilePicked(file_contents));
+                                ctx.request_repaint();
+                            }
+                        });
                     }
                     if ui.button("Quit").clicked() {
                         *action = Some(Action::Quit);
@@ -273,6 +298,16 @@ pub fn draw_shared(
             });
         });
     });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn execute<F: Future<Output = ()> + Send + 'static>(f: F) {
+    std::thread::spawn(move || futures::executor::block_on(f));
+}
+
+#[cfg(target_arch = "wasm32")]
+fn execute<F: Future<Output = ()> + 'static>(f: F) {
+    wasm_bindgen_futures::spawn_local(f);
 }
 
 pub trait EmulatorWidgets {

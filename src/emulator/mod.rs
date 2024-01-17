@@ -13,6 +13,9 @@ use common_state::SharedState;
 use eframe::egui;
 
 use egui::mutex::Mutex;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 
 use common_reducer::reduce;
@@ -30,6 +33,7 @@ pub struct EmulatorApp {
     shared_state: SharedState,
     state: AppState,
     screen: Arc<Mutex<Screen>>,
+    async_actions: (Sender<Action>, Receiver<Action>),
 }
 
 impl EmulatorApp {
@@ -39,6 +43,7 @@ impl EmulatorApp {
             shared_state: Default::default(),
             state: Default::default(),
             screen: Arc::new(Mutex::new(Screen::new(cc.gl.as_ref().unwrap()))),
+            async_actions: channel(),
         }
     }
 }
@@ -47,12 +52,17 @@ impl eframe::App for EmulatorApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let mut action = None;
         ctx.input(|i| {
             if !i.raw.dropped_files.is_empty() {
                 reduce(self, &Action::FilesDropped(i.raw.dropped_files.clone()));
             }
         });
+
+        while let Ok(action) = self.async_actions.1.try_recv() {
+            reduce(self, &action);
+        }
+
+        let mut action = None;
 
         draw_shared(
             &self.shared_state,
@@ -60,6 +70,7 @@ impl eframe::App for EmulatorApp {
             &self.performance_data,
             !matches!(self.state, AppState::Start),
             &mut action,
+            &self.async_actions.0,
         );
 
         let last_frame_time = frame.info().cpu_usage.unwrap_or(1.0 / 60.0);

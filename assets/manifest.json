@@ -1,6 +1,6 @@
 {
-  "name": "egui Template PWA",
-  "short_name": "egui-template-pwa",
+  "name": "nand2tetris PWA",
+  "short_name": "nand2tetris-pwa",
   "icons": [
     {
       "src": "./icon-256.png",

@@ -1,9 +1,9 @@
-var cacheName = 'egui-template-pwa';
+var cacheName = 'nand2tetris-pwa';
 var filesToCache = [
   './',
   './index.html',
-  './eframe_template.js',
-  './eframe_template_bg.wasm',
+  './nand2tetris.js',
+  './nand2tetris_bg.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */

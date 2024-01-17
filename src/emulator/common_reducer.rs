@@ -1,7 +1,6 @@
 use eframe::egui::DroppedFile;
 
 use super::instant::Instant;
-use std::fs;
 
 use super::common_state::{
     Action, AppState, CommonAction, CommonState, PerformanceData, SharedState,
@@ -14,7 +13,7 @@ use super::EmulatorApp;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn get_contents(dropped_file: &DroppedFile) -> String {
-    fs::read_to_string(dropped_file.path.as_ref().unwrap()).unwrap()
+    std::fs::read_to_string(dropped_file.path.as_ref().unwrap()).unwrap()
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -43,14 +42,12 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
             AppState::VM(_) => todo!(),
             AppState::Start => todo!(),
         },
-        Action::FolderPicked(path) => {
-            app.state = AppState::VM(VMState::from_dir(path));
+        Action::FilesPicked(file_contents) => {
+            app.state = AppState::VM(VMState::from_file_contents(file_contents.clone()));
             app.shared_state = Default::default();
         }
-        Action::FilePicked(path) => {
-            app.state = AppState::Hardware(HardwareState::from_file_contents(
-                &fs::read_to_string(path).unwrap(),
-            ));
+        Action::FilePicked(file_contents) => {
+            app.state = AppState::Hardware(HardwareState::from_file_contents(file_contents));
             app.shared_state = Default::default();
         }
         Action::FilesDropped(dropped_files) => {

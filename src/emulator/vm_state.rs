@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::hardware::RAM;
 use crate::vm::VM;
 
@@ -11,12 +9,6 @@ pub struct VMState {
 }
 
 impl VMState {
-    pub fn from_dir(path_buf: &PathBuf) -> Self {
-        let vm = VM::from_dir(path_buf);
-        let selected_file = vm.run_state.current_file_name.clone();
-        VMState { vm, selected_file }
-    }
-
     pub fn from_file_contents(file_contents: Vec<(String, String)>) -> Self {
         let vm = VM::from_file_contents(file_contents);
         let selected_file = vm.run_state.current_file_name.clone();
