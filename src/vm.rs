@@ -359,15 +359,14 @@ impl VM {
                     }
                     run_state.call_stack.pop();
 
-                    let file_index = run_state.call_stack.last().unwrap().file_index;
-                    if run_state.current_file_index != file_index {
-                        run_state.current_file_index = file_index;
+                    let last_frame = run_state.call_stack.last().unwrap();
+                    if run_state.current_file_index != last_frame.file_index {
+                        run_state.current_file_index = last_frame.file_index;
 
-                        current_file = &files[file_index];
+                        current_file = &files[last_frame.file_index];
                         static_segment = *current_file.static_segment.start();
                     }
-                    function_metadata = &current_file.function_metadata
-                        [run_state.call_stack.last().unwrap().function_index];
+                    function_metadata = &current_file.function_metadata[last_frame.function_index];
                 }
             }
         }
