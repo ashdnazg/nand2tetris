@@ -105,11 +105,12 @@ impl RAM {
 #[derive(Clone)]
 pub struct Program {
     pub all_commands: Vec<VMCommand>,
-    pub files: HashMap<String, File>,
+    pub file_name_to_index: HashMap<String, usize>,
+    pub files: Vec<File>,
 }
 
 pub struct RunState {
-    pub current_file_name: String,
+    pub current_file_index: usize,
     pub current_command_index: usize,
     pub ram: RAM,
     pub os: OS,
@@ -152,17 +153,20 @@ impl VM {
 
     pub fn from_all_file_commands(all_file_commands: Vec<(String, Vec<VMCommand>)>) -> Self {
         let mut all_commands = vec![];
+        let mut file_name_to_index = HashMap::new();
         let mut files = vec![];
         let mut next_static_index = 16;
         for (name, file_commands) in all_file_commands.into_iter() {
-            let file = File::new(&file_commands, all_commands.len(), next_static_index);
+            let file = File::new(&name, &file_commands, all_commands.len(), next_static_index);
             next_static_index = *file.static_segment.end() + 1;
-            files.push((name, file));
+            file_name_to_index.insert(name, files.len());
+            files.push(file);
             all_commands.extend(file_commands);
         }
 
         let program = Program {
             all_commands,
+            file_name_to_index,
             files: files.into_iter().collect(),
         };
 
@@ -170,17 +174,19 @@ impl VM {
     }
 
     pub fn new(program: Program) -> Self {
-        let current_command_index = program.files["Sys"].starting_command_index;
+        let current_file_index = program.file_name_to_index["Sys"];
+        let current_command_index = program.files[current_file_index].starting_command_index;
+        let function_index = program.files[current_file_index].function_name_to_index["Sys.init"];
         Self {
             program,
             run_state: RunState {
-                current_file_name: "Sys".to_owned(),
+                current_file_index,
                 current_command_index,
                 ram: RAM::new(),
                 os: Default::default(),
                 call_stack: vec![Frame {
-                    file_name: "Sys".to_owned(),
-                    function_name: "Sys.init".to_owned(),
+                    file_index: current_file_index,
+                    function_index,
                 }],
             },
         }
@@ -198,9 +204,9 @@ impl VM {
         let files = &self.program.files;
         let run_state = &mut self.run_state;
 
-        let mut current_file = &files[&run_state.current_file_name];
+        let mut current_file = &files[run_state.current_file_index];
         let mut function_metadata =
-            &current_file.function_metadata[&run_state.call_stack.last().unwrap().function_name];
+            &current_file.function_metadata[run_state.call_stack.last().unwrap().function_index];
         let mut static_segment = *current_file.static_segment.start();
         for _ in 0..num_steps {
             match &self.program.all_commands[run_state.current_command_index] {
@@ -321,22 +327,23 @@ impl VM {
                         }
                     } else {
                         let (file_name, _) = function_name.split_once('.').unwrap();
-                        run_state.call_stack.push(Frame {
-                            file_name: file_name.to_owned(),
-                            function_name: function_name.to_owned(),
-                        });
 
-                        if run_state.current_file_name != file_name {
-                            run_state.current_file_name = file_name.to_owned();
-                            current_file = &files[&run_state.current_file_name];
+                        let file_index = self.program.file_name_to_index[file_name];
+                        if run_state.current_file_index != file_index {
+                            run_state.current_file_index = file_index;
+                            current_file = &files[run_state.current_file_index];
                             static_segment = *current_file.static_segment.start();
                         }
 
-                        function_metadata = &current_file.function_metadata
-                            [&run_state.call_stack.last().unwrap().function_name];
+                        let function_index = current_file.function_name_to_index[function_name];
 
-                        run_state.current_command_index =
-                            current_file.function_name_to_command_index[function_name];
+                        run_state.call_stack.push(Frame {
+                            file_index,
+                            function_index,
+                        });
+
+                        function_metadata = &current_file.function_metadata[function_index];
+                        run_state.current_command_index = function_metadata.command_index;
                     }
                 }
                 VMCommand::Return => {
@@ -352,16 +359,15 @@ impl VM {
                     }
                     run_state.call_stack.pop();
 
-                    if run_state.current_file_name != run_state.call_stack.last().unwrap().file_name
-                    {
-                        run_state.current_file_name =
-                            run_state.call_stack.last().unwrap().file_name.clone();
+                    let file_index = run_state.call_stack.last().unwrap().file_index;
+                    if run_state.current_file_index != file_index {
+                        run_state.current_file_index = file_index;
 
-                        current_file = &files[&run_state.current_file_name];
+                        current_file = &files[file_index];
                         static_segment = *current_file.static_segment.start();
                     }
                     function_metadata = &current_file.function_metadata
-                        [&run_state.call_stack.last().unwrap().function_name];
+                        [run_state.call_stack.last().unwrap().function_index];
                 }
             }
         }
@@ -377,43 +383,44 @@ impl VM {
 }
 
 pub struct Frame {
-    file_name: String,
-    pub function_name: String,
+    file_index: usize,
+    pub function_index: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FunctionMetadata {
     pub argument_count: i16,
     pub local_var_count: i16,
+    command_index: usize,
     label_name_to_command_index: HashMap<String, usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct File {
+    pub name: String,
     pub starting_command_index: usize,
     command_count: usize,
     pub static_segment: RangeInclusive<i16>,
-    function_name_to_command_index: HashMap<String, usize>,
-    pub function_metadata: HashMap<String, FunctionMetadata>,
+    function_name_to_index: HashMap<String, usize>,
+    pub function_metadata: Vec<FunctionMetadata>,
 }
 
 impl File {
     fn new(
+        name: &str,
         commands: &[VMCommand],
         starting_command_index: usize,
         static_segment_start: i16,
     ) -> Self {
-        let mut current_function_name: Option<String> = None;
-        let mut function_name_to_command_index: HashMap<String, usize> = HashMap::new();
-        let mut function_metadata: HashMap<String, FunctionMetadata> = HashMap::new();
+        let mut function_name_to_index: HashMap<String, usize> = HashMap::new();
+        let mut function_metadata: Vec<FunctionMetadata> = vec![];
         let mut max_static_index: i16 = static_segment_start - 1;
         for (i, command) in commands.iter().enumerate() {
             match command {
                 VMCommand::Label { name } => {
-                    let metadata = function_metadata
-                        .get_mut(current_function_name.as_ref().unwrap())
-                        .unwrap();
-                    metadata
+                    function_metadata
+                        .last_mut()
+                        .unwrap()
                         .label_name_to_command_index
                         .insert(name.clone(), starting_command_index + i);
                 }
@@ -421,16 +428,13 @@ impl File {
                     name,
                     local_var_count,
                 } => {
-                    current_function_name = Some(name.clone());
-                    function_metadata.insert(
-                        name.clone(),
-                        FunctionMetadata {
-                            argument_count: 0,
-                            local_var_count: *local_var_count,
-                            label_name_to_command_index: HashMap::new(),
-                        },
-                    );
-                    function_name_to_command_index.insert(name.clone(), starting_command_index + i);
+                    function_name_to_index.insert(name.clone(), function_metadata.len());
+                    function_metadata.push(FunctionMetadata {
+                        argument_count: 0,
+                        local_var_count: *local_var_count,
+                        command_index: starting_command_index + i,
+                        label_name_to_command_index: HashMap::new(),
+                    });
                 }
                 VMCommand::Pop {
                     segment: PopSegment::Argument,
@@ -440,9 +444,7 @@ impl File {
                     segment: PushSegment::Argument,
                     offset,
                 } => {
-                    let metadata = function_metadata
-                        .get_mut(current_function_name.as_ref().unwrap())
-                        .unwrap();
+                    let metadata = function_metadata.last_mut().unwrap();
                     metadata.argument_count = i16::max(metadata.argument_count, *offset);
                 }
                 VMCommand::Push {
@@ -460,10 +462,11 @@ impl File {
         }
 
         File {
+            name: name.to_owned(),
             starting_command_index,
             static_segment: static_segment_start..=max_static_index,
             command_count: commands.len(),
-            function_name_to_command_index,
+            function_name_to_index,
             function_metadata,
         }
     }
@@ -626,7 +629,7 @@ mod tests {
     impl VM {
         fn test_get(&self, segment: PushSegment, offset: i16) -> i16 {
             self.run_state.ram.get(
-                *self.program.files[&self.run_state.current_file_name]
+                *self.program.files[self.run_state.current_file_index]
                     .static_segment
                     .start(),
                 segment,
@@ -636,7 +639,7 @@ mod tests {
 
         fn test_set(&mut self, segment: PopSegment, offset: i16, value: i16) {
             self.run_state.ram.set(
-                *self.program.files[&self.run_state.current_file_name]
+                *self.program.files[self.run_state.current_file_index]
                     .static_segment
                     .start(),
                 segment,
@@ -653,7 +656,7 @@ mod tests {
                     offset: 666,
                 }],
             )]);
-            vm.run_state.current_file_name = "foo".to_owned();
+            vm.run_state.current_file_index = 0;
 
             vm
         }
@@ -698,15 +701,15 @@ mod tests {
         ];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
 
         vm.test_set(PopSegment::Static, 0, 1337);
-        vm.run_state.current_file_name = "b".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["b"];
         vm.test_set(PopSegment::Static, 1, 2337);
 
         assert_eq!(vm.test_get(PushSegment::Static, 0), 0);
         assert_eq!(vm.test_get(PushSegment::Static, 1), 2337);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         assert_eq!(vm.test_get(PushSegment::Static, 0), 1337);
         assert_eq!(vm.test_get(PushSegment::Static, 1), 0);
     }
@@ -811,7 +814,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
         vm.step();
@@ -837,7 +840,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
         vm.step();
@@ -859,7 +862,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
 
@@ -893,7 +896,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
         vm.step();
@@ -934,7 +937,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
         vm.step();
@@ -975,7 +978,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
         vm.step();
@@ -1007,7 +1010,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
         vm.step();
@@ -1033,7 +1036,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
         vm.step();
@@ -1055,7 +1058,7 @@ mod tests {
         )];
 
         let mut vm = VM::from_all_file_commands(all_file_commands);
-        vm.run_state.current_file_name = "a".to_owned();
+        vm.run_state.current_file_index = vm.program.file_name_to_index["a"];
         vm.step();
         vm.step();
 

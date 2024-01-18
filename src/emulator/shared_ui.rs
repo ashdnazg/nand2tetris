@@ -424,13 +424,14 @@ impl EmulatorWidgets for egui::Ui {
             egui::ComboBox::from_id_source("VM combo")
                 .selected_text(&*selected_file)
                 .show_ui(ui, |ui| {
-                    for file_name in program.files.keys() {
+                    for file_name in program.files.iter().map(|f| &f.name) {
                         ui.selectable_value(selected_file, file_name.clone(), file_name);
                     }
                 });
             let header_height = ui.text_style_height(&egui::TextStyle::Body);
             let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
-            let file = &program.files[selected_file];
+            let file_index = program.file_name_to_index[selected_file];
+            let file = &program.files[file_index];
             let commands = file.commands(&program.all_commands);
 
             TableBuilder::new(ui)
@@ -451,7 +452,7 @@ impl EmulatorWidgets for egui::Ui {
                         let row_index = row.index();
                         let is_highlighted = row_index
                             == run_state.current_command_index - file.starting_command_index
-                            && *selected_file == run_state.current_file_name;
+                            && file_index == run_state.current_file_index;
                         row.col(|ui| {
                             if is_highlighted {
                                 let rect = ui.max_rect();

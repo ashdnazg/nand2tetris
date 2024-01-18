@@ -11,7 +11,9 @@ pub struct VMState {
 impl VMState {
     pub fn from_file_contents(file_contents: Vec<(String, String)>) -> Self {
         let vm = VM::from_file_contents(file_contents);
-        let selected_file = vm.run_state.current_file_name.clone();
+        let selected_file = vm.program.files[vm.run_state.current_file_index]
+            .name
+            .clone();
         VMState { vm, selected_file }
     }
 }

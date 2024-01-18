@@ -42,19 +42,19 @@ pub fn draw_vm(
                             strip.strip(|builder| {
                                 builder.sizes(Size::relative(1.0 / 6.0), 6).vertical(
                                     |mut strip| {
-                                        let function_name = &state
+                                        let function_index = &state
                                             .vm
                                             .run_state
                                             .call_stack
                                             .last()
                                             .unwrap()
-                                            .function_name;
+                                            .function_index;
                                         let function_metadata = &state.vm.program.files
-                                            [&state.vm.run_state.current_file_name]
-                                            .function_metadata[function_name];
+                                            [state.vm.run_state.current_file_index]
+                                            .function_metadata[*function_index];
                                         strip.cell(|ui| {
                                             let static_segment = &state.vm.program.files
-                                                [&state.vm.run_state.current_file_name]
+                                                [state.vm.run_state.current_file_index]
                                                 .static_segment;
                                             ui.ram_grid(
                                                 "Static",
