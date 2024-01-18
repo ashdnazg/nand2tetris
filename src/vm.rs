@@ -162,7 +162,15 @@ impl VM {
         let mut function_metadata = vec![];
         for (name, file_commands) in all_file_commands.into_iter() {
             let file_index = files.len();
-            let file = File::new(&name, file_index, &file_commands, all_commands.len(), next_static_index, &mut function_name_to_index, &mut function_metadata);
+            let file = File::new(
+                &name,
+                file_index,
+                &file_commands,
+                all_commands.len(),
+                next_static_index,
+                &mut function_name_to_index,
+                &mut function_metadata,
+            );
             next_static_index = *file.static_segment.end() + 1;
             file_name_to_index.insert(name, file_index);
             files.push(file);
@@ -191,9 +199,7 @@ impl VM {
                 current_command_index,
                 ram: RAM::new(),
                 os: Default::default(),
-                call_stack: vec![Frame {
-                    function_index,
-                }],
+                call_stack: vec![Frame { function_index }],
             },
         }
     }
@@ -276,7 +282,8 @@ impl VM {
                 VMCommand::Goto { label_name } => {
                     Self::goto(
                         &mut run_state.current_command_index,
-                        &self.program.function_metadata[run_state.call_stack.last().unwrap().function_index],
+                        &self.program.function_metadata
+                            [run_state.call_stack.last().unwrap().function_index],
                         label_name,
                     );
                 }
@@ -285,7 +292,8 @@ impl VM {
                     if value != 0 {
                         Self::goto(
                             &mut run_state.current_command_index,
-                            &self.program.function_metadata[run_state.call_stack.last().unwrap().function_index],
+                            &self.program.function_metadata
+                                [run_state.call_stack.last().unwrap().function_index],
                             label_name,
                         );
                     } else {
@@ -334,14 +342,10 @@ impl VM {
                         let file_index = function_metadata.file_index;
 
                         run_state.current_command_index = function_metadata.command_index;
-                        if run_state.current_file_index != file_index {
-                            run_state.current_file_index = file_index;
-                            static_segment = *files[file_index].static_segment.start();
-                        }
+                        run_state.current_file_index = file_index;
+                        static_segment = *files[file_index].static_segment.start();
 
-                        run_state.call_stack.push(Frame {
-                            function_index,
-                        });
+                        run_state.call_stack.push(Frame { function_index });
                     }
                 }
                 VMCommand::Return => {
@@ -358,12 +362,10 @@ impl VM {
                     run_state.call_stack.pop();
 
                     let last_frame = run_state.call_stack.last().unwrap();
-                    let file_index = self.program.function_metadata[last_frame.function_index].file_index;
-                    if run_state.current_file_index != file_index {
-                        run_state.current_file_index = file_index;
-
-                        static_segment = *files[file_index].static_segment.start();
-                    }
+                    let file_index =
+                        self.program.function_metadata[last_frame.function_index].file_index;
+                    run_state.current_file_index = file_index;
+                    static_segment = *files[file_index].static_segment.start();
                 }
             }
         }

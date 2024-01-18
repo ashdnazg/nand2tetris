@@ -24,6 +24,7 @@ type Func = fn(&mut RunState) -> i16;
 impl RunState {
     pub fn call_os(&mut self, function_name: &str) -> bool {
         let function = match function_name {
+            "Math.init" => Self::noop,
             "Math.multiply" => Self::math_multiply,
             "Math.divide" => Self::math_divide,
             "Math.min" => Self::math_min,
@@ -34,6 +35,7 @@ impl RunState {
             "Keyboard.keyPressed" => Self::keyboard_key_pressed,
             "Screen.setColor" => Self::screen_set_color,
             "Screen.drawPixel" => Self::screen_draw_pixel,
+            "Memory.init" => Self::noop,
             "Memory.peek" => Self::memory_peek,
             "Memory.poke" => Self::memory_poke,
             "Memory.alloc" => Self::memory_alloc,
@@ -49,6 +51,10 @@ impl RunState {
     fn call(&mut self, f: Func) {
         let return_value = f(self);
         self.ram.push(return_value);
+    }
+
+    fn noop(&mut self) -> i16 {
+        0
     }
 
     fn math_multiply(&mut self) -> i16 {
