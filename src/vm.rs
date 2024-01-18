@@ -105,6 +105,8 @@ impl RAM {
 #[derive(Clone)]
 pub struct Program {
     pub all_commands: Vec<VMCommand>,
+    function_name_to_index: HashMap<String, usize>,
+    pub function_metadata: Vec<FunctionMetadata>,
     pub file_name_to_index: HashMap<String, usize>,
     pub files: Vec<File>,
 }
@@ -156,16 +158,21 @@ impl VM {
         let mut file_name_to_index = HashMap::new();
         let mut files = vec![];
         let mut next_static_index = 16;
+        let mut function_name_to_index = HashMap::new();
+        let mut function_metadata = vec![];
         for (name, file_commands) in all_file_commands.into_iter() {
-            let file = File::new(&name, &file_commands, all_commands.len(), next_static_index);
+            let file_index = files.len();
+            let file = File::new(&name, file_index, &file_commands, all_commands.len(), next_static_index, &mut function_name_to_index, &mut function_metadata);
             next_static_index = *file.static_segment.end() + 1;
-            file_name_to_index.insert(name, files.len());
+            file_name_to_index.insert(name, file_index);
             files.push(file);
             all_commands.extend(file_commands);
         }
 
         let program = Program {
             all_commands,
+            function_name_to_index,
+            function_metadata,
             file_name_to_index,
             files: files.into_iter().collect(),
         };
@@ -174,9 +181,9 @@ impl VM {
     }
 
     pub fn new(program: Program) -> Self {
-        let current_file_index = program.file_name_to_index["Sys"];
+        let current_file_index = *program.file_name_to_index.get("Sys").unwrap_or(&0);
         let current_command_index = program.files[current_file_index].starting_command_index;
-        let function_index = program.files[current_file_index].function_name_to_index["Sys.init"];
+        let function_index = *program.function_name_to_index.get("Sys.init").unwrap_or(&0);
         Self {
             program,
             run_state: RunState {
@@ -204,10 +211,7 @@ impl VM {
         let files = &self.program.files;
         let run_state = &mut self.run_state;
 
-        let mut current_file = &files[run_state.current_file_index];
-        let mut function_metadata =
-            &current_file.function_metadata[run_state.call_stack.last().unwrap().function_index];
-        let mut static_segment = *current_file.static_segment.start();
+        let mut static_segment = *files[run_state.current_file_index].static_segment.start();
         for _ in 0..num_steps {
             match &self.program.all_commands[run_state.current_command_index] {
                 VMCommand::Add => {
@@ -273,7 +277,7 @@ impl VM {
                 VMCommand::Goto { label_name } => {
                     Self::goto(
                         &mut run_state.current_command_index,
-                        function_metadata,
+                        &self.program.function_metadata[run_state.call_stack.last().unwrap().function_index],
                         label_name,
                     );
                 }
@@ -282,7 +286,7 @@ impl VM {
                     if value != 0 {
                         Self::goto(
                             &mut run_state.current_command_index,
-                            function_metadata,
+                            &self.program.function_metadata[run_state.call_stack.last().unwrap().function_index],
                             label_name,
                         );
                     } else {
@@ -331,19 +335,17 @@ impl VM {
                         let file_index = self.program.file_name_to_index[file_name];
                         if run_state.current_file_index != file_index {
                             run_state.current_file_index = file_index;
-                            current_file = &files[run_state.current_file_index];
-                            static_segment = *current_file.static_segment.start();
+                            static_segment = *files[run_state.current_file_index].static_segment.start();
                         }
 
-                        let function_index = current_file.function_name_to_index[function_name];
+                        let function_index = self.program.function_name_to_index[function_name];
 
                         run_state.call_stack.push(Frame {
                             file_index,
                             function_index,
                         });
 
-                        function_metadata = &current_file.function_metadata[function_index];
-                        run_state.current_command_index = function_metadata.command_index;
+                        run_state.current_command_index = self.program.function_metadata[function_index].command_index;
                     }
                 }
                 VMCommand::Return => {
@@ -363,10 +365,8 @@ impl VM {
                     if run_state.current_file_index != last_frame.file_index {
                         run_state.current_file_index = last_frame.file_index;
 
-                        current_file = &files[last_frame.file_index];
-                        static_segment = *current_file.static_segment.start();
+                        static_segment = *files[run_state.current_file_index].static_segment.start();
                     }
-                    function_metadata = &current_file.function_metadata[last_frame.function_index];
                 }
             }
         }
@@ -391,6 +391,7 @@ pub struct FunctionMetadata {
     pub argument_count: i16,
     pub local_var_count: i16,
     command_index: usize,
+    file_index: usize,
     label_name_to_command_index: HashMap<String, usize>,
 }
 
@@ -400,19 +401,18 @@ pub struct File {
     pub starting_command_index: usize,
     command_count: usize,
     pub static_segment: RangeInclusive<i16>,
-    function_name_to_index: HashMap<String, usize>,
-    pub function_metadata: Vec<FunctionMetadata>,
 }
 
 impl File {
     fn new(
         name: &str,
+        file_index: usize,
         commands: &[VMCommand],
         starting_command_index: usize,
         static_segment_start: i16,
+        function_name_to_index: &mut HashMap<String, usize>,
+        function_metadata: &mut Vec<FunctionMetadata>,
     ) -> Self {
-        let mut function_name_to_index: HashMap<String, usize> = HashMap::new();
-        let mut function_metadata: Vec<FunctionMetadata> = vec![];
         let mut max_static_index: i16 = static_segment_start - 1;
         for (i, command) in commands.iter().enumerate() {
             match command {
@@ -432,6 +432,7 @@ impl File {
                         argument_count: 0,
                         local_var_count: *local_var_count,
                         command_index: starting_command_index + i,
+                        file_index,
                         label_name_to_command_index: HashMap::new(),
                     });
                 }
@@ -465,8 +466,6 @@ impl File {
             starting_command_index,
             static_segment: static_segment_start..=max_static_index,
             command_count: commands.len(),
-            function_name_to_index,
-            function_metadata,
         }
     }
 

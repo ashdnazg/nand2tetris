@@ -49,8 +49,7 @@ pub fn draw_vm(
                                             .last()
                                             .unwrap()
                                             .function_index;
-                                        let function_metadata = &state.vm.program.files
-                                            [state.vm.run_state.current_file_index]
+                                        let function_metadata = &state.vm.program
                                             .function_metadata[*function_index];
                                         strip.cell(|ui| {
                                             let static_segment = &state.vm.program.files
