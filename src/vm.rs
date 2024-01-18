@@ -231,13 +231,6 @@ impl VM {
         let function_metadata =
             &current_file.function_metadata[&run_state.call_stack.last().unwrap().function_name];
 
-        // if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
-        //     println!(
-        //         "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",
-        //         self.files[&self.current_file_name].commands[self.current_command_index],
-        //         self.ram[self.ram[Register::LCL] + 1], self.ram[self.ram[Register::SP] -1], self.ram[self.ram[Register::SP] - 2], self.ram[Register::SP], self.ram[Register::LCL], self.ram[Register::ARG], self.ram[Register::THIS], self.ram[Register::THAT]
-        //     );
-        // }
         for steps_done in 1..=num_steps {
             match &current_file.commands[run_state.current_command_index] {
                 VMCommand::Add => {
@@ -279,9 +272,7 @@ impl VM {
                 }
                 VMCommand::Lt => {
                     let y = run_state.ram.pop();
-                    // let (this, that, wat) = (self.ram[Register::THIS], self.ram[Register::THAT], self.ram[self.ram[Register::THAT]]);
                     let x = run_state.ram.stack_top();
-                    // println!("x:{:?} y: {:?} this: {:?} that: {:?}, ram[THAT]: {:?} ", x, y, this, that, wat);
                     *x = -((*x < y) as i16);
                     run_state.current_command_index += 1;
                 }
@@ -343,8 +334,6 @@ impl VM {
                         run_state.ram.push(value);
                     }
 
-                    // println!("{function_name}");
-
                     let local_segment = run_state.ram[Register::SP];
                     run_state.ram[Register::LCL] = local_segment;
                     run_state.ram[Register::ARG] = argument_segment;
@@ -374,7 +363,6 @@ impl VM {
                     }
                 }
                 VMCommand::Return => {
-                    // println!("return");
                     let frame = run_state.ram[Register::LCL];
                     run_state.current_command_index = run_state.ram[frame - 5] as usize;
                     let return_value = run_state.ram.pop();

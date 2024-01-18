@@ -78,7 +78,7 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
         Action::CloseFile => {
             app.state = Default::default();
             app.shared_state = Default::default();
-        },
+        }
     }
 }
 
