@@ -123,7 +123,7 @@ fn command(input: &str) -> IResult<&str, VMCommand> {
     ))(input)
 }
 
-pub fn commands(input: &str) -> IResult<&str, Vec<VMCommand>> {
+pub fn parse_commands(input: &str) -> IResult<&str, Vec<VMCommand>> {
     non_comment_lines(command)(input)
 }
 
@@ -218,7 +218,7 @@ mod tests {
         pop temp 0
         push constant 0
         return               "#;
-        let result = commands(code);
+        let result = parse_commands(code);
 
         assert_eq!(
             result,

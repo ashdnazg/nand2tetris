@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{hardware::RAM, os::OS, vm_parse::commands};
+use crate::{hardware::RAM, os::OS, vm_parse::parse_commands};
 
 impl Index<Register> for RAM {
     type Output = i16;
@@ -102,7 +102,9 @@ impl RAM {
     }
 }
 
+#[derive(Clone)]
 pub struct Program {
+    pub all_commands: Vec<VMCommand>,
     pub files: HashMap<String, File>,
     pub file_name_to_static_segment: HashMap<String, RangeInclusive<i16>>,
 }
@@ -136,31 +138,45 @@ impl VM {
     }
 
     pub fn from_file_contents(file_contents: Vec<(String, String)>) -> Self {
-        Self::new(
+        Self::from_all_file_commands(
             file_contents
                 .into_iter()
                 .map(|(name, contents)| {
                     (
                         name.rsplit_once('.').unwrap().0.to_owned(),
-                        File::new(commands(&contents).unwrap().1),
+                        parse_commands(&contents).unwrap().1,
                     )
                 })
                 .collect(),
         )
     }
 
-    pub fn new(files: Vec<(String, File)>) -> Self {
-        let file_name_to_static_segment = Self::create_file_name_to_static_segment(&files);
+    pub fn from_all_file_commands(all_file_commands: Vec<(String, Vec<VMCommand>)>) -> Self {
+        let mut all_commands = vec![];
+        let mut files = vec![];
+        for (name, file_commands) in all_file_commands.into_iter() {
+            files.push((name, File::new(&file_commands, all_commands.len())));
+            all_commands.extend(file_commands);
+        }
+
+        let file_name_to_static_segment =
+            Self::create_file_name_to_static_segment(&all_commands, &files);
         let program = Program {
+            all_commands,
             files: files.into_iter().collect(),
             file_name_to_static_segment,
         };
 
+        Self::new(program)
+    }
+
+    pub fn new(program: Program) -> Self {
+        let current_command_index = program.files["Sys"].starting_command_index;
         Self {
             program,
             run_state: RunState {
                 current_file_name: "Sys".to_owned(),
-                current_command_index: 0,
+                current_command_index,
                 ram: RAM::new(),
                 os: Default::default(),
                 call_stack: vec![Frame {
@@ -172,17 +188,18 @@ impl VM {
     }
 
     pub fn reset(&mut self) {
-        *self = VM::new(self.program.files.clone().into_iter().collect());
+        *self = VM::new(self.program.clone());
     }
 
     fn create_file_name_to_static_segment(
-        files: &Vec<(String, File)>,
+        all_commands: &[VMCommand],
+        files: &[(String, File)],
     ) -> HashMap<String, RangeInclusive<i16>> {
         let mut map: HashMap<String, RangeInclusive<i16>> = HashMap::new();
         let mut index = 16i16;
         for (file_name, file) in files {
             let static_vars: HashSet<i16> = file
-                .commands
+                .commands(all_commands)
                 .iter()
                 .filter_map(|cmd| match cmd {
                     VMCommand::Push {
@@ -213,6 +230,7 @@ impl VM {
             let static_segment =
                 &self.program.file_name_to_static_segment[&self.run_state.current_file_name];
             steps_remaining -= Self::run_commands(
+                &self.program.all_commands,
                 &mut self.run_state,
                 *static_segment.start(),
                 &self.program.files,
@@ -222,6 +240,7 @@ impl VM {
     }
 
     pub fn run_commands(
+        all_commands: &[VMCommand],
         run_state: &mut RunState,
         static_segment: i16,
         files: &HashMap<String, File>,
@@ -232,7 +251,7 @@ impl VM {
             &current_file.function_metadata[&run_state.call_stack.last().unwrap().function_name];
 
         for steps_done in 1..=num_steps {
-            match &current_file.commands[run_state.current_command_index] {
+            match &all_commands[run_state.current_command_index] {
                 VMCommand::Add => {
                     let y = run_state.ram.pop();
                     *run_state.ram.stack_top() = run_state.ram.stack_top().wrapping_add(y);
@@ -408,13 +427,14 @@ pub struct FunctionMetadata {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct File {
-    pub commands: Vec<VMCommand>,
+    pub starting_command_index: usize,
+    command_count: usize,
     function_name_to_command_index: HashMap<String, usize>,
     pub function_metadata: HashMap<String, FunctionMetadata>,
 }
 
 impl File {
-    pub fn new(commands: Vec<VMCommand>) -> Self {
+    fn new(commands: &[VMCommand], starting_command_index: usize) -> Self {
         let mut current_function_name: Option<String> = None;
         let mut function_name_to_command_index: HashMap<String, usize> = HashMap::new();
         let mut function_metadata: HashMap<String, FunctionMetadata> = HashMap::new();
@@ -424,7 +444,9 @@ impl File {
                     let metadata = function_metadata
                         .get_mut(current_function_name.as_ref().unwrap())
                         .unwrap();
-                    metadata.label_name_to_command_index.insert(name.clone(), i);
+                    metadata
+                        .label_name_to_command_index
+                        .insert(name.clone(), starting_command_index + i);
                 }
                 VMCommand::Function {
                     name,
@@ -439,7 +461,7 @@ impl File {
                             label_name_to_command_index: HashMap::new(),
                         },
                     );
-                    function_name_to_command_index.insert(name.clone(), i);
+                    function_name_to_command_index.insert(name.clone(), starting_command_index + i);
                 }
                 VMCommand::Pop {
                     segment: PopSegment::Argument,
@@ -459,10 +481,15 @@ impl File {
         }
 
         File {
-            commands,
+            starting_command_index,
+            command_count: commands.len(),
             function_name_to_command_index,
             function_metadata,
         }
+    }
+
+    pub fn commands<'a>(&self, all_commands: &'a [VMCommand]) -> &'a [VMCommand] {
+        &all_commands[self.starting_command_index..self.starting_command_index + self.command_count]
     }
 }
 
@@ -637,12 +664,12 @@ mod tests {
         }
 
         fn test_instance() -> VM {
-            let mut vm = VM::new(vec![(
+            let mut vm = VM::from_all_file_commands(vec![(
                 "foo".to_owned(),
-                File::new(vec![VMCommand::Push {
+                vec![VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 666,
-                }]),
+                }],
             )]);
             vm.run_state.current_file_name = "foo".to_owned();
 
@@ -659,10 +686,10 @@ mod tests {
 
     #[test]
     fn test_static() {
-        let files = vec![
+        let all_file_commands = vec![
             (
                 "a".to_owned(),
-                File::new(vec![
+                vec![
                     VMCommand::Push {
                         segment: PushSegment::Static,
                         offset: 0,
@@ -671,11 +698,11 @@ mod tests {
                         segment: PopSegment::Static,
                         offset: 1,
                     },
-                ]),
+                ],
             ),
             (
                 "b".to_owned(),
-                File::new(vec![
+                vec![
                     VMCommand::Push {
                         segment: PushSegment::Static,
                         offset: 1,
@@ -684,11 +711,11 @@ mod tests {
                         segment: PopSegment::Static,
                         offset: 0,
                     },
-                ]),
+                ],
             ),
         ];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
 
         vm.test_set(PopSegment::Static, 0, 1337);
@@ -786,9 +813,9 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 1337,
@@ -798,10 +825,10 @@ mod tests {
                     offset: 2337,
                 },
                 VMCommand::Add,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -812,9 +839,9 @@ mod tests {
 
     #[test]
     fn test_sub() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 2337,
@@ -824,10 +851,10 @@ mod tests {
                     offset: 1337,
                 },
                 VMCommand::Sub,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -838,18 +865,18 @@ mod tests {
 
     #[test]
     fn test_neg() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 1337,
                 },
                 VMCommand::Neg,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -859,9 +886,9 @@ mod tests {
 
     #[test]
     fn test_eq() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 2337,
@@ -880,10 +907,10 @@ mod tests {
                     offset: 1337,
                 },
                 VMCommand::Eq,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -900,9 +927,9 @@ mod tests {
 
     #[test]
     fn test_gt() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 1337,
@@ -921,10 +948,10 @@ mod tests {
                     offset: 1337,
                 },
                 VMCommand::Gt,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -941,9 +968,9 @@ mod tests {
 
     #[test]
     fn test_lt() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 2337,
@@ -962,10 +989,10 @@ mod tests {
                     offset: 2337,
                 },
                 VMCommand::Lt,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -982,9 +1009,9 @@ mod tests {
 
     #[test]
     fn test_and() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 2337,
@@ -994,10 +1021,10 @@ mod tests {
                     offset: 1337,
                 },
                 VMCommand::And,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -1008,9 +1035,9 @@ mod tests {
 
     #[test]
     fn test_or() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 2337,
@@ -1020,10 +1047,10 @@ mod tests {
                     offset: 1337,
                 },
                 VMCommand::Or,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -1034,18 +1061,18 @@ mod tests {
 
     #[test]
     fn test_not() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "a".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 1337,
                 },
                 VMCommand::Not,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands);
         vm.run_state.current_file_name = "a".to_owned();
         vm.step();
         vm.step();
@@ -1055,9 +1082,9 @@ mod tests {
 
     #[test]
     fn test_label() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "Sys".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Function {
                     name: "Sys.init".to_owned(),
                     local_var_count: 0,
@@ -1065,11 +1092,11 @@ mod tests {
                 VMCommand::Label {
                     name: "foo".to_owned(),
                 },
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files.clone());
-        let vm2 = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands.clone());
+        let vm2 = VM::from_all_file_commands(all_file_commands);
         vm.step();
         vm.step();
 
@@ -1078,9 +1105,9 @@ mod tests {
 
     #[test]
     fn test_goto() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "Sys".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Function {
                     name: "Sys.init".to_owned(),
                     local_var_count: 0,
@@ -1094,11 +1121,11 @@ mod tests {
                 VMCommand::Label {
                     name: "foo".to_owned(),
                 },
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files.clone());
-        let vm2 = VM::new(files);
+        let mut vm = VM::from_all_file_commands(all_file_commands.clone());
+        let vm2 = VM::from_all_file_commands(all_file_commands);
         vm.step();
         vm.step();
 
@@ -1108,9 +1135,9 @@ mod tests {
 
     #[test]
     fn test_if_goto() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "Sys".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Function {
                     name: "Sys.init".to_owned(),
                     local_var_count: 0,
@@ -1135,10 +1162,10 @@ mod tests {
                 VMCommand::Label {
                     name: "foo".to_owned(),
                 },
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files.clone());
+        let mut vm = VM::from_all_file_commands(all_file_commands.clone());
         vm.step();
         vm.step();
         vm.step();
@@ -1153,9 +1180,9 @@ mod tests {
 
     #[test]
     fn test_call_return() {
-        let files = vec![(
+        let all_file_commands = vec![(
             "Sys".to_owned(),
-            File::new(vec![
+            vec![
                 VMCommand::Function {
                     name: "Sys.init".to_owned(),
                     local_var_count: 0,
@@ -1180,10 +1207,10 @@ mod tests {
                     offset: 2337,
                 },
                 VMCommand::Return,
-            ]),
+            ],
         )];
 
-        let mut vm = VM::new(files.clone());
+        let mut vm = VM::from_all_file_commands(all_file_commands.clone());
         vm.step();
         vm.step();
         vm.step();

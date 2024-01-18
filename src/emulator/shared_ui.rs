@@ -431,6 +431,7 @@ impl EmulatorWidgets for egui::Ui {
             let header_height = ui.text_style_height(&egui::TextStyle::Body);
             let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
             let file = &program.files[selected_file];
+            let commands = file.commands(&program.all_commands);
 
             TableBuilder::new(ui)
                 .striped(true)
@@ -446,9 +447,10 @@ impl EmulatorWidgets for egui::Ui {
                     });
                 })
                 .body(|body| {
-                    body.rows(row_height, file.commands.len(), |mut row| {
+                    body.rows(row_height, commands.len(), |mut row| {
                         let row_index = row.index();
-                        let is_highlighted = row_index == run_state.current_command_index
+                        let is_highlighted = row_index
+                            == run_state.current_command_index - file.starting_command_index
                             && *selected_file == run_state.current_file_name;
                         row.col(|ui| {
                             if is_highlighted {
@@ -470,7 +472,7 @@ impl EmulatorWidgets for egui::Ui {
                                 ui.painter()
                                     .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
                             }
-                            ui.monospace(file.commands[row_index].to_string());
+                            ui.monospace(commands[row_index].to_string());
                         });
                     });
                 });
