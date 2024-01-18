@@ -195,30 +195,15 @@ impl VM {
     }
 
     pub fn run(&mut self, num_steps: u64) {
-        let mut steps_remaining = num_steps;
-        while steps_remaining > 0 {
-            steps_remaining -= Self::run_commands(
-                &self.program.all_commands,
-                &mut self.run_state,
-                &self.program.files,
-                steps_remaining,
-            );
-        }
-    }
+        let files = &self.program.files;
+        let run_state = &mut self.run_state;
 
-    pub fn run_commands(
-        all_commands: &[VMCommand],
-        run_state: &mut RunState,
-        files: &HashMap<String, File>,
-        num_steps: u64,
-    ) -> u64 {
         let mut current_file = &files[&run_state.current_file_name];
         let mut function_metadata =
             &current_file.function_metadata[&run_state.call_stack.last().unwrap().function_name];
         let mut static_segment = *current_file.static_segment.start();
-        let mut steps_done = 0;
-        while steps_done < num_steps {
-            match &all_commands[run_state.current_command_index] {
+        for _ in 0..num_steps {
+            match &self.program.all_commands[run_state.current_command_index] {
                 VMCommand::Add => {
                     let y = run_state.ram.pop();
                     *run_state.ram.stack_top() = run_state.ram.stack_top().wrapping_add(y);
@@ -379,10 +364,7 @@ impl VM {
                         [&run_state.call_stack.last().unwrap().function_name];
                 }
             }
-            steps_done += 1;
         }
-
-        num_steps
     }
 
     fn goto(
