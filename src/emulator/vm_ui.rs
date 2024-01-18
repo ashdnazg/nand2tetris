@@ -53,9 +53,9 @@ pub fn draw_vm(
                                             [&state.vm.run_state.current_file_name]
                                             .function_metadata[function_name];
                                         strip.cell(|ui| {
-                                            let static_segment =
-                                                &state.vm.program.file_name_to_static_segment
-                                                    [&state.vm.run_state.current_file_name];
+                                            let static_segment = &state.vm.program.files
+                                                [&state.vm.run_state.current_file_name]
+                                                .static_segment;
                                             ui.ram_grid(
                                                 "Static",
                                                 &state.vm.run_state.ram,

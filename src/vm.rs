@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use std::{
     fs,
     ops::{Index, IndexMut, RangeInclusive},
@@ -106,7 +106,6 @@ impl RAM {
 pub struct Program {
     pub all_commands: Vec<VMCommand>,
     pub files: HashMap<String, File>,
-    pub file_name_to_static_segment: HashMap<String, RangeInclusive<i16>>,
 }
 
 pub struct RunState {
@@ -154,17 +153,17 @@ impl VM {
     pub fn from_all_file_commands(all_file_commands: Vec<(String, Vec<VMCommand>)>) -> Self {
         let mut all_commands = vec![];
         let mut files = vec![];
+        let mut next_static_index = 16;
         for (name, file_commands) in all_file_commands.into_iter() {
-            files.push((name, File::new(&file_commands, all_commands.len())));
+            let file = File::new(&file_commands, all_commands.len(), next_static_index);
+            next_static_index = *file.static_segment.end() + 1;
+            files.push((name, file));
             all_commands.extend(file_commands);
         }
 
-        let file_name_to_static_segment =
-            Self::create_file_name_to_static_segment(&all_commands, &files);
         let program = Program {
             all_commands,
             files: files.into_iter().collect(),
-            file_name_to_static_segment,
         };
 
         Self::new(program)
@@ -191,35 +190,6 @@ impl VM {
         *self = VM::new(self.program.clone());
     }
 
-    fn create_file_name_to_static_segment(
-        all_commands: &[VMCommand],
-        files: &[(String, File)],
-    ) -> HashMap<String, RangeInclusive<i16>> {
-        let mut map: HashMap<String, RangeInclusive<i16>> = HashMap::new();
-        let mut index = 16i16;
-        for (file_name, file) in files {
-            let static_vars: HashSet<i16> = file
-                .commands(all_commands)
-                .iter()
-                .filter_map(|cmd| match cmd {
-                    VMCommand::Push {
-                        segment: PushSegment::Static,
-                        offset,
-                    }
-                    | VMCommand::Pop {
-                        segment: PopSegment::Static,
-                        offset,
-                    } => Some(*offset + 1),
-                    _ => None,
-                })
-                .collect();
-            let num_vars = *static_vars.iter().max().unwrap_or(&0);
-            map.insert(file_name.clone(), index..=(index + num_vars - 1));
-            index += num_vars;
-        }
-        map
-    }
-
     pub fn step(&mut self) {
         self.run(1)
     }
@@ -227,12 +197,9 @@ impl VM {
     pub fn run(&mut self, num_steps: u64) {
         let mut steps_remaining = num_steps;
         while steps_remaining > 0 {
-            let static_segment =
-                &self.program.file_name_to_static_segment[&self.run_state.current_file_name];
             steps_remaining -= Self::run_commands(
                 &self.program.all_commands,
                 &mut self.run_state,
-                *static_segment.start(),
                 &self.program.files,
                 steps_remaining,
             );
@@ -242,13 +209,13 @@ impl VM {
     pub fn run_commands(
         all_commands: &[VMCommand],
         run_state: &mut RunState,
-        static_segment: i16,
         files: &HashMap<String, File>,
         num_steps: u64,
     ) -> u64 {
         let current_file = &files[&run_state.current_file_name];
         let function_metadata =
             &current_file.function_metadata[&run_state.call_stack.last().unwrap().function_name];
+        let static_segment = *current_file.static_segment.start();
 
         for steps_done in 1..=num_steps {
             match &all_commands[run_state.current_command_index] {
@@ -429,15 +396,21 @@ pub struct FunctionMetadata {
 pub struct File {
     pub starting_command_index: usize,
     command_count: usize,
+    pub static_segment: RangeInclusive<i16>,
     function_name_to_command_index: HashMap<String, usize>,
     pub function_metadata: HashMap<String, FunctionMetadata>,
 }
 
 impl File {
-    fn new(commands: &[VMCommand], starting_command_index: usize) -> Self {
+    fn new(
+        commands: &[VMCommand],
+        starting_command_index: usize,
+        static_segment_start: i16,
+    ) -> Self {
         let mut current_function_name: Option<String> = None;
         let mut function_name_to_command_index: HashMap<String, usize> = HashMap::new();
         let mut function_metadata: HashMap<String, FunctionMetadata> = HashMap::new();
+        let mut max_static_index: i16 = static_segment_start - 1;
         for (i, command) in commands.iter().enumerate() {
             match command {
                 VMCommand::Label { name } => {
@@ -476,12 +449,23 @@ impl File {
                         .unwrap();
                     metadata.argument_count = i16::max(metadata.argument_count, *offset);
                 }
+                VMCommand::Push {
+                    segment: PushSegment::Static,
+                    offset,
+                }
+                | VMCommand::Pop {
+                    segment: PopSegment::Static,
+                    offset,
+                } => {
+                    max_static_index = max_static_index.max(static_segment_start + *offset);
+                }
                 _ => {}
             }
         }
 
         File {
             starting_command_index,
+            static_segment: static_segment_start..=max_static_index,
             command_count: commands.len(),
             function_name_to_command_index,
             function_metadata,
@@ -646,7 +630,8 @@ mod tests {
     impl VM {
         fn test_get(&self, segment: PushSegment, offset: i16) -> i16 {
             self.run_state.ram.get(
-                *self.program.file_name_to_static_segment[&self.run_state.current_file_name]
+                *self.program.files[&self.run_state.current_file_name]
+                    .static_segment
                     .start(),
                 segment,
                 offset,
@@ -655,7 +640,8 @@ mod tests {
 
         fn test_set(&mut self, segment: PopSegment, offset: i16, value: i16) {
             self.run_state.ram.set(
-                *self.program.file_name_to_static_segment[&self.run_state.current_file_name]
+                *self.program.files[&self.run_state.current_file_name]
+                    .static_segment
                     .start(),
                 segment,
                 offset,
