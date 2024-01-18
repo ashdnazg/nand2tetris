@@ -210,12 +210,10 @@ impl VM {
     pub fn run(&mut self, num_steps: u64) {
         let mut steps_remaining = num_steps;
         while steps_remaining > 0 {
-            let commands = &self.program.files[&self.run_state.current_file_name].commands;
             let static_segment =
                 &self.program.file_name_to_static_segment[&self.run_state.current_file_name];
             steps_remaining -= Self::run_commands(
                 &mut self.run_state,
-                commands,
                 *static_segment.start(),
                 &self.program.files,
                 steps_remaining,
@@ -225,11 +223,14 @@ impl VM {
 
     pub fn run_commands(
         run_state: &mut RunState,
-        commands: &[VMCommand],
         static_segment: i16,
         files: &HashMap<String, File>,
         num_steps: u64,
     ) -> u64 {
+        let current_file = &files[&run_state.current_file_name];
+        let function_metadata =
+            &current_file.function_metadata[&run_state.call_stack.last().unwrap().function_name];
+
         // if self.call_stack.last().unwrap().function_name.eq("Math.divide") {
         //     println!(
         //         "{:?} RAM[LCL1]:{:?} RAM[SP]:{:?} RAM[SP-1]:{:?} SP:{:?} LCL:{:?} ARG:{:?} THIS:{:?} THAT:{:?}",
@@ -238,7 +239,7 @@ impl VM {
         //     );
         // }
         for steps_done in 1..=num_steps {
-            match &commands[run_state.current_command_index] {
+            match &current_file.commands[run_state.current_command_index] {
                 VMCommand::Add => {
                     let y = run_state.ram.pop();
                     *run_state.ram.stack_top() = run_state.ram.stack_top().wrapping_add(y);
@@ -304,9 +305,7 @@ impl VM {
                 VMCommand::Goto { label_name } => {
                     Self::goto(
                         &mut run_state.current_command_index,
-                        &run_state.current_file_name,
-                        files,
-                        &run_state.call_stack,
+                        function_metadata,
                         label_name,
                     );
                 }
@@ -315,9 +314,7 @@ impl VM {
                     if value != 0 {
                         Self::goto(
                             &mut run_state.current_command_index,
-                            &run_state.current_file_name,
-                            files,
-                            &run_state.call_stack,
+                            function_metadata,
                             label_name,
                         );
                     } else {
@@ -402,15 +399,10 @@ impl VM {
 
     fn goto(
         current_command_index: &mut usize,
-        current_file_name: &String,
-        files: &HashMap<String, File>,
-        call_stack: &[Frame],
+        function_metadata: &FunctionMetadata,
         label_name: &str,
     ) {
-        *current_command_index = files[current_file_name].label_name_to_command_index[&(
-            call_stack.last().unwrap().function_name.clone(),
-            label_name.to_owned(),
-        )];
+        *current_command_index = function_metadata.label_name_to_command_index[label_name]
     }
 }
 
@@ -423,45 +415,42 @@ pub struct Frame {
 pub struct FunctionMetadata {
     pub argument_count: i16,
     pub local_var_count: i16,
+    label_name_to_command_index: HashMap<String, usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct File {
     pub commands: Vec<VMCommand>,
-    label_name_to_command_index: HashMap<(String, String), usize>,
     function_name_to_command_index: HashMap<String, usize>,
     pub function_metadata: HashMap<String, FunctionMetadata>,
 }
 
 impl File {
     pub fn new(commands: Vec<VMCommand>) -> Self {
-        let mut current_function: Option<String> = None;
-        let mut current_local_var_count: i16 = 0;
-        let mut max_argument_encountered: i16 = 0;
-        let mut label_name_to_command_index: HashMap<(String, String), usize> = HashMap::new();
+        let mut current_function_name: Option<String> = None;
         let mut function_name_to_command_index: HashMap<String, usize> = HashMap::new();
         let mut function_metadata: HashMap<String, FunctionMetadata> = HashMap::new();
         for (i, command) in commands.iter().enumerate() {
             match command {
                 VMCommand::Label { name } => {
-                    label_name_to_command_index
-                        .insert((current_function.clone().unwrap(), name.clone()), i);
+                    let metadata = function_metadata
+                        .get_mut(current_function_name.as_ref().unwrap())
+                        .unwrap();
+                    metadata.label_name_to_command_index.insert(name.clone(), i);
                 }
                 VMCommand::Function {
                     name,
                     local_var_count,
                 } => {
-                    if let Some(previous_function) = current_function {
-                        function_metadata.insert(
-                            previous_function,
-                            FunctionMetadata {
-                                argument_count: max_argument_encountered,
-                                local_var_count: current_local_var_count,
-                            },
-                        );
-                    }
-                    current_function = Some(name.clone());
-                    current_local_var_count = *local_var_count;
+                    current_function_name = Some(name.clone());
+                    function_metadata.insert(
+                        name.clone(),
+                        FunctionMetadata {
+                            argument_count: 0,
+                            local_var_count: *local_var_count,
+                            label_name_to_command_index: HashMap::new(),
+                        },
+                    );
                     function_name_to_command_index.insert(name.clone(), i);
                 }
                 VMCommand::Pop {
@@ -472,24 +461,17 @@ impl File {
                     segment: PushSegment::Argument,
                     offset,
                 } => {
-                    max_argument_encountered = i16::max(max_argument_encountered, *offset);
+                    let metadata = function_metadata
+                        .get_mut(current_function_name.as_ref().unwrap())
+                        .unwrap();
+                    metadata.argument_count = i16::max(metadata.argument_count, *offset);
                 }
                 _ => {}
             }
         }
-        if let Some(previous_function) = current_function {
-            function_metadata.insert(
-                previous_function,
-                FunctionMetadata {
-                    argument_count: max_argument_encountered,
-                    local_var_count: current_local_var_count,
-                },
-            );
-        }
 
         File {
             commands,
-            label_name_to_command_index,
             function_name_to_command_index,
             function_metadata,
         }
