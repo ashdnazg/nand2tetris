@@ -212,12 +212,12 @@ impl VM {
         files: &HashMap<String, File>,
         num_steps: u64,
     ) -> u64 {
-        let current_file = &files[&run_state.current_file_name];
-        let function_metadata =
+        let mut current_file = &files[&run_state.current_file_name];
+        let mut function_metadata =
             &current_file.function_metadata[&run_state.call_stack.last().unwrap().function_name];
-        let static_segment = *current_file.static_segment.start();
-
-        for steps_done in 1..=num_steps {
+        let mut static_segment = *current_file.static_segment.start();
+        let mut steps_done = 0;
+        while steps_done < num_steps {
             match &all_commands[run_state.current_command_index] {
                 VMCommand::Add => {
                     let y = run_state.ram.pop();
@@ -341,11 +341,17 @@ impl VM {
                             function_name: function_name.to_owned(),
                         });
 
-                        run_state.current_file_name = file_name.to_owned();
-                        run_state.current_command_index =
-                            files[file_name].function_name_to_command_index[function_name];
+                        if run_state.current_file_name != file_name {
+                            run_state.current_file_name = file_name.to_owned();
+                            current_file = &files[&run_state.current_file_name];
+                            static_segment = *current_file.static_segment.start();
+                        }
 
-                        return steps_done;
+                        function_metadata = &current_file.function_metadata
+                            [&run_state.call_stack.last().unwrap().function_name];
+
+                        run_state.current_command_index =
+                            current_file.function_name_to_command_index[function_name];
                     }
                 }
                 VMCommand::Return => {
@@ -360,12 +366,20 @@ impl VM {
                         run_state.ram[i] = run_state.ram[frame - 5 + i];
                     }
                     run_state.call_stack.pop();
-                    run_state.current_file_name =
-                        run_state.call_stack.last().unwrap().file_name.clone();
 
-                    return steps_done;
+                    if run_state.current_file_name != run_state.call_stack.last().unwrap().file_name
+                    {
+                        run_state.current_file_name =
+                            run_state.call_stack.last().unwrap().file_name.clone();
+
+                        current_file = &files[&run_state.current_file_name];
+                        static_segment = *current_file.static_segment.start();
+                    }
+                    function_metadata = &current_file.function_metadata
+                        [&run_state.call_stack.last().unwrap().function_name];
                 }
             }
+            steps_done += 1;
         }
 
         num_steps
