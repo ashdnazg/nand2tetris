@@ -192,7 +192,6 @@ impl VM {
                 ram: RAM::new(),
                 os: Default::default(),
                 call_stack: vec![Frame {
-                    file_index: current_file_index,
                     function_index,
                 }],
             },
@@ -330,22 +329,19 @@ impl VM {
                             run_state.ram[i] = run_state.ram[frame - 5 + i];
                         }
                     } else {
-                        let (file_name, _) = function_name.split_once('.').unwrap();
+                        let function_index = self.program.function_name_to_index[function_name];
+                        let function_metadata = &self.program.function_metadata[function_index];
+                        let file_index = function_metadata.file_index;
 
-                        let file_index = self.program.file_name_to_index[file_name];
+                        run_state.current_command_index = function_metadata.command_index;
                         if run_state.current_file_index != file_index {
                             run_state.current_file_index = file_index;
-                            static_segment = *files[run_state.current_file_index].static_segment.start();
+                            static_segment = *files[file_index].static_segment.start();
                         }
 
-                        let function_index = self.program.function_name_to_index[function_name];
-
                         run_state.call_stack.push(Frame {
-                            file_index,
                             function_index,
                         });
-
-                        run_state.current_command_index = self.program.function_metadata[function_index].command_index;
                     }
                 }
                 VMCommand::Return => {
@@ -362,10 +358,11 @@ impl VM {
                     run_state.call_stack.pop();
 
                     let last_frame = run_state.call_stack.last().unwrap();
-                    if run_state.current_file_index != last_frame.file_index {
-                        run_state.current_file_index = last_frame.file_index;
+                    let file_index = self.program.function_metadata[last_frame.function_index].file_index;
+                    if run_state.current_file_index != file_index {
+                        run_state.current_file_index = file_index;
 
-                        static_segment = *files[run_state.current_file_index].static_segment.start();
+                        static_segment = *files[file_index].static_segment.start();
                     }
                 }
             }
@@ -382,7 +379,6 @@ impl VM {
 }
 
 pub struct Frame {
-    file_index: usize,
     pub function_index: usize,
 }
 
