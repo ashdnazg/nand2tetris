@@ -40,6 +40,7 @@ impl RunState {
             "Memory.poke" => Self::memory_poke,
             "Memory.alloc" => Self::memory_alloc,
             "Memory.deAlloc" => Self::memory_dealloc,
+            "String.new" => Self::memory_dealloc,
             _ => return false,
         };
 
@@ -139,6 +140,38 @@ impl RunState {
             0
         } else {
             -1
+        }
+    }
+
+    fn string_new(&mut self) -> i16 {
+        let capacity = self.ram.get(0, PushSegment::Argument, 0);
+        let Some(metadata_address) = self.os.memory.alloc(3) else {
+            return -1;
+        };
+
+        let arr = if capacity > 0 {
+            let Some(string) = self.os.memory.alloc(capacity) else {
+                return -1;
+            };
+            address
+        } else {
+            -1
+        };
+        self.ram[0]
+    }
+}
+
+struct VMString<'a> {
+    run_state: &'a mut RunState,
+    metadata_address: i16,
+}
+
+impl<'a> VMString<'a> {
+    fn new(run_state: &mut RunState, initial_capacity: ) -> Option<Self> {
+        Self {
+            ram,
+            address
+
         }
     }
 }
