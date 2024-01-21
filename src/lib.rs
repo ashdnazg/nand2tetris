@@ -1,3 +1,4 @@
+pub(crate) mod characters;
 pub mod hardware;
 pub mod hardware_parse;
 mod os;

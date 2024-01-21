@@ -1,6 +1,7 @@
 use hashbrown::HashMap;
 
 use crate::{
+    characters::character_bitmaps,
     hardware::RAM,
     vm::{PushSegment, RunState},
 };
@@ -8,6 +9,7 @@ use crate::{
 pub struct OS {
     memory: Memory,
     screen: Screen,
+    output: Output,
 }
 
 impl Default for OS {
@@ -15,6 +17,7 @@ impl Default for OS {
         Self {
             memory: Memory::new(0x0800, RAM::SCREEN - 0x0800),
             screen: Screen { color: true },
+            output: Output { row: 0, col: 0 },
         }
     }
 }
@@ -58,6 +61,13 @@ impl RunState {
             "String.backSpace" => Self::string_backspace,
             "String.doubleQuote" => Self::string_double_quote,
             "String.newLine" => Self::string_new_line,
+            "Output.init" => Self::noop,
+            "Output.moveCursor" => Self::output_move_cursor,
+            "Output.printChar" => Self::output_print_char,
+            "Output.printString" => Self::output_print_string,
+            "Output.printInt" => Self::output_print_int,
+            "Output.println" => Self::output_println,
+            "Output.backSpace" => Self::output_backspace,
             "Sys.error" => {
                 panic!()
             }
@@ -329,6 +339,153 @@ impl RunState {
 
     fn string_new_line(&mut self) -> i16 {
         128
+    }
+
+    fn output_move_cursor(&mut self) -> i16 {
+        let row = self.ram.get(0, PushSegment::Argument, 0);
+        let col = self.ram.get(0, PushSegment::Argument, 1);
+
+        if Output::move_cursor(self, row, col).is_some() {
+            0
+        } else {
+            panic!()
+        }
+    }
+
+    fn output_print_char(&mut self) -> i16 {
+        let c = self.ram.get(0, PushSegment::Argument, 0);
+        Output::print_char(self, c);
+
+        0
+    }
+
+    fn output_print_string(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        let s = VMString { address };
+        Output::print_string(self, s);
+
+        0
+    }
+
+    fn output_print_int(&mut self) -> i16 {
+        let value = self.ram.get(0, PushSegment::Argument, 0);
+        Output::print_int(self, value);
+
+        0
+    }
+
+    fn output_println(&mut self) -> i16 {
+        self.os.output.println();
+
+        0
+    }
+
+    fn output_backspace(&mut self) -> i16 {
+        Output::backspace(self);
+
+        0
+    }
+}
+
+struct Output {
+    row: i16,
+    col: i16,
+}
+
+impl Output {
+    fn draw_char(run_state: &mut RunState, c: i16) {
+        let bitmap = character_bitmaps(c);
+        for (i, mut row_bits) in bitmap.into_iter().enumerate() {
+            let mut mask = 255;
+            if run_state.os.output.col % 2 != 0 {
+                row_bits <<= 8;
+                mask <<= 8;
+            }
+            let address = RAM::SCREEN
+                + 32
+                + (11 * run_state.os.output.row + i as i16) * RAM::SCREEN_ROW_LENGTH
+                + run_state.os.output.col / 2;
+            run_state.ram[address] &= !mask;
+            run_state.ram[address] |= row_bits;
+        }
+    }
+
+    fn move_cursor(run_state: &mut RunState, row: i16, col: i16) -> Option<()> {
+        if !(0..=22).contains(&row) || !(0..63).contains(&col) {
+            return None;
+        }
+
+        run_state.os.output.row = row;
+        run_state.os.output.col = col;
+
+        Self::draw_char(run_state, b' ' as i16);
+
+        Some(())
+    }
+
+    fn println(&mut self) {
+        self.row = (self.row + 1) % 23;
+        self.col = 0;
+    }
+
+    fn backspace(run_state: &mut RunState) {
+        let col = (run_state.os.output.col + 63) % 64;
+        let row = if col == 63 {
+            (run_state.os.output.row + 22) % 23
+        } else {
+            run_state.os.output.row
+        };
+
+        Output::move_cursor(run_state, row, col);
+    }
+
+    fn print_char(run_state: &mut RunState, c: i16) {
+        if c == run_state.string_new_line() {
+            return run_state.os.output.println();
+        }
+
+        if c == run_state.string_backspace() {
+            return Self::backspace(run_state);
+        }
+
+        Self::draw_char(run_state, c);
+
+        run_state.os.output.col = (run_state.os.output.col + 1) % 64;
+        run_state.os.output.row = if run_state.os.output.col == 0 {
+            (run_state.os.output.row + 1) % 23
+        } else {
+            run_state.os.output.row
+        };
+    }
+
+    fn print_string(run_state: &mut RunState, s: VMString) {
+        for i in 0..s.length(run_state) {
+            let c = s.char_at(run_state, i).unwrap();
+            Self::print_char(run_state, c);
+        }
+    }
+
+    fn print_int(run_state: &mut RunState, value: i16) {
+        let mut buffer = [0i16; 6];
+        let mut index = 0;
+        let mut remainder = (value as i32).abs();
+        loop {
+            buffer[index] = char::from_digit((remainder % 10) as u32, 10).unwrap() as u8 as i16;
+            remainder /= 10;
+            index += 1;
+            if remainder == 0 {
+                break;
+            }
+        }
+
+        if value < 0 {
+            buffer[index] = b'-' as i16;
+            index += 1;
+        }
+
+        for i in 0..index {
+            Self::print_char(run_state, buffer[index - i - 1]);
+        }
     }
 }
 
