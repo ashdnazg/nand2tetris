@@ -390,26 +390,51 @@ impl VMString {
     }
 
     fn int_value(&self, run_state: &RunState) -> Option<i16> {
-        run_state.ram.contents
-            [(self.address + 2) as usize..(self.address + 2 + self.length(run_state)) as usize]
-            .iter()
-            .try_fold(0, |acc, &i| {
-                (i as u8 as char)
-                    .to_digit(10)
-                    .map(|d| acc * 10 + d as i16)
-            })
-    }
-
-    fn set_int(&self, run_state: &mut RunState, value: i16) -> Option<()> {
-        let s = value.to_string();
-        if s.len() > self.capacity(run_state) as usize {
+        if self.length(run_state) <= 0 {
             return None;
         }
 
-        for (i, c) in s.chars().enumerate() {
-            run_state.ram[self.address + 2 + i as i16] = c as u8 as i16;
+        let mut start = self.address + 2;
+        let is_negative = run_state.ram[start] == b'-' as i16;
+        if is_negative {
+            start += 1;
         }
-        *self.length_mut(run_state) = s.len() as i16;
+        let value = run_state.ram.contents
+            [start as usize..(self.address + 2 + self.length(run_state)) as usize]
+            .iter()
+            .try_fold(0, |acc, &i| {
+                (i as u8 as char).to_digit(10).map(|d| acc * 10 + d as i32)
+            });
+
+        value.map(|v| if is_negative { -v } else { v } as i16)
+    }
+
+    fn set_int(&self, run_state: &mut RunState, value: i16) -> Option<()> {
+        let mut buffer = [0i16; 6];
+        let mut index = 0;
+        let mut remainder = (value as i32).abs();
+        loop {
+            buffer[index] = char::from_digit((remainder % 10) as u32, 10).unwrap() as u8 as i16;
+            remainder /= 10;
+            index += 1;
+            if remainder == 0 {
+                break;
+            }
+        }
+
+        if value < 0 {
+            buffer[index] = b'-' as i16;
+            index += 1;
+        }
+
+        if index > self.capacity(run_state) as usize {
+            return None;
+        }
+
+        for i in 0..index {
+            run_state.ram[self.address + 2 + i as i16] = buffer[index - i - 1];
+        }
+        *self.length_mut(run_state) = index as i16;
 
         Some(())
     }
@@ -548,9 +573,14 @@ mod tests {
         assert_eq!(run_state.string_char_at(), '9' as u8 as i16);
         assert_eq!(run_state.string_int_value(), 9);
 
-        run_state.ram.set(0, PopSegment::Argument, 1, 1337);
+        run_state.ram.set(0, PopSegment::Argument, 1, i16::MAX);
         assert_eq!(run_state.string_set_int(), 0);
-        assert_eq!(run_state.string_length(), 4);
-        assert_eq!(run_state.string_int_value(), 1337);
+        assert_eq!(run_state.string_length(), 5);
+        assert_eq!(run_state.string_int_value(), i16::MAX);
+
+        run_state.ram.set(0, PopSegment::Argument, 1, i16::MIN);
+        assert_eq!(run_state.string_set_int(), 0);
+        assert_eq!(run_state.string_length(), 6);
+        assert_eq!(run_state.string_int_value(), i16::MIN);
     }
 }
