@@ -390,13 +390,14 @@ impl VMString {
     }
 
     fn int_value(&self, run_state: &RunState) -> Option<i16> {
-        let s: String = run_state.ram.contents
+        run_state.ram.contents
             [(self.address + 2) as usize..(self.address + 2 + self.length(run_state)) as usize]
             .iter()
-            .map(|&i| i as u8 as char)
-            .collect();
-
-        s.parse().ok()
+            .try_fold(0, |acc, &i| {
+                (i as u8 as char)
+                    .to_digit(10)
+                    .map(|d| acc * 10 + d as i16)
+            })
     }
 
     fn set_int(&self, run_state: &mut RunState, value: i16) -> Option<()> {
