@@ -14,7 +14,7 @@ impl Default for OS {
     fn default() -> Self {
         Self {
             memory: Memory::new(0x0800, RAM::SCREEN - 0x0800),
-            screen: Screen { color: false },
+            screen: Screen { color: true },
         }
     }
 }
@@ -34,8 +34,13 @@ impl RunState {
             "Array.new" => Self::memory_alloc,
             "Array.dispose" => Self::memory_dealloc,
             "Keyboard.keyPressed" => Self::keyboard_key_pressed,
+            "Screen.init" => Self::noop,
+            "Screen.clearScreen" => Self::screen_clear_screen,
             "Screen.setColor" => Self::screen_set_color,
             "Screen.drawPixel" => Self::screen_draw_pixel,
+            "Screen.drawLine" => Self::screen_draw_line,
+            "Screen.drawRectangle" => Self::screen_draw_rectangle,
+            "Screen.drawCircle" => Self::screen_draw_circle,
             "Memory.init" => Self::noop,
             "Memory.peek" => Self::memory_peek,
             "Memory.poke" => Self::memory_poke,
@@ -119,6 +124,12 @@ impl RunState {
         x.abs()
     }
 
+    fn screen_clear_screen(&mut self) -> i16 {
+        self.ram.contents[(RAM::SCREEN as usize)..(RAM::KBD as usize)].fill(0);
+
+        0
+    }
+
     fn screen_set_color(&mut self) -> i16 {
         self.os.screen.color = self.ram.get(0, PushSegment::Argument, 0) != 0;
 
@@ -129,6 +140,76 @@ impl RunState {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         let y = self.ram.get(0, PushSegment::Argument, 1);
         self.ram.set_pixel(x, y, self.os.screen.color);
+
+        0
+    }
+
+    fn screen_draw_line(&mut self) -> i16 {
+        let x1 = self.ram.get(0, PushSegment::Argument, 0);
+        let y1 = self.ram.get(0, PushSegment::Argument, 1);
+        let x2 = self.ram.get(0, PushSegment::Argument, 2);
+        let y2 = self.ram.get(0, PushSegment::Argument, 3);
+
+        let dx = (x2 - x1).abs();
+        let sx = (x2 - x1).signum();
+        let dy = -(y2 - y1).abs();
+        let sy = (y2 - y1).signum();
+        let mut error = dx + dy;
+
+        let mut x = x1;
+        let mut y = y1;
+
+        loop {
+            self.ram.set_pixel(x, y, self.os.screen.color);
+            if x == x2 && y == y2 {
+                break;
+            }
+            let e2 = 2 * error;
+            if e2 >= dy {
+                if x2 == x1 {
+                    break;
+                }
+                error += dy;
+                x += sx;
+            }
+            if e2 <= dx {
+                if y2 == y1 {
+                    break;
+                }
+                error += dx;
+                y += sy
+            }
+        }
+        0
+    }
+
+    fn screen_draw_rectangle(&mut self) -> i16 {
+        let x1 = self.ram.get(0, PushSegment::Argument, 0);
+        let y1 = self.ram.get(0, PushSegment::Argument, 1);
+        let x2 = self.ram.get(0, PushSegment::Argument, 2);
+        let y2 = self.ram.get(0, PushSegment::Argument, 3);
+
+        for y in y1..y2 {
+            for x in x1..=x2 {
+                self.ram.set_pixel(x, y, self.os.screen.color);
+            }
+        }
+
+        0
+    }
+
+    fn screen_draw_circle(&mut self) -> i16 {
+        let center_x = self.ram.get(0, PushSegment::Argument, 0);
+        let center_y = self.ram.get(0, PushSegment::Argument, 1);
+        let radius = self.ram.get(0, PushSegment::Argument, 2);
+        let r2 = radius * radius;
+        for y in (center_y - radius)..=(center_y + radius) {
+            let y2 = (y - center_y).abs() * (y - center_y).abs();
+            let x_dist = ((r2 - y2).abs() as f64).sqrt().floor() as i16;
+            for x in (center_x - x_dist)..=(center_x + x_dist) {
+                self.ram.set_pixel(x, y, self.os.screen.color);
+            }
+        }
 
         0
     }
