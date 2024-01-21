@@ -58,7 +58,7 @@ impl RAM {
         &mut self[sp - 1]
     }
 
-    fn set(&mut self, static_segment: i16, segment: PopSegment, offset: i16, value: i16) {
+    pub fn set(&mut self, static_segment: i16, segment: PopSegment, offset: i16, value: i16) {
         match segment {
             PopSegment::Static => {
                 self[static_segment + offset] = value;

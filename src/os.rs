@@ -30,6 +30,7 @@ impl RunState {
             "Math.min" => Self::math_min,
             "Math.max" => Self::math_max,
             "Math.sqrt" => Self::math_sqrt,
+            "Math.abs" => Self::math_abs,
             "Array.new" => Self::memory_alloc,
             "Array.dispose" => Self::memory_dealloc,
             "Keyboard.keyPressed" => Self::keyboard_key_pressed,
@@ -40,12 +41,25 @@ impl RunState {
             "Memory.poke" => Self::memory_poke,
             "Memory.alloc" => Self::memory_alloc,
             "Memory.deAlloc" => Self::memory_dealloc,
-            "String.new" => Self::memory_dealloc,
+            "String.new" => Self::string_new,
+            "String.dispose" => Self::memory_dealloc,
+            "String.length" => Self::string_length,
+            "String.charAt" => Self::string_char_at,
+            "String.setCharAt" => Self::string_set_char_at,
+            "String.appendChar" => Self::string_append_char,
+            "String.eraseLastChar" => Self::string_erase_last_char,
+            "String.intValue" => Self::string_int_value,
+            "String.setInt" => Self::string_set_int,
+            "String.backSpace" => Self::string_backspace,
+            "String.doubleQuote" => Self::string_double_quote,
+            "String.newLine" => Self::string_new_line,
+            "Sys.error" => {
+                panic!()
+            }
             _ => return false,
         };
 
         self.call(function);
-
         true
     }
 
@@ -69,6 +83,10 @@ impl RunState {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         let y = self.ram.get(0, PushSegment::Argument, 1);
 
+        if y == 0 {
+            panic!()
+        }
+
         x / y
     }
 
@@ -90,10 +108,15 @@ impl RunState {
         let x = self.ram.get(0, PushSegment::Argument, 0);
 
         if x < 0 {
-            return -1;
+            panic!();
         }
 
         (x as f64).sqrt().floor() as i16
+    }
+
+    fn math_abs(&mut self) -> i16 {
+        let x = self.ram.get(0, PushSegment::Argument, 0);
+        x.abs()
     }
 
     fn screen_set_color(&mut self) -> i16 {
@@ -131,7 +154,7 @@ impl RunState {
 
     fn memory_alloc(&mut self) -> i16 {
         let size = self.ram.get(0, PushSegment::Argument, 0);
-        self.os.memory.alloc(size).unwrap_or(-1)
+        self.os.memory.alloc(size).unwrap()
     }
 
     fn memory_dealloc(&mut self) -> i16 {
@@ -139,40 +162,190 @@ impl RunState {
         if self.os.memory.dealloc(object) {
             0
         } else {
-            -1
+            panic!()
         }
     }
 
     fn string_new(&mut self) -> i16 {
-        let capacity = self.ram.get(0, PushSegment::Argument, 0);
-        let Some(metadata_address) = self.os.memory.alloc(3) else {
-            return -1;
-        };
+        let initial_capacity = self.ram.get(0, PushSegment::Argument, 0);
+        if let Some(s) = VMString::new(self, initial_capacity) {
+            s.address
+        } else {
+            panic!()
+        }
+    }
 
-        let arr = if capacity > 0 {
-            let Some(string) = self.os.memory.alloc(capacity) else {
-                return -1;
-            };
+    fn string_length(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        VMString { address }.length(self)
+    }
+
+    fn string_char_at(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        let index = self.ram.get(0, PushSegment::Argument, 1);
+        VMString { address }.char_at(self, index).unwrap()
+    }
+
+    fn string_set_char_at(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        let index = self.ram.get(0, PushSegment::Argument, 1);
+        let new_value = self.ram.get(0, PushSegment::Argument, 2);
+        let result = VMString { address }.set_char_at(self, index, new_value);
+        if result.is_some() {
+            0
+        } else {
+            panic!()
+        }
+    }
+
+    fn string_append_char(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        let new_char = self.ram.get(0, PushSegment::Argument, 1);
+        let result = VMString { address }.append_char(self, new_char);
+
+        if result.is_some() {
             address
         } else {
-            -1
-        };
-        self.ram[0]
+            panic!()
+        }
+    }
+
+    fn string_erase_last_char(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        let result = VMString { address }.erase_last_char(self);
+
+        if result.is_some() {
+            0
+        } else {
+            panic!()
+        }
+    }
+
+    fn string_int_value(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        VMString { address }.int_value(self).unwrap()
+    }
+
+    fn string_set_int(&mut self) -> i16 {
+        let address = self.ram.get(0, PushSegment::Argument, 0);
+        let value = self.ram.get(0, PushSegment::Argument, 1);
+        let result = VMString { address }.set_int(self, value);
+
+        if result.is_some() {
+            0
+        } else {
+            panic!()
+        }
+    }
+
+    fn string_backspace(&mut self) -> i16 {
+        129
+    }
+
+    fn string_double_quote(&mut self) -> i16 {
+        34
+    }
+
+    fn string_new_line(&mut self) -> i16 {
+        128
     }
 }
 
-struct VMString<'a> {
-    run_state: &'a mut RunState,
-    metadata_address: i16,
+struct VMString {
+    address: i16,
 }
 
-impl<'a> VMString<'a> {
-    fn new(run_state: &mut RunState, initial_capacity: ) -> Option<Self> {
-        Self {
-            ram,
-            address
+impl VMString {
+    fn new(run_state: &mut RunState, capacity: i16) -> Option<Self> {
+        let Some(address) = run_state.os.memory.alloc(2 + capacity) else {
+            return None;
+        };
 
+        let instance = Self { address };
+
+        *instance.length_mut(run_state) = 0;
+        *instance.capacity_mut(run_state) = capacity;
+
+        Some(instance)
+    }
+
+    fn char_at(&self, run_state: &RunState, index: i16) -> Option<i16> {
+        if self.length(run_state) <= index {
+            return None;
         }
+
+        Some(run_state.ram[self.address + 2 + index])
+    }
+
+    fn set_char_at(&self, run_state: &mut RunState, index: i16, new_value: i16) -> Option<()> {
+        if self.length(run_state) <= index {
+            return None;
+        }
+
+        run_state.ram[self.address + 2 + index] = new_value;
+
+        Some(())
+    }
+
+    fn append_char(&self, run_state: &mut RunState, new_char: i16) -> Option<()> {
+        let old_length = self.length(run_state);
+        if old_length >= self.capacity(run_state) {
+            return None;
+        }
+
+        *self.length_mut(run_state) += 1;
+        run_state.ram[self.address + 2 + old_length] = new_char;
+
+        Some(())
+    }
+
+    fn erase_last_char(&self, run_state: &mut RunState) -> Option<()> {
+        if self.length(run_state) <= 0 {
+            return None;
+        }
+
+        *self.length_mut(run_state) -= 1;
+        Some(())
+    }
+
+    fn int_value(&self, run_state: &RunState) -> Option<i16> {
+        let s: String = run_state.ram.contents
+            [(self.address + 2) as usize..(self.address + 2 + self.length(run_state)) as usize]
+            .iter()
+            .map(|&i| i as u8 as char)
+            .collect();
+
+        s.parse().ok()
+    }
+
+    fn set_int(&self, run_state: &mut RunState, value: i16) -> Option<()> {
+        let s = value.to_string();
+        if s.len() > self.capacity(run_state) as usize {
+            return None;
+        }
+
+        for (i, c) in s.chars().enumerate() {
+            run_state.ram[self.address + 2 + i as i16] = c as u8 as i16;
+        }
+        *self.length_mut(run_state) = s.len() as i16;
+
+        Some(())
+    }
+
+    fn length(&self, run_state: &RunState) -> i16 {
+        run_state.ram[self.address]
+    }
+
+    fn length_mut<'a>(&self, run_state: &'a mut RunState) -> &'a mut i16 {
+        &mut run_state.ram[self.address]
+    }
+
+    fn capacity(&self, run_state: &RunState) -> i16 {
+        run_state.ram[self.address + 1]
+    }
+
+    fn capacity_mut<'a>(&self, run_state: &'a mut RunState) -> &'a mut i16 {
+        &mut run_state.ram[self.address + 1]
     }
 }
 
@@ -241,5 +414,61 @@ impl Memory {
         self.hole_ends.insert(hole_start + hole_size, hole_size);
 
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::vm::{PopSegment, Register};
+
+    use super::*;
+
+    impl RunState {
+        fn test_instance() -> Self {
+            let mut instance = Self {
+                current_file_index: 0,
+                current_command_index: 0,
+                ram: Default::default(),
+                os: Default::default(),
+                call_stack: vec![],
+            };
+
+            instance.ram[Register::ARG] = 100;
+
+            instance
+        }
+    }
+
+    #[test]
+    fn test_string() {
+        let mut run_state = RunState::test_instance();
+        run_state.ram.set(0, PopSegment::Argument, 0, 10);
+        let s = run_state.string_new();
+        assert!(s.is_positive());
+
+        run_state.ram.set(0, PopSegment::Argument, 0, s);
+        assert_eq!(run_state.string_length(), 0);
+
+        run_state
+            .ram
+            .set(0, PopSegment::Argument, 1, '5' as u8 as i16);
+        assert_eq!(run_state.string_append_char(), s);
+        assert_eq!(run_state.string_length(), 1);
+
+        run_state.ram.set(0, PopSegment::Argument, 1, 0);
+        assert_eq!(run_state.string_char_at(), '5' as u8 as i16);
+        assert_eq!(run_state.string_int_value(), 5);
+
+        run_state
+            .ram
+            .set(0, PopSegment::Argument, 2, '9' as u8 as i16);
+        assert_eq!(run_state.string_set_char_at(), 0);
+        assert_eq!(run_state.string_char_at(), '9' as u8 as i16);
+        assert_eq!(run_state.string_int_value(), 9);
+
+        run_state.ram.set(0, PopSegment::Argument, 1, 1337);
+        assert_eq!(run_state.string_set_int(), 0);
+        assert_eq!(run_state.string_length(), 4);
+        assert_eq!(run_state.string_int_value(), 1337);
     }
 }
