@@ -450,9 +450,8 @@ impl EmulatorWidgets for egui::Ui {
                 .body(|body| {
                     body.rows(row_height, commands.len(), |mut row| {
                         let row_index = row.index();
-                        let is_highlighted = row_index
-                            == run_state.current_command_index - file.starting_command_index
-                            && file_index == run_state.current_file_index;
+                        let is_highlighted = file_index == run_state.current_file_index &&
+                            row_index == run_state.current_command_index - file.starting_command_index;
                         row.col(|ui| {
                             if is_highlighted {
                                 let rect = ui.max_rect();
