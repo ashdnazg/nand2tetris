@@ -262,7 +262,7 @@ pub fn draw_shared(
         }
         ui.separator();
         ui.add_enabled_ui(is_top_bar_enabled, |ui| {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 if ui.button("Step").clicked() {
                     *action = Some(Action::Common(CommonAction::StepClicked));
                 }
@@ -280,17 +280,24 @@ pub fn draw_shared(
                 }
 
                 let mut new_steps_per_second = state.desired_steps_per_second;
-                ui.label("Steps per second:");
-                ui.vertical(|ui| {
-                    // let height = ui.text_style_height(&egui::TextStyle::Body);
-                    let old_size = ui.spacing_mut().interact_size.x;
-                    ui.spacing_mut().interact_size.x = 100.0;
-                    ui.add(
-                        Slider::new(&mut new_steps_per_second, 0..=1000000000).logarithmic(true),
-                    );
-                    ui.spacing_mut().interact_size.x = old_size;
-                });
-                if new_steps_per_second != state.desired_steps_per_second {
+                let height = ui.text_style_height(&egui::TextStyle::Body);
+                ui.allocate_ui_with_layout(
+                    [320.0, height].into(),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.label("Steps per second:");
+                        ui.scope(|ui| {
+                            ui.spacing_mut().interact_size.x = 100.0;
+                            ui.add_sized(
+                                [200.0, height],
+                                Slider::new(&mut new_steps_per_second, 0..=1000000000)
+                                    .logarithmic(true),
+                            );
+                        })
+                    },
+                );
+
+                if is_top_bar_enabled && new_steps_per_second != state.desired_steps_per_second {
                     *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
                         new_steps_per_second,
                     )))
@@ -330,38 +337,38 @@ pub trait EmulatorWidgets {
 
 impl EmulatorWidgets for egui::Ui {
     fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle) {
-        self.push_id(caption, |ui| {
-            ui.label(caption);
-            let header_height = ui.text_style_height(&egui::TextStyle::Body);
-            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
+        self.label(caption);
+        let header_height = self.text_style_height(&egui::TextStyle::Body);
+        let row_height = self.text_style_height(&egui::TextStyle::Monospace);
 
-            TableBuilder::new(ui)
-                .striped(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::initial(45.0).at_least(45.0))
-                .column(Column::remainder().at_least(40.0))
-                .header(header_height, |mut header| {
-                    if style == UIStyle::Hardware {
-                        header.col(|ui| {
-                            ui.label("Address");
-                        });
-                        header.col(|ui| {
-                            ui.label("Value");
-                        });
-                    }
-                })
-                .body(|body| {
-                    body.rows(row_height, range.len(), |mut row| {
-                        let row_index = row.index();
-                        row.col(|ui| {
-                            ui.monospace(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.monospace(ram[row_index as i16 + range.start()].to_string());
-                        });
+        TableBuilder::new(self)
+            .auto_shrink(false)
+            .min_scrolled_height(header_height + row_height)
+            .striped(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::initial(45.0).at_least(45.0))
+            .column(Column::remainder().at_least(40.0))
+            .header(header_height, |mut header| {
+                if style == UIStyle::Hardware {
+                    header.col(|ui| {
+                        ui.label("Address");
+                    });
+                    header.col(|ui| {
+                        ui.label("Value");
+                    });
+                }
+            })
+            .body(|body| {
+                body.rows(row_height, range.len(), |mut row| {
+                    let row_index = row.index();
+                    row.col(|ui| {
+                        ui.monospace(row_index.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.monospace(ram[row_index as i16 + range.start()].to_string());
                     });
                 });
-        });
+            });
     }
 
     fn rom_grid(
@@ -371,111 +378,82 @@ impl EmulatorWidgets for egui::Ui {
         range: &RangeInclusive<i16>,
         highlight_address: i16,
     ) {
-        self.push_id(caption, |ui| {
-            ui.label(caption);
-            let header_height = ui.text_style_height(&egui::TextStyle::Body);
-            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
+        self.label(caption);
+        let header_height = self.text_style_height(&egui::TextStyle::Body);
+        let row_height = self.text_style_height(&egui::TextStyle::Monospace);
 
-            TableBuilder::new(ui)
-                .striped(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::initial(45.0).at_least(45.0))
-                .column(Column::remainder().at_least(70.0))
-                .header(header_height, |mut header| {
-                    header.col(|ui| {
-                        ui.label("Address");
+        TableBuilder::new(self)
+            .min_scrolled_height(header_height + row_height)
+            .auto_shrink(false)
+            .striped(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::initial(45.0).at_least(45.0))
+            .column(Column::remainder().at_least(70.0))
+            .header(header_height, |mut header| {
+                header.col(|ui| {
+                    ui.label("Address");
+                });
+                header.col(|ui| {
+                    ui.label("Instruction");
+                });
+            })
+            .body(|body| {
+                body.rows(row_height, range.len(), |mut row| {
+                    let row_index = row.index();
+                    row.set_selected(row_index == highlight_address as usize);
+                    row.col(|ui| {
+                        ui.monospace(row_index.to_string());
                     });
-                    header.col(|ui| {
-                        ui.label("Instruction");
-                    });
-                })
-                .body(|body| {
-                    body.rows(row_height, range.len(), |mut row| {
-                        let row_index = row.index();
-                        row.col(|ui| {
-                            if row_index == highlight_address as usize {
-                                let rect = ui.max_rect();
-                                let rect =
-                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
-
-                                ui.painter()
-                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
-                            }
-                            ui.monospace(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            if row_index == highlight_address as usize {
-                                let rect = ui.max_rect();
-                                let rect =
-                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
-
-                                ui.painter()
-                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
-                            }
-                            ui.monospace(rom[row_index].to_string());
-                        });
+                    row.col(|ui| {
+                        ui.monospace(rom[row_index].to_string());
                     });
                 });
-        });
+            });
     }
 
     fn vm_grid(&mut self, program: &Program, run_state: &RunState, selected_file: &mut String) {
-        self.push_id("VM", |ui| {
-            egui::ComboBox::from_id_source("VM combo")
-                .selected_text(&*selected_file)
-                .show_ui(ui, |ui| {
-                    for file_name in program.files.iter().map(|f| &f.name) {
-                        ui.selectable_value(selected_file, file_name.clone(), file_name);
-                    }
+        egui::ComboBox::from_id_source("VM combo")
+            .selected_text(&*selected_file)
+            .show_ui(self, |ui| {
+                for file_name in program.files.iter().map(|f| &f.name) {
+                    ui.selectable_value(selected_file, file_name.clone(), file_name);
+                }
+            });
+        let header_height = self.text_style_height(&egui::TextStyle::Body);
+        let row_height = self.text_style_height(&egui::TextStyle::Monospace);
+        let file_index = program.file_name_to_index[selected_file];
+        let file = &program.files[file_index];
+        let commands = file.commands(&program.all_commands);
+
+        TableBuilder::new(self)
+            .min_scrolled_height(header_height + row_height)
+            .auto_shrink(false)
+            .striped(true)
+            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::initial(45.0).at_least(45.0))
+            .column(Column::remainder().at_least(70.0))
+            .header(header_height, |mut header| {
+                header.col(|ui| {
+                    ui.label("Line");
                 });
-            let header_height = ui.text_style_height(&egui::TextStyle::Body);
-            let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
-            let file_index = program.file_name_to_index[selected_file];
-            let file = &program.files[file_index];
-            let commands = file.commands(&program.all_commands);
-
-            TableBuilder::new(ui)
-                .striped(true)
-                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                .column(Column::initial(45.0).at_least(45.0))
-                .column(Column::remainder().at_least(70.0))
-                .header(header_height, |mut header| {
-                    header.col(|ui| {
-                        ui.label("Line");
+                header.col(|ui| {
+                    ui.label("Command");
+                });
+            })
+            .body(|body| {
+                body.rows(row_height, commands.len(), |mut row| {
+                    let row_index = row.index();
+                    let is_highlighted = file_index == run_state.current_file_index
+                        && row_index
+                            == run_state.current_command_index - file.starting_command_index;
+                    row.set_selected(is_highlighted);
+                    row.col(|ui| {
+                        ui.monospace(row_index.to_string());
                     });
-                    header.col(|ui| {
-                        ui.label("Command");
-                    });
-                })
-                .body(|body| {
-                    body.rows(row_height, commands.len(), |mut row| {
-                        let row_index = row.index();
-                        let is_highlighted = file_index == run_state.current_file_index &&
-                            row_index == run_state.current_command_index - file.starting_command_index;
-                        row.col(|ui| {
-                            if is_highlighted {
-                                let rect = ui.max_rect();
-                                let rect =
-                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
-
-                                ui.painter()
-                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
-                            }
-                            ui.monospace(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            if is_highlighted {
-                                let rect = ui.max_rect();
-                                let rect =
-                                    rect.expand2(egui::vec2(ui.spacing().item_spacing.x, 0.0));
-
-                                ui.painter()
-                                    .rect_filled(rect, 0.0, ui.visuals().selection.bg_fill);
-                            }
-                            ui.monospace(commands[row_index].to_string());
-                        });
+                    row.col(|ui| {
+                        ui.monospace(commands[row_index].to_string());
                     });
                 });
-        });
+            });
     }
 }
