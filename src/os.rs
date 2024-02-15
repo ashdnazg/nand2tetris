@@ -495,9 +495,7 @@ struct VMString {
 
 impl VMString {
     fn new(run_state: &mut RunState, capacity: i16) -> Option<Self> {
-        let Some(address) = run_state.os.memory.alloc(2 + capacity) else {
-            return None;
-        };
+        let address = run_state.os.memory.alloc(2 + capacity)?;
 
         let instance = Self { address };
 
@@ -633,13 +631,10 @@ impl Memory {
     }
 
     fn alloc(&mut self, size: i16) -> Option<i16> {
-        let Some((&hole_start, &hole_size)) = self
+        let (&hole_start, &hole_size) = self
             .hole_starts
             .iter()
-            .find(|&(_, hole_size)| *hole_size >= size)
-        else {
-            return None;
-        };
+            .find(|&(_, hole_size)| *hole_size >= size)?;
 
         self.hole_starts.remove(&hole_start);
         self.hole_ends.remove(&(hole_start + hole_size));
