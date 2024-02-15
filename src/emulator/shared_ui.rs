@@ -337,38 +337,42 @@ pub trait EmulatorWidgets {
 
 impl EmulatorWidgets for egui::Ui {
     fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle) {
-        self.label(caption);
-        let header_height = self.text_style_height(&egui::TextStyle::Body);
-        let row_height = self.text_style_height(&egui::TextStyle::Monospace);
+        self.push_id(caption, |ui| {
+            ui.vertical(|ui| {
+                ui.label(caption);
+                let header_height = ui.text_style_height(&egui::TextStyle::Body);
+                let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
-        TableBuilder::new(self)
-            .auto_shrink(false)
-            .min_scrolled_height(header_height + row_height)
-            .striped(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Column::initial(45.0).at_least(45.0))
-            .column(Column::remainder().at_least(40.0))
-            .header(header_height, |mut header| {
-                if style == UIStyle::Hardware {
-                    header.col(|ui| {
-                        ui.label("Address");
+                TableBuilder::new(ui)
+                    .auto_shrink(false)
+                    .min_scrolled_height(header_height + row_height)
+                    .striped(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Column::initial(45.0).at_least(45.0))
+                    .column(Column::remainder().at_least(40.0))
+                    .header(header_height, |mut header| {
+                        if style == UIStyle::Hardware {
+                            header.col(|ui| {
+                                ui.label("Address");
+                            });
+                            header.col(|ui| {
+                                ui.label("Value");
+                            });
+                        }
+                    })
+                    .body(|body| {
+                        body.rows(row_height, range.len(), |mut row| {
+                            let row_index = row.index();
+                            row.col(|ui| {
+                                ui.monospace(row_index.to_string());
+                            });
+                            row.col(|ui| {
+                                ui.monospace(ram[row_index as i16 + range.start()].to_string());
+                            });
+                        });
                     });
-                    header.col(|ui| {
-                        ui.label("Value");
-                    });
-                }
-            })
-            .body(|body| {
-                body.rows(row_height, range.len(), |mut row| {
-                    let row_index = row.index();
-                    row.col(|ui| {
-                        ui.monospace(row_index.to_string());
-                    });
-                    row.col(|ui| {
-                        ui.monospace(ram[row_index as i16 + range.start()].to_string());
-                    });
-                });
             });
+        });
     }
 
     fn rom_grid(
@@ -378,82 +382,91 @@ impl EmulatorWidgets for egui::Ui {
         range: &RangeInclusive<i16>,
         highlight_address: i16,
     ) {
-        self.label(caption);
-        let header_height = self.text_style_height(&egui::TextStyle::Body);
-        let row_height = self.text_style_height(&egui::TextStyle::Monospace);
+        self.push_id(caption, |ui| {
+            ui.vertical(|ui| {
+                ui.label(caption);
+                let header_height = ui.text_style_height(&egui::TextStyle::Body);
+                let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
-        TableBuilder::new(self)
-            .min_scrolled_height(header_height + row_height)
-            .auto_shrink(false)
-            .striped(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Column::initial(45.0).at_least(45.0))
-            .column(Column::remainder().at_least(70.0))
-            .header(header_height, |mut header| {
-                header.col(|ui| {
-                    ui.label("Address");
-                });
-                header.col(|ui| {
-                    ui.label("Instruction");
-                });
-            })
-            .body(|body| {
-                body.rows(row_height, range.len(), |mut row| {
-                    let row_index = row.index();
-                    row.set_selected(row_index == highlight_address as usize);
-                    row.col(|ui| {
-                        ui.monospace(row_index.to_string());
+                TableBuilder::new(ui)
+                    .min_scrolled_height(header_height + row_height)
+                    .auto_shrink(false)
+                    .striped(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Column::initial(45.0).at_least(45.0))
+                    .column(Column::remainder().at_least(70.0))
+                    .header(header_height, |mut header| {
+                        header.col(|ui| {
+                            ui.label("Address");
+                        });
+                        header.col(|ui| {
+                            ui.label("Instruction");
+                        });
+                    })
+                    .body(|body| {
+                        body.rows(row_height, range.len(), |mut row| {
+                            let row_index = row.index();
+                            row.set_selected(row_index == highlight_address as usize);
+                            row.col(|ui| {
+                                ui.monospace(row_index.to_string());
+                            });
+                            row.col(|ui| {
+                                ui.monospace(rom[row_index].to_string());
+                            });
+                        });
                     });
-                    row.col(|ui| {
-                        ui.monospace(rom[row_index].to_string());
-                    });
-                });
             });
+        });
     }
 
     fn vm_grid(&mut self, program: &Program, run_state: &RunState, selected_file: &mut String) {
-        egui::ComboBox::from_id_source("VM combo")
-            .selected_text(&*selected_file)
-            .show_ui(self, |ui| {
-                for file_name in program.files.iter().map(|f| &f.name) {
-                    ui.selectable_value(selected_file, file_name.clone(), file_name);
-                }
-            });
-        let header_height = self.text_style_height(&egui::TextStyle::Body);
-        let row_height = self.text_style_height(&egui::TextStyle::Monospace);
-        let file_index = program.file_name_to_index[selected_file];
-        let file = &program.files[file_index];
-        let commands = file.commands(&program.all_commands);
+        self.push_id("VM", |ui| {
+            ui.vertical(|ui| {
+                egui::ComboBox::from_id_source("VM combo")
+                    .selected_text(&*selected_file)
+                    .show_ui(ui, |ui| {
+                        for file_name in program.files.iter().map(|f| &f.name) {
+                            ui.selectable_value(selected_file, file_name.clone(), file_name);
+                        }
+                    });
+                let header_height = ui.text_style_height(&egui::TextStyle::Body);
+                let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
+                let file_index = program.file_name_to_index[selected_file];
+                let file = &program.files[file_index];
+                let commands = file.commands(&program.all_commands);
 
-        TableBuilder::new(self)
-            .min_scrolled_height(header_height + row_height)
-            .auto_shrink(false)
-            .striped(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Column::initial(45.0).at_least(45.0))
-            .column(Column::remainder().at_least(70.0))
-            .header(header_height, |mut header| {
-                header.col(|ui| {
-                    ui.label("Line");
-                });
-                header.col(|ui| {
-                    ui.label("Command");
-                });
-            })
-            .body(|body| {
-                body.rows(row_height, commands.len(), |mut row| {
-                    let row_index = row.index();
-                    let is_highlighted = file_index == run_state.current_file_index
-                        && row_index
-                            == run_state.current_command_index - file.starting_command_index;
-                    row.set_selected(is_highlighted);
-                    row.col(|ui| {
-                        ui.monospace(row_index.to_string());
+                TableBuilder::new(ui)
+                    .min_scrolled_height(header_height + row_height)
+                    .auto_shrink(false)
+                    .striped(true)
+                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                    .column(Column::initial(45.0).at_least(45.0))
+                    .column(Column::remainder().at_least(70.0))
+                    .header(header_height, |mut header| {
+                        header.col(|ui| {
+                            ui.label("Line");
+                        });
+                        header.col(|ui| {
+                            ui.label("Command");
+                        });
+                    })
+                    .body(|body| {
+                        body.rows(row_height, commands.len(), |mut row| {
+                            let row_index = row.index();
+                            let is_highlighted = file_index == run_state.current_file_index
+                                && row_index
+                                    == run_state.current_command_index
+                                        - file.starting_command_index;
+                            row.set_selected(is_highlighted);
+                            row.col(|ui| {
+                                ui.monospace(row_index.to_string());
+                            });
+                            row.col(|ui| {
+                                ui.monospace(commands[row_index].to_string());
+                            });
+                        });
                     });
-                    row.col(|ui| {
-                        ui.monospace(commands[row_index].to_string());
-                    });
-                });
             });
+        });
     }
 }
