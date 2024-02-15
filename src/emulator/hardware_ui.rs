@@ -49,9 +49,7 @@ impl HardwareState {
                     });
                     strip.cell(|ui| {
                         ui.allocate_ui(Vec2::new(512.0, 256.0), |ui| {
-                            egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                                draw_screen(ui, screen, &self.hardware.ram, frame);
-                            });
+                            draw_screen(ui, screen, &self.hardware.ram, frame);
                         });
                     });
                 });

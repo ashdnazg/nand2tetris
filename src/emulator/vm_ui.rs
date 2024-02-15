@@ -102,7 +102,7 @@ pub fn draw_vm(
                                         ui.ram_grid(
                                             "This",
                                             &state.vm.run_state.ram,
-                                            &(*this_address..=*this_address + 4),
+                                            &(*this_address..=*this_address + 128),
                                             UIStyle::VM,
                                         );
                                     });
@@ -125,7 +125,7 @@ pub fn draw_vm(
                                     ui.ram_grid(
                                         "That",
                                         &state.vm.run_state.ram,
-                                        &(*that_address..=*that_address + 4),
+                                        &(*that_address..=*that_address + 128),
                                         UIStyle::VM,
                                     );
                                 });
@@ -140,9 +140,7 @@ pub fn draw_vm(
                         .vertical(|mut strip| {
                             strip.cell(|ui| {
                                 ui.allocate_ui(Vec2::new(512.0, 256.0), |ui| {
-                                    egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                                        draw_screen(ui, screen, &state.vm.run_state.ram, frame);
-                                    });
+                                    draw_screen(ui, screen, &state.vm.run_state.ram, frame);
                                 });
                             });
                             strip.strip(|builder| {
