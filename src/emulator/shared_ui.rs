@@ -155,7 +155,10 @@ pub fn draw_screen(
     ram: &RAM,
     frame: &eframe::Frame,
 ) {
-    let rect = Rect::from_min_size(ui.cursor().min, egui::Vec2::new(512.0, 256.0));
+    let rect = Rect::from_min_size(
+        ui.cursor().min,
+        egui::Vec2::new(ui.available_width(), ui.available_height()),
+    );
 
     // Clone locals so we can move them into the paint callback:
     let screen = screen.clone();
@@ -343,9 +346,11 @@ impl EmulatorWidgets for egui::Ui {
                 let header_height = ui.text_style_height(&egui::TextStyle::Body);
                 let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
+                let available_height = ui.available_height();
                 TableBuilder::new(ui)
                     .auto_shrink(false)
                     .min_scrolled_height(header_height + row_height)
+                    .max_scroll_height(available_height)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .column(Column::initial(45.0).at_least(45.0))
@@ -388,8 +393,10 @@ impl EmulatorWidgets for egui::Ui {
                 let header_height = ui.text_style_height(&egui::TextStyle::Body);
                 let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
+                let available_height = ui.available_height();
                 TableBuilder::new(ui)
                     .min_scrolled_height(header_height + row_height)
+                    .max_scroll_height(available_height)
                     .auto_shrink(false)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -435,8 +442,10 @@ impl EmulatorWidgets for egui::Ui {
                 let file = &program.files[file_index];
                 let commands = file.commands(&program.all_commands);
 
+                let available_height = ui.available_height();
                 TableBuilder::new(ui)
                     .min_scrolled_height(header_height + row_height)
+                    .max_scroll_height(available_height)
                     .auto_shrink(false)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
