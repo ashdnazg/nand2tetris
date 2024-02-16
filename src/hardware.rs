@@ -57,14 +57,14 @@ impl Instruction {
         dst_registers: DestinationRegisters,
         calculation_value: u16,
         jump_condition: JumpCondition,
-    ) -> Option<Self> {
+    ) -> Self {
         let encoded_dst = encode_dst_registers(dst_registers);
         let encoded_calculation = calculation_value;
         let encoded_jump = encode_jmp(jump_condition);
 
-        Some(Instruction {
+        Instruction {
             raw: (1 << 15) | (encoded_calculation << 6) | (encoded_dst << 3) | encoded_jump,
-        })
+        }
     }
 }
 
@@ -410,12 +410,12 @@ impl Hardware {
             }
             InstructionType::C => {
                 let result = self.compute(instruction);
-                self.set(instruction, result);
                 self.pc = if instruction.jump_condition().is_true(result) {
                     self.a
                 } else {
                     self.pc + 1
-                }
+                };
+                self.set(instruction, result);
             }
         }
 
@@ -588,5 +588,18 @@ mod tests {
         hardware.run_program(program.len());
 
         assert_eq!(hardware.ram[15], 34 * 12);
+    }
+
+    #[test]
+    fn test_jump_setting_a() {
+        let mut hardware = Hardware::default();
+        hardware.load_program(std::iter::once(Instruction::create(
+            DestinationRegisters::A,
+            0x01BF, // 1
+            JumpCondition::JMP,
+        )));
+        hardware.step();
+
+        assert_eq!(hardware.pc, 0);
     }
 }

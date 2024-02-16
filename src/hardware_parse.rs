@@ -28,7 +28,7 @@ fn parse_identifier(input: &str) -> IResult<&str, &str> {
 }
 
 fn create_c_instruction(args: (DestinationRegisters, u16, JumpCondition)) -> AssemblyInstruction {
-    AssemblyInstruction::Instruction(Instruction::create(args.0, args.1, args.2).unwrap())
+    AssemblyInstruction::Instruction(Instruction::create(args.0, args.1, args.2))
 }
 
 fn parse_at_number_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
