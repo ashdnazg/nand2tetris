@@ -439,6 +439,20 @@ impl Hardware {
         instance
     }
 
+    pub fn from_hack_file_contents(contents: &str) -> Self {
+        let mut instance = Self::default();
+
+        for (i, raw) in contents
+            .lines()
+            .map(|l| u16::from_str_radix(l.trim(), 2).unwrap())
+            .enumerate()
+        {
+            instance.rom[i] = Instruction { raw };
+        }
+
+        instance
+    }
+
     pub fn load_program<I: Iterator<Item = Instruction>>(&mut self, program: I) {
         self.rom = Box::new([Instruction { raw: 0 }; 32 * 1024]);
         for (i, instruction) in program.enumerate() {

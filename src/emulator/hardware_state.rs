@@ -44,6 +44,15 @@ impl HardwareState {
             hardware: Hardware::from_file_contents(contents),
         }
     }
+
+    pub fn from_hack_file_contents(contents: &str) -> Self {
+        HardwareState {
+            selected_breakpoint_var: BreakpointVar::A,
+            breakpoint_value: 0,
+            breakpoints_open: false,
+            hardware: Hardware::from_hack_file_contents(contents),
+        }
+    }
 }
 
 impl CommonState for HardwareState {

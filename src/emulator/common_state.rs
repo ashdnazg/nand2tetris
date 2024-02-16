@@ -41,7 +41,7 @@ pub enum CommonAction {
 #[derive(Debug)]
 pub enum Action {
     FilesPicked(Vec<(String, String)>),
-    FilePicked(String),
+    FilePicked { name: String, contents: String },
     FilesDropped(Vec<DroppedFile>),
     Breakpoint(BreakpointAction),
     Common(CommonAction),

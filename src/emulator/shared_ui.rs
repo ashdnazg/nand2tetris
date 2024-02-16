@@ -241,14 +241,15 @@ pub fn draw_shared(
                         if let Ok(current_dir) = std::env::current_dir() {
                             dialog = dialog.set_directory(current_dir);
                         }
-                        let task = dialog.add_filter("Hack", &[&"asm"]).pick_file();
+                        let task = dialog.add_filter("Hack", &[&"asm", &"hack"]).pick_file();
                         let ctx = ctx.clone();
                         let async_actions_sender = async_actions_sender.clone();
                         execute(async move {
                             if let Some(file) = task.await {
-                                let file_contents = String::from_utf8(file.read().await).unwrap();
-                                let _ =
-                                    async_actions_sender.send(Action::FilePicked(file_contents));
+                                let contents = String::from_utf8(file.read().await).unwrap();
+                                let name = file.file_name();
+                                let _ = async_actions_sender
+                                    .send(Action::FilePicked { name, contents });
                                 ctx.request_repaint();
                             }
                         });

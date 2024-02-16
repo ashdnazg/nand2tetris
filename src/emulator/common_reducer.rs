@@ -46,16 +46,33 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
             app.state = AppState::VM(VMState::from_file_contents(file_contents.clone()));
             app.shared_state = Default::default();
         }
-        Action::FilePicked(file_contents) => {
-            app.state = AppState::Hardware(HardwareState::from_file_contents(file_contents));
-            app.shared_state = Default::default();
+        Action::FilePicked { name, contents } => {
+            let lowercase_name = name.to_lowercase();
+            if lowercase_name.ends_with(".hack") {
+                app.state = AppState::Hardware(HardwareState::from_hack_file_contents(contents));
+                app.shared_state = Default::default();
+            } else if lowercase_name.ends_with(".asm") {
+                app.state = AppState::Hardware(HardwareState::from_file_contents(contents));
+                app.shared_state = Default::default();
+            } else {
+                println!("{:?}", name);
+            }
         }
         Action::FilesDropped(dropped_files) => {
-            if dropped_files.len() == 1 && dropped_files[0].name.ends_with(".asm") {
+            let first_file_lowercase = dropped_files[0].name.to_lowercase();
+            if dropped_files.len() == 1 && first_file_lowercase.ends_with(".asm") {
                 let file_contents = get_contents(&dropped_files[0]);
                 app.state = AppState::Hardware(HardwareState::from_file_contents(&file_contents));
                 app.shared_state = Default::default();
-            } else if dropped_files.iter().all(|d| d.name.ends_with(".vm")) {
+            } else if dropped_files.len() == 1 && first_file_lowercase.ends_with(".asm") {
+                let file_contents = get_contents(&dropped_files[0]);
+                app.state =
+                    AppState::Hardware(HardwareState::from_hack_file_contents(&file_contents));
+                app.shared_state = Default::default();
+            } else if dropped_files
+                .iter()
+                .all(|d| d.name.to_lowercase().ends_with(".vm"))
+            {
                 let file_contents = dropped_files
                     .iter()
                     .map(|dropped_file| (dropped_file.name.clone(), get_contents(dropped_file)))
