@@ -64,7 +64,7 @@ pub fn reduce(app: &mut EmulatorApp, action: &Action) {
                 let file_contents = get_contents(&dropped_files[0]);
                 app.state = AppState::Hardware(HardwareState::from_file_contents(&file_contents));
                 app.shared_state = Default::default();
-            } else if dropped_files.len() == 1 && first_file_lowercase.ends_with(".asm") {
+            } else if dropped_files.len() == 1 && first_file_lowercase.ends_with(".hack") {
                 let file_contents = get_contents(&dropped_files[0]);
                 app.state =
                     AppState::Hardware(HardwareState::from_hack_file_contents(&file_contents));
