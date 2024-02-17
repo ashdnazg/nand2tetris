@@ -27,7 +27,7 @@ impl HardwareState {
                     strip.strip(|builder| {
                         builder
                             .size(Size::initial(140.0).at_least(140.0))
-                            .size(Size::initial(110.0).at_least(110.0))
+                            .size(Size::exact(110.0))
                             .horizontal(|mut strip| {
                                 strip.cell(|ui| {
                                     ui.rom_grid(

@@ -29,7 +29,7 @@ pub fn draw_vm(
         } else {
             builder = builder
                 .size(Size::remainder())
-                .size(Size::remainder())
+                .size(Size::exact(110.0))
                 .size(Size::exact(512.0))
         }
         builder.horizontal(|mut strip| {
