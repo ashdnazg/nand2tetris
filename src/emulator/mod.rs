@@ -157,9 +157,9 @@ impl eframe::App for EmulatorApp {
                         }
                         if ui.button("Hack Example: Ray Marcher").clicked() {
                             let file_contents = include_str!("../../r_soj.hack");
-                            self.state = AppState::Hardware(HardwareState::from_hack_file_contents(
-                                file_contents,
-                            ));
+                            self.state = AppState::Hardware(
+                                HardwareState::from_hack_file_contents(file_contents),
+                            );
                             self.shared_state = Default::default();
                         }
                     });

@@ -29,21 +29,54 @@ impl HardwareState {
                             .size(Size::initial(140.0).at_least(140.0))
                             .size(Size::exact(110.0))
                             .horizontal(|mut strip| {
-                                strip.cell(|ui| {
-                                    ui.rom_grid(
-                                        "ROM",
-                                        &self.hardware.rom,
-                                        &(0..=i16::MAX),
-                                        self.hardware.pc,
-                                    );
+                                strip.strip(|builder| {
+                                    builder
+                                        .size(Size::remainder())
+                                        .size(Size::exact(10.0))
+                                        .size(Size::exact(20.0))
+                                        .vertical(|mut strip| {
+                                            strip.cell(|ui| {
+                                                ui.rom_grid(
+                                                    "ROM",
+                                                    &self.hardware.rom,
+                                                    &(0..=i16::MAX),
+                                                    self.hardware.pc,
+                                                );
+                                            });
+
+                                            strip.empty();
+                                            strip.cell(|ui| {
+                                                egui::Frame::none()
+                                                    .stroke(egui::Stroke::new(
+                                                        1.0,
+                                                        ui.style().visuals.text_color(),
+                                                    ))
+                                                    .show(ui, |ui| {
+                                                        ui.label("hey");
+                                                    });
+                                            });
+                                        });
                                 });
-                                strip.cell(|ui| {
-                                    ui.ram_grid(
-                                        "RAM",
-                                        &self.hardware.ram,
-                                        &(0..=i16::MAX),
-                                        UIStyle::Hardware,
-                                    );
+                                strip.strip(|builder| {
+                                    builder
+                                        .size(Size::remainder())
+                                        .size(Size::exact(10.0))
+                                        .size(Size::exact(20.0))
+                                        .vertical(|mut strip| {
+                                            strip.cell(|ui| {
+                                                ui.ram_grid(
+                                                    "RAM",
+                                                    &self.hardware.ram,
+                                                    &(0..=i16::MAX),
+                                                    UIStyle::Hardware,
+                                                );
+                                            });
+
+                                            strip.empty();
+                                            strip.cell(|ui| {
+                                                ui.label("hoy");
+                                            });
+                                        });
                                 });
                             });
                     });
