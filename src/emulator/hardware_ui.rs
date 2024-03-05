@@ -83,6 +83,7 @@ impl HardwareState {
                                                     &self.hardware.ram,
                                                     &(0..=i16::MAX),
                                                     UIStyle::Hardware,
+                                                    Some(self.hardware.a)
                                                 );
                                             });
 

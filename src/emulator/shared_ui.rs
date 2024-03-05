@@ -328,7 +328,7 @@ fn execute<F: Future<Output = ()> + 'static>(f: F) {
 }
 
 pub trait EmulatorWidgets {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle);
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle, highlight_address: Option<i16>);
     fn rom_grid(
         &mut self,
         caption: &str,
@@ -340,7 +340,7 @@ pub trait EmulatorWidgets {
 }
 
 impl EmulatorWidgets for egui::Ui {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle) {
+    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle, highlight_address: Option<i16>) {
         self.push_id(caption, |ui| {
             ui.vertical(|ui| {
                 ui.label(caption);
@@ -369,6 +369,7 @@ impl EmulatorWidgets for egui::Ui {
                     .body(|body| {
                         body.rows(row_height, range.len(), |mut row| {
                             let row_index = row.index();
+                            row.set_selected(highlight_address.map(|addr| addr as usize) == Some(row_index));
                             row.col(|ui| {
                                 ui.monospace(row_index.to_string());
                             });

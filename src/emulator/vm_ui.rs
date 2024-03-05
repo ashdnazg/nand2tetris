@@ -61,6 +61,7 @@ pub fn draw_vm(
                                 &state.vm.run_state.ram,
                                 static_segment,
                                 UIStyle::VM,
+                                None
                             );
                         });
 
@@ -75,6 +76,7 @@ pub fn draw_vm(
                                 &(*local_address
                                     ..=*local_address + function_metadata.local_var_count - 1),
                                 UIStyle::VM,
+                                None
                             );
                         });
 
@@ -89,6 +91,7 @@ pub fn draw_vm(
                                 &(*argument_address
                                     ..=*argument_address + function_metadata.argument_count - 1),
                                 UIStyle::VM,
+                                None
                             );
                         });
 
@@ -102,6 +105,7 @@ pub fn draw_vm(
                                 &state.vm.run_state.ram,
                                 &(*this_address..=*this_address + 128),
                                 UIStyle::VM,
+                                None
                             );
                         });
 
@@ -110,7 +114,7 @@ pub fn draw_vm(
                         .default_height(height)
                         .resizable(true)
                         .show_inside(ui, |ui| {
-                            ui.ram_grid("Temp", &state.vm.run_state.ram, &(5..=12), UIStyle::VM);
+                            ui.ram_grid("Temp", &state.vm.run_state.ram, &(5..=12), UIStyle::VM, None);
                         });
 
                     egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -120,6 +124,7 @@ pub fn draw_vm(
                             &state.vm.run_state.ram,
                             &(*that_address..=*that_address + 128),
                             UIStyle::VM,
+                            None
                         );
                     });
                 });
@@ -145,6 +150,7 @@ pub fn draw_vm(
                                             &state.vm.run_state.ram,
                                             &(256..=1024),
                                             UIStyle::VM,
+                                            None
                                         );
                                     });
                                     strip.cell(|ui| {
@@ -153,6 +159,7 @@ pub fn draw_vm(
                                             &state.vm.run_state.ram,
                                             &(0..=i16::MAX),
                                             UIStyle::VM,
+                                            None
                                         );
                                     });
                                 });
