@@ -46,14 +46,28 @@ impl HardwareState {
 
                                             strip.empty();
                                             strip.cell(|ui| {
-                                                egui::Frame::none()
-                                                    .stroke(egui::Stroke::new(
-                                                        1.0,
-                                                        ui.style().visuals.text_color(),
-                                                    ))
-                                                    .show(ui, |ui| {
-                                                        ui.label("hey");
-                                                    });
+                                                ui.horizontal(|ui| {
+                                                    egui::Frame::none()
+                                                        .stroke(egui::Stroke::new(
+                                                            1.0,
+                                                            ui.style().visuals.text_color(),
+                                                        ))
+                                                        .inner_margin(2.0)
+                                                        .show(ui, |ui| {
+                                                            ui.label("PC");
+                                                            ui.allocate_ui_with_layout(
+                                                                ui.available_size(),
+                                                                egui::Layout::right_to_left(
+                                                                    egui::Align::Min,
+                                                                ),
+                                                                |ui| {
+                                                                    ui.label(
+                                                                        self.hardware.pc.to_string(),
+                                                                    );
+                                                                },
+                                                            );
+                                                        });
+                                                });
                                             });
                                         });
                                 });
@@ -74,7 +88,28 @@ impl HardwareState {
 
                                             strip.empty();
                                             strip.cell(|ui| {
-                                                ui.label("hoy");
+                                                ui.horizontal(|ui| {
+                                                    egui::Frame::none()
+                                                        .stroke(egui::Stroke::new(
+                                                            1.0,
+                                                            ui.style().visuals.text_color(),
+                                                        ))
+                                                        .inner_margin(2.0)
+                                                        .show(ui, |ui| {
+                                                            ui.label("A");
+                                                            ui.allocate_ui_with_layout(
+                                                                ui.available_size(),
+                                                                egui::Layout::right_to_left(
+                                                                    egui::Align::Min,
+                                                                ),
+                                                                |ui| {
+                                                                    ui.label(
+                                                                        self.hardware.a.to_string(),
+                                                                    );
+                                                                },
+                                                            );
+                                                        });
+                                                });
                                             });
                                         });
                                 });
