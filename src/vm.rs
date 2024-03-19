@@ -243,7 +243,7 @@ impl VM {
                 }
                 VMCommand::Neg => {
                     let y = run_state.ram.stack_top();
-                    *y = -*y;
+                    *y = y.wrapping_neg();
                     run_state.current_command_index += 1;
                 }
                 VMCommand::Eq => {
