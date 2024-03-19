@@ -20,110 +20,118 @@ impl HardwareState {
         frame: &eframe::Frame,
     ) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            let available_width = ui.available_width();
+            let thin_layout = available_width < 1024.0;
             StripBuilder::new(ui)
                 .size(Size::remainder())
-                .size(Size::exact(512.0))
+                .size(Size::exact(available_width.min(512.0)))
                 .horizontal(|mut strip| {
-                    strip.strip(|builder| {
-                        builder
-                            .size(Size::initial(140.0).at_least(140.0))
-                            .size(Size::exact(110.0))
-                            .horizontal(|mut strip| {
-                                strip.strip(|builder| {
-                                    builder
-                                        .size(Size::remainder())
-                                        .size(Size::exact(10.0))
-                                        .size(Size::exact(20.0))
-                                        .vertical(|mut strip| {
-                                            strip.cell(|ui| {
-                                                ui.rom_grid(
-                                                    "ROM",
-                                                    &self.hardware.rom,
-                                                    &(0..=i16::MAX),
-                                                    self.hardware.pc,
-                                                );
-                                            });
+                    if thin_layout {
+                        strip.empty();
+                    } else {
+                        strip.strip(|builder| {
+                            builder
+                                .size(Size::initial(140.0).at_least(140.0))
+                                .size(Size::exact(110.0))
+                                .horizontal(|mut strip| {
+                                    strip.strip(|builder| {
+                                        builder
+                                            .size(Size::remainder())
+                                            .size(Size::exact(10.0))
+                                            .size(Size::exact(20.0))
+                                            .vertical(|mut strip| {
+                                                strip.cell(|ui| {
+                                                    ui.rom_grid(
+                                                        "ROM",
+                                                        &self.hardware.rom,
+                                                        &(0..=i16::MAX),
+                                                        self.hardware.pc,
+                                                    );
+                                                });
 
-                                            strip.empty();
-                                            strip.cell(|ui| {
-                                                ui.horizontal(|ui| {
-                                                    egui::Frame::none()
-                                                        .stroke(egui::Stroke::new(
-                                                            1.0,
-                                                            ui.style().visuals.text_color(),
-                                                        ))
-                                                        .inner_margin(2.0)
-                                                        .show(ui, |ui| {
-                                                            ui.label("PC");
-                                                            ui.allocate_ui_with_layout(
-                                                                ui.available_size(),
-                                                                egui::Layout::right_to_left(
-                                                                    egui::Align::Min,
-                                                                ),
-                                                                |ui| {
-                                                                    ui.label(
-                                                                        self.hardware.pc.to_string(),
-                                                                    );
-                                                                },
-                                                            );
-                                                        });
+                                                strip.empty();
+                                                strip.cell(|ui| {
+                                                    ui.horizontal(|ui| {
+                                                        egui::Frame::none()
+                                                            .stroke(egui::Stroke::new(
+                                                                1.0,
+                                                                ui.style().visuals.text_color(),
+                                                            ))
+                                                            .inner_margin(2.0)
+                                                            .show(ui, |ui| {
+                                                                ui.label("PC");
+                                                                ui.allocate_ui_with_layout(
+                                                                    ui.available_size(),
+                                                                    egui::Layout::right_to_left(
+                                                                        egui::Align::Min,
+                                                                    ),
+                                                                    |ui| {
+                                                                        ui.label(
+                                                                            self.hardware.pc.to_string(),
+                                                                        );
+                                                                    },
+                                                                );
+                                                            });
+                                                    });
                                                 });
                                             });
-                                        });
-                                });
-                                strip.strip(|builder| {
-                                    builder
-                                        .size(Size::remainder())
-                                        .size(Size::exact(10.0))
-                                        .size(Size::exact(20.0))
-                                        .vertical(|mut strip| {
-                                            strip.cell(|ui| {
-                                                ui.ram_grid(
-                                                    "RAM",
-                                                    &self.hardware.ram,
-                                                    &(0..=i16::MAX),
-                                                    UIStyle::Hardware,
-                                                    Some(self.hardware.a)
-                                                );
-                                            });
+                                    });
+                                    strip.strip(|builder| {
+                                        builder
+                                            .size(Size::remainder())
+                                            .size(Size::exact(10.0))
+                                            .size(Size::exact(20.0))
+                                            .vertical(|mut strip| {
+                                                strip.cell(|ui| {
+                                                    ui.ram_grid(
+                                                        "RAM",
+                                                        &self.hardware.ram,
+                                                        &(0..=i16::MAX),
+                                                        UIStyle::Hardware,
+                                                        Some(self.hardware.a)
+                                                    );
+                                                });
 
-                                            strip.empty();
-                                            strip.cell(|ui| {
-                                                ui.horizontal(|ui| {
-                                                    egui::Frame::none()
-                                                        .stroke(egui::Stroke::new(
-                                                            1.0,
-                                                            ui.style().visuals.text_color(),
-                                                        ))
-                                                        .inner_margin(2.0)
-                                                        .show(ui, |ui| {
-                                                            ui.label("A");
-                                                            ui.allocate_ui_with_layout(
-                                                                ui.available_size(),
-                                                                egui::Layout::right_to_left(
-                                                                    egui::Align::Min,
-                                                                ),
-                                                                |ui| {
-                                                                    ui.label(
-                                                                        self.hardware.a.to_string(),
-                                                                    );
-                                                                },
-                                                            );
-                                                        });
+                                                strip.empty();
+                                                strip.cell(|ui| {
+                                                    ui.horizontal(|ui| {
+                                                        egui::Frame::none()
+                                                            .stroke(egui::Stroke::new(
+                                                                1.0,
+                                                                ui.style().visuals.text_color(),
+                                                            ))
+                                                            .inner_margin(2.0)
+                                                            .show(ui, |ui| {
+                                                                ui.label("A");
+                                                                ui.allocate_ui_with_layout(
+                                                                    ui.available_size(),
+                                                                    egui::Layout::right_to_left(
+                                                                        egui::Align::Min,
+                                                                    ),
+                                                                    |ui| {
+                                                                        ui.label(
+                                                                            self.hardware.a.to_string(),
+                                                                        );
+                                                                    },
+                                                                );
+                                                            });
+                                                    });
                                                 });
                                             });
-                                        });
+                                    });
                                 });
-                            });
-                    });
+                        });
+                    }
                     strip.cell(|ui| {
                         ui.vertical(|ui| {
-                            ui.allocate_ui(Vec2::new(512.0, 256.0), |ui| {
+                            let screen_height = (available_width / 2.0).min(256.0);
+                            let screen_width = available_width.min(512.0);
+                            ui.allocate_ui(Vec2::new(screen_width, screen_height), |ui| {
                                 draw_screen(ui, screen, &self.hardware.ram, frame);
                             });
-                            ui.add_space(276.0);
+                            ui.add_space(screen_height + 20.0);
                             ui.horizontal(|ui| {
-                                ui.add_space(180.0);
+                                ui.add_space(screen_width / 2.0 - 70.0);
                                 egui::Frame::none()
                                     .stroke(egui::Stroke::new(
                                         1.0,

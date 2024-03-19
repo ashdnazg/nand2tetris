@@ -34,7 +34,7 @@ pub fn draw_vm(
         }
         builder.horizontal(|mut strip| {
             if thin_layout {
-                strip.empty()
+                strip.empty();
             } else {
                 strip.cell(|ui| {
                     let mut selected_file = state.selected_file.clone();
