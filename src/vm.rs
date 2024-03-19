@@ -111,6 +111,7 @@ pub struct Program {
     pub files: Vec<File>,
 }
 
+#[derive(Clone)]
 pub struct RunState {
     pub current_file_index: usize,
     pub current_command_index: usize,
@@ -119,6 +120,7 @@ pub struct RunState {
     pub call_stack: Vec<Frame>,
 }
 
+#[derive(Clone)]
 pub struct VM {
     pub run_state: RunState,
     pub program: Program,
@@ -380,6 +382,7 @@ impl VM {
     }
 }
 
+#[derive(Clone)]
 pub struct Frame {
     pub function_index: usize,
 }
@@ -552,7 +555,7 @@ pub enum Register {
 }
 
 impl Register {
-    fn address(&self) -> i16 {
+    pub fn address(&self) -> i16 {
         match self {
             Register::SP => 0,
             Register::LCL => 1,

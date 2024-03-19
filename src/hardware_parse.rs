@@ -16,7 +16,7 @@ use nom::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum AssemblyInstruction {
+pub enum AssemblyInstruction {
     Instruction(Instruction),
     Label(String),
     AtIdentifierInstruction(String),
@@ -229,11 +229,11 @@ fn create_label(input: &str) -> IResult<&str, AssemblyInstruction> {
     delimited(tag("("), parse_label, tag(")"))(input)
 }
 
-fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
+pub fn instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
     alt((c_instruction, a_instruction, create_label))(input)
 }
 
-fn parse_instructions(input: &str) -> IResult<&str, Vec<AssemblyInstruction>> {
+pub fn parse_instructions(input: &str) -> IResult<&str, Vec<AssemblyInstruction>> {
     non_comment_lines(instruction)(input)
 }
 
@@ -241,7 +241,7 @@ pub fn assemble_hack_file(input: &str) -> IResult<&str, Vec<Instruction>> {
     map(parse_instructions, |v| assemble(&v))(input)
 }
 
-fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
+pub fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
     let mut at_identifier_map: HashMap<&str, i16> = HashMap::from([
         ("R0", 0),
         ("R1", 1),

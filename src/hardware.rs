@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use std::{borrow::Borrow, ops::{Index, IndexMut}};
 
 use crate::hardware_parse::assemble_hack_file;
 
@@ -9,7 +9,7 @@ pub struct Instruction {
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum DestinationRegisters {
+pub enum DestinationRegisters {
     NoDestination,
     A,
     AM,
@@ -53,7 +53,7 @@ impl Instruction {
         Instruction { raw }
     }
 
-    pub(crate) fn create(
+    pub fn create(
         dst_registers: DestinationRegisters,
         calculation_value: u16,
         jump_condition: JumpCondition,
@@ -132,7 +132,7 @@ enum InstructionType {
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum JumpCondition {
+pub enum JumpCondition {
     NoJump,
     JGT,
     JEQ,
@@ -453,10 +453,10 @@ impl Hardware {
         instance
     }
 
-    pub fn load_program<I: Iterator<Item = Instruction>>(&mut self, program: I) {
-        self.rom = Box::new([Instruction { raw: 0 }; 32 * 1024]);
-        for (i, instruction) in program.enumerate() {
-            self.rom[i] = instruction;
+    pub fn load_program(&mut self, program: impl IntoIterator<Item=impl Borrow<Instruction>>) {
+        self.rom.fill(Instruction { raw: 0 });
+        for (i, instruction) in program.into_iter().enumerate() {
+            self.rom[i] = instruction.borrow().clone();
         }
     }
 
@@ -516,6 +516,8 @@ pub struct Breakpoint {
 
 #[cfg(test)]
 mod tests {
+    use crate::hardware_parse;
+
     use super::*;
 
     #[test]
@@ -546,6 +548,22 @@ mod tests {
         expected_hardware.pc = 1;
         assert_eq!(hardware, expected_hardware);
     }
+
+    #[test]
+    fn test_sub_minus_1() {
+        let mut hardware = Hardware::default();
+        hardware.rom[0] = Instruction::create(DestinationRegisters::D, 0x186, JumpCondition::NoJump);
+        hardware.a = 1234;
+        hardware.d = 2345;
+
+        let mut expected_hardware = hardware.clone();
+        hardware.step();
+
+        expected_hardware.d = 1110;
+        expected_hardware.pc = 1;
+        assert_eq!(hardware, expected_hardware);
+    }
+
 
     #[test]
     fn test_zero() {
@@ -593,11 +611,11 @@ mod tests {
     #[test]
     fn test_jump_setting_a() {
         let mut hardware = Hardware::default();
-        hardware.load_program(std::iter::once(Instruction::create(
+        hardware.load_program(&[Instruction::create(
             DestinationRegisters::A,
             0x01BF, // 1
             JumpCondition::JMP,
-        )));
+        )]);
         hardware.step();
 
         assert_eq!(hardware.pc, 0);

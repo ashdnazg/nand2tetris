@@ -6,6 +6,7 @@ use crate::{
     vm::{PushSegment, RunState},
 };
 
+#[derive(Clone)]
 pub struct OS {
     memory: Memory,
     screen: Screen,
@@ -387,6 +388,7 @@ impl RunState {
     }
 }
 
+#[derive(Clone)]
 struct Output {
     row: i16,
     col: i16,
@@ -611,12 +613,14 @@ impl VMString {
     }
 }
 
+#[derive(Clone)]
 struct Memory {
     hole_starts: HashMap<i16, i16>,
     hole_ends: HashMap<i16, i16>,
     allocs: HashMap<i16, i16>,
 }
 
+#[derive(Clone)]
 struct Screen {
     color: bool,
 }
