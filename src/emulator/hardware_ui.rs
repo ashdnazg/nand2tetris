@@ -117,8 +117,34 @@ impl HardwareState {
                             });
                     });
                     strip.cell(|ui| {
-                        ui.allocate_ui(Vec2::new(512.0, 256.0), |ui| {
-                            draw_screen(ui, screen, &self.hardware.ram, frame);
+                        ui.vertical(|ui| {
+                            ui.allocate_ui(Vec2::new(512.0, 256.0), |ui| {
+                                draw_screen(ui, screen, &self.hardware.ram, frame);
+                            });
+                            ui.add_space(276.0);
+                            ui.horizontal(|ui| {
+                                ui.add_space(180.0);
+                                egui::Frame::none()
+                                    .stroke(egui::Stroke::new(
+                                        1.0,
+                                        ui.style().visuals.text_color(),
+                                    ))
+                                    .inner_margin(2.0)
+                                    .show(ui, |ui| {
+                                        ui.label("D");
+                                        ui.allocate_ui_with_layout(
+                                            [110.0, ui.available_height()].into(),
+                                            egui::Layout::right_to_left(
+                                                egui::Align::Center
+                                            ),
+                                            |ui| {
+                                                ui.label(
+                                                    self.hardware.d.to_string(),
+                                                );
+                                            },
+                                        );
+                                    });
+                            });
                         });
                     });
                 });
