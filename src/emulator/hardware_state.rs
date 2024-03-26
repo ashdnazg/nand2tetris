@@ -5,7 +5,6 @@ use super::common_state::CommonState;
 pub struct HardwareState {
     pub selected_breakpoint_var: BreakpointVar,
     pub breakpoint_value: i16,
-    pub breakpoints_open: bool,
     pub hardware: Hardware,
 }
 
@@ -24,12 +23,16 @@ impl Default for HardwareState {
             16384, 60432, 16, 58248, 17, 60040, 24576, 64528, 12, 58114, 17, 61064, 17, 64528, 16,
             65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
         ];
-        hardware.load_program(&program.iter().map(|raw| Instruction::new(*raw)).collect::<Vec<_>>());
+        hardware.load_program(
+            &program
+                .iter()
+                .map(|raw| Instruction::new(*raw))
+                .collect::<Vec<_>>(),
+        );
 
         HardwareState {
             selected_breakpoint_var: BreakpointVar::A,
             breakpoint_value: 0,
-            breakpoints_open: false,
             hardware,
         }
     }
@@ -40,7 +43,6 @@ impl HardwareState {
         HardwareState {
             selected_breakpoint_var: BreakpointVar::A,
             breakpoint_value: 0,
-            breakpoints_open: false,
             hardware: Hardware::from_file_contents(contents),
         }
     }
@@ -49,23 +51,14 @@ impl HardwareState {
         HardwareState {
             selected_breakpoint_var: BreakpointVar::A,
             breakpoint_value: 0,
-            breakpoints_open: false,
             hardware: Hardware::from_hack_file_contents(contents),
         }
     }
 }
 
 impl CommonState for HardwareState {
-    fn step(&mut self) -> bool {
-        self.hardware.step()
-    }
-
     fn run(&mut self, step_count: u64) -> bool {
         self.hardware.run(step_count)
-    }
-
-    fn ram(&self) -> &RAM {
-        &self.hardware.ram
     }
 
     fn ram_mut(&mut self) -> &mut RAM {

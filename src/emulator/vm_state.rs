@@ -19,18 +19,9 @@ impl VMState {
 }
 
 impl CommonState for VMState {
-    fn step(&mut self) -> bool {
-        self.vm.step();
-        false
-    }
-
     fn run(&mut self, step_count: u64) -> bool {
         self.vm.run(step_count);
         false
-    }
-
-    fn ram(&self) -> &RAM {
-        &self.vm.run_state.ram
     }
 
     fn ram_mut(&mut self) -> &mut RAM {

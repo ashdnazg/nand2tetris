@@ -20,9 +20,7 @@ pub enum UIStyle {
 }
 
 pub trait CommonState {
-    fn step(&mut self) -> bool;
     fn run(&mut self, step_count: u64) -> bool;
-    fn ram(&self) -> &RAM;
     fn ram_mut(&mut self) -> &mut RAM;
     fn reset(&mut self);
 }
@@ -61,6 +59,7 @@ pub struct PerformanceData {
 pub struct SharedState {
     pub desired_steps_per_second: u64,
     pub run_started: bool,
+    pub scroll_once: bool,
     pub breakpoints_open: bool,
 }
 
@@ -69,6 +68,7 @@ impl Default for SharedState {
         Self {
             desired_steps_per_second: 500000,
             run_started: false,
+            scroll_once: true,
             breakpoints_open: false,
         }
     }

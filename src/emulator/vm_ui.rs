@@ -5,7 +5,7 @@ use eframe::egui;
 use eframe::epaint::mutex::Mutex;
 use egui_extras::{Size, StripBuilder};
 
-use super::common_state::UIStyle;
+use super::common_state::{SharedState, UIStyle};
 use super::shared_ui::{draw_screen, EmulatorWidgets, Screen};
 use super::vm_state::VMState;
 use super::Action;
@@ -14,6 +14,7 @@ pub fn draw_vm(
     state: &VMState,
     ctx: &egui::Context,
     action: &mut Option<Action>,
+    shared_state: &SharedState,
     screen: &Arc<Mutex<Screen>>,
     frame: &eframe::Frame,
 ) {
@@ -38,7 +39,12 @@ pub fn draw_vm(
             } else {
                 strip.cell(|ui| {
                     let mut selected_file = state.selected_file.clone();
-                    ui.vm_grid(&state.vm.program, &state.vm.run_state, &mut selected_file);
+                    ui.vm_grid(
+                        &state.vm.program,
+                        &state.vm.run_state,
+                        &mut selected_file,
+                        shared_state.scroll_once,
+                    );
                     if selected_file != state.selected_file {
                         *action = Some(Action::VMFileSelected(selected_file));
                     }
@@ -61,7 +67,8 @@ pub fn draw_vm(
                                 &state.vm.run_state.ram,
                                 static_segment,
                                 UIStyle::VM,
-                                None
+                                None,
+                                shared_state.scroll_once,
                             );
                         });
 
@@ -76,7 +83,8 @@ pub fn draw_vm(
                                 &(*local_address
                                     ..=*local_address + function_metadata.local_var_count - 1),
                                 UIStyle::VM,
-                                None
+                                None,
+                                shared_state.scroll_once,
                             );
                         });
 
@@ -91,7 +99,8 @@ pub fn draw_vm(
                                 &(*argument_address
                                     ..=*argument_address + function_metadata.argument_count - 1),
                                 UIStyle::VM,
-                                None
+                                None,
+                                shared_state.scroll_once,
                             );
                         });
 
@@ -105,7 +114,8 @@ pub fn draw_vm(
                                 &state.vm.run_state.ram,
                                 &(*this_address..=*this_address + 128),
                                 UIStyle::VM,
-                                None
+                                None,
+                                shared_state.scroll_once,
                             );
                         });
 
@@ -114,7 +124,14 @@ pub fn draw_vm(
                         .default_height(height)
                         .resizable(true)
                         .show_inside(ui, |ui| {
-                            ui.ram_grid("Temp", &state.vm.run_state.ram, &(5..=12), UIStyle::VM, None);
+                            ui.ram_grid(
+                                "Temp",
+                                &state.vm.run_state.ram,
+                                &(5..=12),
+                                UIStyle::VM,
+                                None,
+                                shared_state.scroll_once,
+                            );
                         });
 
                     egui::CentralPanel::default().show_inside(ui, |ui| {
@@ -124,7 +141,8 @@ pub fn draw_vm(
                             &state.vm.run_state.ram,
                             &(*that_address..=*that_address + 128),
                             UIStyle::VM,
-                            None
+                            None,
+                            shared_state.scroll_once,
                         );
                     });
                 });
@@ -150,7 +168,8 @@ pub fn draw_vm(
                                             &state.vm.run_state.ram,
                                             &(256..=1024),
                                             UIStyle::VM,
-                                            None
+                                            Some(state.vm.run_state.ram[Register::SP]),
+                                            shared_state.scroll_once,
                                         );
                                     });
                                     strip.cell(|ui| {
@@ -159,7 +178,8 @@ pub fn draw_vm(
                                             &state.vm.run_state.ram,
                                             &(0..=i16::MAX),
                                             UIStyle::VM,
-                                            None
+                                            None,
+                                            shared_state.scroll_once,
                                         );
                                     });
                                 });

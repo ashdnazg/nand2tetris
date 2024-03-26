@@ -115,6 +115,7 @@ pub fn reduce_common(
         CommonAction::ResetClicked => {
             state.reset();
             shared_state.run_started = false;
+            shared_state.scroll_once = true;
         }
         CommonAction::BreakpointsClicked => {
             shared_state.breakpoints_open = !shared_state.breakpoints_open;

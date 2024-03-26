@@ -1,4 +1,7 @@
-use std::{borrow::Borrow, ops::{Index, IndexMut}};
+use std::{
+    borrow::Borrow,
+    ops::{Index, IndexMut},
+};
 
 use crate::hardware_parse::assemble_hack_file;
 
@@ -453,10 +456,10 @@ impl Hardware {
         instance
     }
 
-    pub fn load_program(&mut self, program: impl IntoIterator<Item=impl Borrow<Instruction>>) {
+    pub fn load_program(&mut self, program: impl IntoIterator<Item = impl Borrow<Instruction>>) {
         self.rom.fill(Instruction { raw: 0 });
         for (i, instruction) in program.into_iter().enumerate() {
-            self.rom[i] = instruction.borrow().clone();
+            self.rom[i] = *instruction.borrow();
         }
     }
 
@@ -516,8 +519,6 @@ pub struct Breakpoint {
 
 #[cfg(test)]
 mod tests {
-    use crate::hardware_parse;
-
     use super::*;
 
     #[test]
@@ -552,7 +553,8 @@ mod tests {
     #[test]
     fn test_sub_minus_1() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction::create(DestinationRegisters::D, 0x186, JumpCondition::NoJump);
+        hardware.rom[0] =
+            Instruction::create(DestinationRegisters::D, 0x186, JumpCondition::NoJump);
         hardware.a = 1234;
         hardware.d = 2345;
 
@@ -563,7 +565,6 @@ mod tests {
         expected_hardware.pc = 1;
         assert_eq!(hardware, expected_hardware);
     }
-
 
     #[test]
     fn test_zero() {

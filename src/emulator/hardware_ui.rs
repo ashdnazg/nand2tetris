@@ -7,7 +7,7 @@ use eframe::{
 };
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
-use super::common_state::{Action, CommonAction, UIStyle};
+use super::common_state::{Action, CommonAction, SharedState, UIStyle};
 use super::hardware_state::{BreakpointAction, HardwareState};
 use super::shared_ui::*;
 
@@ -16,12 +16,13 @@ impl HardwareState {
         &self,
         ctx: &egui::Context,
         action: &mut Option<Action>,
+        shared_state: &SharedState,
         screen: &Arc<Mutex<Screen>>,
         frame: &eframe::Frame,
     ) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let available_width = ui.available_width();
-            let thin_layout = available_width < 1024.0;
+            let thin_layout = available_width < 768.0;
             StripBuilder::new(ui)
                 .size(Size::remainder())
                 .size(Size::exact(available_width.min(512.0)))
@@ -46,6 +47,7 @@ impl HardwareState {
                                                         &self.hardware.rom,
                                                         &(0..=i16::MAX),
                                                         self.hardware.pc,
+                                                        shared_state.scroll_once,
                                                     );
                                                 });
 
@@ -67,7 +69,9 @@ impl HardwareState {
                                                                     ),
                                                                     |ui| {
                                                                         ui.label(
-                                                                            self.hardware.pc.to_string(),
+                                                                            self.hardware
+                                                                                .pc
+                                                                                .to_string(),
                                                                         );
                                                                     },
                                                                 );
@@ -88,7 +92,8 @@ impl HardwareState {
                                                         &self.hardware.ram,
                                                         &(0..=i16::MAX),
                                                         UIStyle::Hardware,
-                                                        Some(self.hardware.a)
+                                                        Some(self.hardware.a),
+                                                        shared_state.scroll_once,
                                                     );
                                                 });
 
@@ -110,7 +115,9 @@ impl HardwareState {
                                                                     ),
                                                                     |ui| {
                                                                         ui.label(
-                                                                            self.hardware.a.to_string(),
+                                                                            self.hardware
+                                                                                .a
+                                                                                .to_string(),
                                                                         );
                                                                     },
                                                                 );
@@ -133,22 +140,15 @@ impl HardwareState {
                             ui.horizontal(|ui| {
                                 ui.add_space(screen_width / 2.0 - 70.0);
                                 egui::Frame::none()
-                                    .stroke(egui::Stroke::new(
-                                        1.0,
-                                        ui.style().visuals.text_color(),
-                                    ))
+                                    .stroke(egui::Stroke::new(1.0, ui.style().visuals.text_color()))
                                     .inner_margin(2.0)
                                     .show(ui, |ui| {
                                         ui.label("D");
                                         ui.allocate_ui_with_layout(
                                             [110.0, ui.available_height()].into(),
-                                            egui::Layout::right_to_left(
-                                                egui::Align::Center
-                                            ),
+                                            egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
-                                                ui.label(
-                                                    self.hardware.d.to_string(),
-                                                );
+                                                ui.label(self.hardware.d.to_string());
                                             },
                                         );
                                     });
@@ -158,7 +158,7 @@ impl HardwareState {
                 });
         });
 
-        let mut breakpoints_open = self.breakpoints_open;
+        let mut breakpoints_open = shared_state.breakpoints_open;
 
         egui::Window::new("Breakpoints")
             .open(&mut breakpoints_open)
@@ -293,8 +293,8 @@ impl HardwareState {
                     });
             });
 
-        if self.breakpoints_open != breakpoints_open {
-            assert!(self.breakpoints_open);
+        if shared_state.breakpoints_open != breakpoints_open {
+            assert!(shared_state.breakpoints_open);
             *action = Some(Action::Common(CommonAction::BreakpointsClosed));
         }
     }

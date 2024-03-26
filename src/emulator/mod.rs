@@ -100,13 +100,23 @@ impl eframe::App for EmulatorApp {
             _ => {}
         }
 
-        ctx.request_repaint();
+        if steps_to_run > 0 {
+            ctx.request_repaint();
+        }
+        self.shared_state.scroll_once |= steps_to_run > 0;
 
         match &self.state {
             AppState::Hardware(state) => {
-                state.draw(ctx, &mut action, &self.screen, frame);
+                state.draw(ctx, &mut action, &self.shared_state, &self.screen, frame);
             }
-            AppState::VM(state) => draw_vm(state, ctx, &mut action, &self.screen, frame),
+            AppState::VM(state) => draw_vm(
+                state,
+                ctx,
+                &mut action,
+                &self.shared_state,
+                &self.screen,
+                frame,
+            ),
             AppState::Start => {
                 egui::CentralPanel::default().show(ctx, |ui| {
                     ui.vertical(|ui| {
@@ -167,6 +177,8 @@ impl eframe::App for EmulatorApp {
             }
         };
 
+        self.shared_state.scroll_once = false;
+
         if matches!(action, Some(Action::Quit)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
@@ -174,6 +186,7 @@ impl eframe::App for EmulatorApp {
 
         if let Some(action) = action {
             reduce(self, &action);
+            ctx.request_repaint();
         }
     }
 

@@ -328,19 +328,42 @@ fn execute<F: Future<Output = ()> + 'static>(f: F) {
 }
 
 pub trait EmulatorWidgets {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle, highlight_address: Option<i16>);
+    fn ram_grid(
+        &mut self,
+        caption: &str,
+        ram: &RAM,
+        range: &RangeInclusive<i16>,
+        style: UIStyle,
+        highlight_address: Option<i16>,
+        scroll_to_row: bool,
+    );
     fn rom_grid(
         &mut self,
         caption: &str,
         rom: &[Instruction; 32 * 1024],
         range: &RangeInclusive<i16>,
         highlight_address: i16,
+        scroll_to_row: bool,
     );
-    fn vm_grid(&mut self, program: &Program, run_state: &RunState, selected_file: &mut String);
+    fn vm_grid(
+        &mut self,
+        program: &Program,
+        run_state: &RunState,
+        selected_file: &mut String,
+        scroll_to_row: bool,
+    );
 }
 
 impl EmulatorWidgets for egui::Ui {
-    fn ram_grid(&mut self, caption: &str, ram: &RAM, range: &RangeInclusive<i16>, style: UIStyle, highlight_address: Option<i16>) {
+    fn ram_grid(
+        &mut self,
+        caption: &str,
+        ram: &RAM,
+        range: &RangeInclusive<i16>,
+        style: UIStyle,
+        highlight_address: Option<i16>,
+        scroll_to_address: bool,
+    ) {
         self.push_id(caption, |ui| {
             ui.vertical(|ui| {
                 ui.label(caption);
@@ -348,10 +371,18 @@ impl EmulatorWidgets for egui::Ui {
                 let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
                 let available_height = ui.available_height();
-                TableBuilder::new(ui)
+                let mut builder = TableBuilder::new(ui)
                     .auto_shrink(false)
                     .min_scrolled_height(header_height + row_height)
-                    .max_scroll_height(available_height)
+                    .max_scroll_height(available_height);
+
+                if scroll_to_address {
+                    if let Some(address) = highlight_address {
+                        builder = builder.scroll_to_row((address - range.start()) as usize, None);
+                    }
+                }
+
+                builder
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .column(Column::initial(45.0).at_least(45.0))
@@ -369,7 +400,10 @@ impl EmulatorWidgets for egui::Ui {
                     .body(|body| {
                         body.rows(row_height, range.len(), |mut row| {
                             let row_index = row.index();
-                            row.set_selected(highlight_address.map(|addr| addr as usize) == Some(row_index));
+                            row.set_selected(
+                                highlight_address.map(|addr| addr as usize)
+                                    == Some(row_index + *range.start() as usize),
+                            );
                             row.col(|ui| {
                                 ui.monospace(row_index.to_string());
                             });
@@ -388,6 +422,7 @@ impl EmulatorWidgets for egui::Ui {
         rom: &[Instruction; 32 * 1024],
         range: &RangeInclusive<i16>,
         highlight_address: i16,
+        scroll_to_address: bool,
     ) {
         self.push_id(caption, |ui| {
             ui.vertical(|ui| {
@@ -396,9 +431,15 @@ impl EmulatorWidgets for egui::Ui {
                 let row_height = ui.text_style_height(&egui::TextStyle::Monospace);
 
                 let available_height = ui.available_height();
-                TableBuilder::new(ui)
+                let mut builder = TableBuilder::new(ui)
                     .min_scrolled_height(header_height + row_height)
-                    .max_scroll_height(available_height)
+                    .max_scroll_height(available_height);
+
+                if scroll_to_address {
+                    builder = builder.scroll_to_row(highlight_address as usize, None);
+                }
+
+                builder
                     .auto_shrink(false)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
@@ -428,9 +469,18 @@ impl EmulatorWidgets for egui::Ui {
         });
     }
 
-    fn vm_grid(&mut self, program: &Program, run_state: &RunState, selected_file: &mut String) {
+    fn vm_grid(
+        &mut self,
+        program: &Program,
+        run_state: &RunState,
+        selected_file: &mut String,
+        scroll_to_row: bool,
+    ) {
         self.push_id("VM", |ui| {
             ui.vertical(|ui| {
+                if scroll_to_row {
+                    selected_file.clone_from(&program.files[run_state.current_file_index].name);
+                }
                 egui::ComboBox::from_id_source("VM combo")
                     .selected_text(&*selected_file)
                     .show_ui(ui, |ui| {
@@ -445,9 +495,18 @@ impl EmulatorWidgets for egui::Ui {
                 let commands = file.commands(&program.all_commands);
 
                 let available_height = ui.available_height();
-                TableBuilder::new(ui)
+                let mut builder = TableBuilder::new(ui)
                     .min_scrolled_height(header_height + row_height)
-                    .max_scroll_height(available_height)
+                    .max_scroll_height(available_height);
+
+                if scroll_to_row {
+                    builder = builder.scroll_to_row(
+                        run_state.current_command_index - file.starting_command_index,
+                        None,
+                    );
+                }
+
+                builder
                     .auto_shrink(false)
                     .striped(true)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
