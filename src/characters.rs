@@ -1,4 +1,6 @@
-pub fn character_bitmaps(c: i16) -> [i16; 11] {
+use crate::hardware::Word;
+
+pub fn character_bitmaps(c: Word) -> [Word; 11] {
     match c {
         32 => [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         33 => [12, 30, 30, 30, 12, 12, 0, 12, 12, 0, 0],

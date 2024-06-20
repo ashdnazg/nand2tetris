@@ -1,6 +1,6 @@
 use super::instant::Instant;
 use crate::{
-    hardware::{Instruction, RAM},
+    hardware::{Instruction, Word, RAM},
     vm::{Program, RunState},
 };
 use eframe::{
@@ -332,17 +332,17 @@ pub trait EmulatorWidgets {
         &mut self,
         caption: &str,
         ram: &RAM,
-        range: &RangeInclusive<i16>,
+        range: &RangeInclusive<Word>,
         style: UIStyle,
-        highlight_address: Option<i16>,
+        highlight_address: Option<Word>,
         scroll_to_row: bool,
     );
     fn rom_grid(
         &mut self,
         caption: &str,
         rom: &[Instruction; 32 * 1024],
-        range: &RangeInclusive<i16>,
-        highlight_address: i16,
+        range: &RangeInclusive<Word>,
+        highlight_address: Word,
         scroll_to_row: bool,
     );
     fn vm_grid(
@@ -359,9 +359,9 @@ impl EmulatorWidgets for egui::Ui {
         &mut self,
         caption: &str,
         ram: &RAM,
-        range: &RangeInclusive<i16>,
+        range: &RangeInclusive<Word>,
         style: UIStyle,
-        highlight_address: Option<i16>,
+        highlight_address: Option<Word>,
         scroll_to_address: bool,
     ) {
         self.push_id(caption, |ui| {
@@ -398,19 +398,25 @@ impl EmulatorWidgets for egui::Ui {
                         }
                     })
                     .body(|body| {
-                        body.rows(row_height, range.len(), |mut row| {
-                            let row_index = row.index();
-                            row.set_selected(
-                                highlight_address.map(|addr| addr as usize)
-                                    == Some(row_index + *range.start() as usize),
-                            );
-                            row.col(|ui| {
-                                ui.monospace(row_index.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.monospace(ram[row_index as i16 + range.start()].to_string());
-                            });
-                        });
+                        body.rows(
+                            row_height,
+                            *range.end() as usize - *range.start() as usize,
+                            |mut row| {
+                                let row_index = row.index();
+                                row.set_selected(
+                                    highlight_address.map(|addr| addr as usize)
+                                        == Some(row_index + *range.start() as usize),
+                                );
+                                row.col(|ui| {
+                                    ui.monospace(row_index.to_string());
+                                });
+                                row.col(|ui| {
+                                    ui.monospace(
+                                        ram[row_index as Word + range.start()].to_string(),
+                                    );
+                                });
+                            },
+                        );
                     });
             });
         });
@@ -420,8 +426,8 @@ impl EmulatorWidgets for egui::Ui {
         &mut self,
         caption: &str,
         rom: &[Instruction; 32 * 1024],
-        range: &RangeInclusive<i16>,
-        highlight_address: i16,
+        range: &RangeInclusive<Word>,
+        highlight_address: Word,
         scroll_to_address: bool,
     ) {
         self.push_id(caption, |ui| {
@@ -454,16 +460,20 @@ impl EmulatorWidgets for egui::Ui {
                         });
                     })
                     .body(|body| {
-                        body.rows(row_height, range.len(), |mut row| {
-                            let row_index = row.index();
-                            row.set_selected(row_index == highlight_address as usize);
-                            row.col(|ui| {
-                                ui.monospace(row_index.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.monospace(rom[row_index].to_string());
-                            });
-                        });
+                        body.rows(
+                            row_height,
+                            *range.end() as usize - *range.start() as usize,
+                            |mut row| {
+                                let row_index = row.index();
+                                row.set_selected(row_index == highlight_address as usize);
+                                row.col(|ui| {
+                                    ui.monospace(row_index.to_string());
+                                });
+                                row.col(|ui| {
+                                    ui.monospace(rom[row_index].to_string());
+                                });
+                            },
+                        );
                     });
             });
         });

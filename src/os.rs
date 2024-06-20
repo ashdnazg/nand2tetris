@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 
 use crate::{
     characters::character_bitmaps,
-    hardware::RAM,
+    hardware::{Word, RAM},
     vm::{PushSegment, RunState},
 };
 
@@ -23,7 +23,7 @@ impl Default for OS {
     }
 }
 
-type Func = fn(&mut RunState) -> i16;
+type Func = fn(&mut RunState) -> Word;
 
 impl RunState {
     pub fn call_os(&mut self, function_name: &str) -> bool {
@@ -84,18 +84,18 @@ impl RunState {
         self.ram.push(return_value);
     }
 
-    fn noop(&mut self) -> i16 {
+    fn noop(&mut self) -> Word {
         0
     }
 
-    fn math_multiply(&mut self) -> i16 {
+    fn math_multiply(&mut self) -> Word {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         let y = self.ram.get(0, PushSegment::Argument, 1);
 
         x * y
     }
 
-    fn math_divide(&mut self) -> i16 {
+    fn math_divide(&mut self) -> Word {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         let y = self.ram.get(0, PushSegment::Argument, 1);
 
@@ -106,48 +106,48 @@ impl RunState {
         x / y
     }
 
-    fn math_min(&mut self) -> i16 {
+    fn math_min(&mut self) -> Word {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         let y = self.ram.get(0, PushSegment::Argument, 1);
 
         x.min(y)
     }
 
-    fn math_max(&mut self) -> i16 {
+    fn math_max(&mut self) -> Word {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         let y = self.ram.get(0, PushSegment::Argument, 1);
 
         x.max(y)
     }
 
-    fn math_sqrt(&mut self) -> i16 {
+    fn math_sqrt(&mut self) -> Word {
         let x = self.ram.get(0, PushSegment::Argument, 0);
 
         if x < 0 {
             panic!();
         }
 
-        (x as f64).sqrt().floor() as i16
+        (x as f64).sqrt().floor() as Word
     }
 
-    fn math_abs(&mut self) -> i16 {
+    fn math_abs(&mut self) -> Word {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         x.abs()
     }
 
-    fn screen_clear_screen(&mut self) -> i16 {
+    fn screen_clear_screen(&mut self) -> Word {
         self.ram.contents[(RAM::SCREEN as usize)..(RAM::KBD as usize)].fill(0);
 
         0
     }
 
-    fn screen_set_color(&mut self) -> i16 {
+    fn screen_set_color(&mut self) -> Word {
         self.os.screen.color = self.ram.get(0, PushSegment::Argument, 0) != 0;
 
         0
     }
 
-    fn screen_draw_pixel(&mut self) -> i16 {
+    fn screen_draw_pixel(&mut self) -> Word {
         let x = self.ram.get(0, PushSegment::Argument, 0);
         let y = self.ram.get(0, PushSegment::Argument, 1);
         self.ram.set_pixel(x, y, self.os.screen.color);
@@ -155,7 +155,7 @@ impl RunState {
         0
     }
 
-    fn screen_draw_line(&mut self) -> i16 {
+    fn screen_draw_line(&mut self) -> Word {
         let x1 = self.ram.get(0, PushSegment::Argument, 0);
         let y1 = self.ram.get(0, PushSegment::Argument, 1);
         let x2 = self.ram.get(0, PushSegment::Argument, 2);
@@ -194,7 +194,7 @@ impl RunState {
         0
     }
 
-    fn screen_draw_rectangle(&mut self) -> i16 {
+    fn screen_draw_rectangle(&mut self) -> Word {
         let x1 = self.ram.get(0, PushSegment::Argument, 0);
         let y1 = self.ram.get(0, PushSegment::Argument, 1);
         let x2 = self.ram.get(0, PushSegment::Argument, 2);
@@ -209,14 +209,14 @@ impl RunState {
         0
     }
 
-    fn screen_draw_circle(&mut self) -> i16 {
+    fn screen_draw_circle(&mut self) -> Word {
         let center_x = self.ram.get(0, PushSegment::Argument, 0);
         let center_y = self.ram.get(0, PushSegment::Argument, 1);
         let radius = self.ram.get(0, PushSegment::Argument, 2);
         let r2 = radius * radius;
         for y in (center_y - radius)..=(center_y + radius) {
             let y2 = (y - center_y).abs() * (y - center_y).abs();
-            let x_dist = ((r2 - y2).abs() as f64).sqrt().floor() as i16;
+            let x_dist = ((r2 - y2).abs() as f64).sqrt().floor() as Word;
             for x in (center_x - x_dist)..=(center_x + x_dist) {
                 self.ram.set_pixel(x, y, self.os.screen.color);
             }
@@ -225,17 +225,17 @@ impl RunState {
         0
     }
 
-    fn keyboard_key_pressed(&mut self) -> i16 {
+    fn keyboard_key_pressed(&mut self) -> Word {
         self.ram[RAM::KBD]
     }
 
-    fn memory_peek(&mut self) -> i16 {
+    fn memory_peek(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
 
         self.ram[address]
     }
 
-    fn memory_poke(&mut self) -> i16 {
+    fn memory_poke(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let value = self.ram.get(0, PushSegment::Argument, 1);
 
@@ -244,12 +244,12 @@ impl RunState {
         0
     }
 
-    fn memory_alloc(&mut self) -> i16 {
+    fn memory_alloc(&mut self) -> Word {
         let size = self.ram.get(0, PushSegment::Argument, 0);
         self.os.memory.alloc(size).unwrap()
     }
 
-    fn memory_dealloc(&mut self) -> i16 {
+    fn memory_dealloc(&mut self) -> Word {
         let object = self.ram.get(0, PushSegment::Argument, 0);
         if self.os.memory.dealloc(object) {
             0
@@ -258,7 +258,7 @@ impl RunState {
         }
     }
 
-    fn string_new(&mut self) -> i16 {
+    fn string_new(&mut self) -> Word {
         let initial_capacity = self.ram.get(0, PushSegment::Argument, 0);
         if let Some(s) = VMString::new(self, initial_capacity) {
             s.address
@@ -267,18 +267,18 @@ impl RunState {
         }
     }
 
-    fn string_length(&mut self) -> i16 {
+    fn string_length(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         VMString { address }.length(self)
     }
 
-    fn string_char_at(&mut self) -> i16 {
+    fn string_char_at(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let index = self.ram.get(0, PushSegment::Argument, 1);
         VMString { address }.char_at(self, index).unwrap()
     }
 
-    fn string_set_char_at(&mut self) -> i16 {
+    fn string_set_char_at(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let index = self.ram.get(0, PushSegment::Argument, 1);
         let new_value = self.ram.get(0, PushSegment::Argument, 2);
@@ -290,7 +290,7 @@ impl RunState {
         }
     }
 
-    fn string_append_char(&mut self) -> i16 {
+    fn string_append_char(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let new_char = self.ram.get(0, PushSegment::Argument, 1);
         let result = VMString { address }.append_char(self, new_char);
@@ -302,7 +302,7 @@ impl RunState {
         }
     }
 
-    fn string_erase_last_char(&mut self) -> i16 {
+    fn string_erase_last_char(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let result = VMString { address }.erase_last_char(self);
 
@@ -313,12 +313,12 @@ impl RunState {
         }
     }
 
-    fn string_int_value(&mut self) -> i16 {
+    fn string_int_value(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         VMString { address }.int_value(self).unwrap()
     }
 
-    fn string_set_int(&mut self) -> i16 {
+    fn string_set_int(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let value = self.ram.get(0, PushSegment::Argument, 1);
         let result = VMString { address }.set_int(self, value);
@@ -330,19 +330,19 @@ impl RunState {
         }
     }
 
-    fn string_backspace(&mut self) -> i16 {
+    fn string_backspace(&mut self) -> Word {
         129
     }
 
-    fn string_double_quote(&mut self) -> i16 {
+    fn string_double_quote(&mut self) -> Word {
         34
     }
 
-    fn string_new_line(&mut self) -> i16 {
+    fn string_new_line(&mut self) -> Word {
         128
     }
 
-    fn output_move_cursor(&mut self) -> i16 {
+    fn output_move_cursor(&mut self) -> Word {
         let row = self.ram.get(0, PushSegment::Argument, 0);
         let col = self.ram.get(0, PushSegment::Argument, 1);
 
@@ -353,14 +353,14 @@ impl RunState {
         }
     }
 
-    fn output_print_char(&mut self) -> i16 {
+    fn output_print_char(&mut self) -> Word {
         let c = self.ram.get(0, PushSegment::Argument, 0);
         Output::print_char(self, c);
 
         0
     }
 
-    fn output_print_string(&mut self) -> i16 {
+    fn output_print_string(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let s = VMString { address };
         Output::print_string(self, s);
@@ -368,20 +368,20 @@ impl RunState {
         0
     }
 
-    fn output_print_int(&mut self) -> i16 {
+    fn output_print_int(&mut self) -> Word {
         let value = self.ram.get(0, PushSegment::Argument, 0);
         Output::print_int(self, value);
 
         0
     }
 
-    fn output_println(&mut self) -> i16 {
+    fn output_println(&mut self) -> Word {
         self.os.output.println();
 
         0
     }
 
-    fn output_backspace(&mut self) -> i16 {
+    fn output_backspace(&mut self) -> Word {
         Output::backspace(self);
 
         0
@@ -390,29 +390,34 @@ impl RunState {
 
 #[derive(Clone)]
 struct Output {
-    row: i16,
-    col: i16,
+    row: Word,
+    col: Word,
 }
 
 impl Output {
-    fn draw_char(run_state: &mut RunState, c: i16) {
+    fn draw_char(run_state: &mut RunState, c: Word) {
         let bitmap = character_bitmaps(c);
+        const CHAR_WIDTH: Word = 8;
+        const SUB_COLUMNS: Word = Word::BITS as Word / CHAR_WIDTH;
+        let col = run_state.os.output.col;
+        let row = run_state.os.output.row;
+
         for (i, mut row_bits) in bitmap.into_iter().enumerate() {
             let mut mask = 255;
-            if run_state.os.output.col % 2 != 0 {
-                row_bits <<= 8;
-                mask <<= 8;
-            }
+            let offset = (col % SUB_COLUMNS) * CHAR_WIDTH;
+            row_bits <<= offset;
+            mask <<= offset;
+
             let address = RAM::SCREEN
-                + 32
-                + (11 * run_state.os.output.row + i as i16) * RAM::SCREEN_ROW_LENGTH
-                + run_state.os.output.col / 2;
+                + RAM::SCREEN_ROW_LENGTH
+                + (11 * row + i as Word) * RAM::SCREEN_ROW_LENGTH
+                + col / SUB_COLUMNS;
             run_state.ram[address] &= !mask;
             run_state.ram[address] |= row_bits;
         }
     }
 
-    fn move_cursor(run_state: &mut RunState, row: i16, col: i16) -> Option<()> {
+    fn move_cursor(run_state: &mut RunState, row: Word, col: Word) -> Option<()> {
         if !(0..=22).contains(&row) || !(0..63).contains(&col) {
             return None;
         }
@@ -420,7 +425,7 @@ impl Output {
         run_state.os.output.row = row;
         run_state.os.output.col = col;
 
-        Self::draw_char(run_state, b' ' as i16);
+        Self::draw_char(run_state, b' ' as Word);
 
         Some(())
     }
@@ -441,7 +446,7 @@ impl Output {
         Output::move_cursor(run_state, row, col);
     }
 
-    fn print_char(run_state: &mut RunState, c: i16) {
+    fn print_char(run_state: &mut RunState, c: Word) {
         if c == run_state.string_new_line() {
             return run_state.os.output.println();
         }
@@ -467,12 +472,12 @@ impl Output {
         }
     }
 
-    fn print_int(run_state: &mut RunState, value: i16) {
-        let mut buffer = [0i16; 6];
+    fn print_int(run_state: &mut RunState, value: Word) {
+        let mut buffer = [0; 6];
         let mut index = 0;
         let mut remainder = (value as i32).abs();
         loop {
-            buffer[index] = char::from_digit((remainder % 10) as u32, 10).unwrap() as u8 as i16;
+            buffer[index] = char::from_digit((remainder % 10) as u32, 10).unwrap() as u8 as Word;
             remainder /= 10;
             index += 1;
             if remainder == 0 {
@@ -481,7 +486,7 @@ impl Output {
         }
 
         if value < 0 {
-            buffer[index] = b'-' as i16;
+            buffer[index] = b'-' as Word;
             index += 1;
         }
 
@@ -492,11 +497,11 @@ impl Output {
 }
 
 struct VMString {
-    address: i16,
+    address: Word,
 }
 
 impl VMString {
-    fn new(run_state: &mut RunState, capacity: i16) -> Option<Self> {
+    fn new(run_state: &mut RunState, capacity: Word) -> Option<Self> {
         let address = run_state.os.memory.alloc(2 + capacity)?;
 
         let instance = Self { address };
@@ -507,7 +512,7 @@ impl VMString {
         Some(instance)
     }
 
-    fn char_at(&self, run_state: &RunState, index: i16) -> Option<i16> {
+    fn char_at(&self, run_state: &RunState, index: Word) -> Option<Word> {
         if self.length(run_state) <= index {
             return None;
         }
@@ -515,7 +520,7 @@ impl VMString {
         Some(run_state.ram[self.address + 2 + index])
     }
 
-    fn set_char_at(&self, run_state: &mut RunState, index: i16, new_value: i16) -> Option<()> {
+    fn set_char_at(&self, run_state: &mut RunState, index: Word, new_value: Word) -> Option<()> {
         if self.length(run_state) <= index {
             return None;
         }
@@ -525,7 +530,7 @@ impl VMString {
         Some(())
     }
 
-    fn append_char(&self, run_state: &mut RunState, new_char: i16) -> Option<()> {
+    fn append_char(&self, run_state: &mut RunState, new_char: Word) -> Option<()> {
         let old_length = self.length(run_state);
         if old_length >= self.capacity(run_state) {
             return None;
@@ -546,13 +551,13 @@ impl VMString {
         Some(())
     }
 
-    fn int_value(&self, run_state: &RunState) -> Option<i16> {
+    fn int_value(&self, run_state: &RunState) -> Option<Word> {
         if self.length(run_state) <= 0 {
             return None;
         }
 
         let mut start = self.address + 2;
-        let is_negative = run_state.ram[start] == b'-' as i16;
+        let is_negative = run_state.ram[start] == b'-' as Word;
         if is_negative {
             start += 1;
         }
@@ -560,18 +565,18 @@ impl VMString {
             [start as usize..(self.address + 2 + self.length(run_state)) as usize]
             .iter()
             .try_fold(0, |acc, &i| {
-                (i as u8 as char).to_digit(10).map(|d| acc * 10 + d as i32)
+                (i as u8 as char).to_digit(10).map(|d| acc * 10 + d as i64)
             });
 
-        value.map(|v| if is_negative { -v } else { v } as i16)
+        value.map(|v| if is_negative { -v } else { v } as Word)
     }
 
-    fn set_int(&self, run_state: &mut RunState, value: i16) -> Option<()> {
-        let mut buffer = [0i16; 6];
+    fn set_int(&self, run_state: &mut RunState, value: Word) -> Option<()> {
+        let mut buffer = [0; 11];
         let mut index = 0;
-        let mut remainder = (value as i32).abs();
+        let mut remainder = (value as i64).abs();
         loop {
-            buffer[index] = char::from_digit((remainder % 10) as u32, 10).unwrap() as u8 as i16;
+            buffer[index] = char::from_digit((remainder % 10) as u32, 10).unwrap() as u8 as Word;
             remainder /= 10;
             index += 1;
             if remainder == 0 {
@@ -580,44 +585,45 @@ impl VMString {
         }
 
         if value < 0 {
-            buffer[index] = b'-' as i16;
+            buffer[index] = b'-' as Word;
             index += 1;
         }
 
         if index > self.capacity(run_state) as usize {
+            println!("{} {}", index, self.capacity(run_state) as usize);
             return None;
         }
 
         for i in 0..index {
-            run_state.ram[self.address + 2 + i as i16] = buffer[index - i - 1];
+            run_state.ram[self.address + 2 + i as Word] = buffer[index - i - 1];
         }
-        *self.length_mut(run_state) = index as i16;
+        *self.length_mut(run_state) = index as Word;
 
         Some(())
     }
 
-    fn length(&self, run_state: &RunState) -> i16 {
+    fn length(&self, run_state: &RunState) -> Word {
         run_state.ram[self.address]
     }
 
-    fn length_mut<'a>(&self, run_state: &'a mut RunState) -> &'a mut i16 {
+    fn length_mut<'a>(&self, run_state: &'a mut RunState) -> &'a mut Word {
         &mut run_state.ram[self.address]
     }
 
-    fn capacity(&self, run_state: &RunState) -> i16 {
+    fn capacity(&self, run_state: &RunState) -> Word {
         run_state.ram[self.address + 1]
     }
 
-    fn capacity_mut<'a>(&self, run_state: &'a mut RunState) -> &'a mut i16 {
+    fn capacity_mut<'a>(&self, run_state: &'a mut RunState) -> &'a mut Word {
         &mut run_state.ram[self.address + 1]
     }
 }
 
 #[derive(Clone)]
 struct Memory {
-    hole_starts: HashMap<i16, i16>,
-    hole_ends: HashMap<i16, i16>,
-    allocs: HashMap<i16, i16>,
+    hole_starts: HashMap<Word, Word>,
+    hole_ends: HashMap<Word, Word>,
+    allocs: HashMap<Word, Word>,
 }
 
 #[derive(Clone)]
@@ -626,7 +632,7 @@ struct Screen {
 }
 
 impl Memory {
-    fn new(start_address: i16, size: i16) -> Self {
+    fn new(start_address: Word, size: Word) -> Self {
         Memory {
             hole_starts: HashMap::from_iter([(start_address, size)]),
             hole_ends: HashMap::from_iter([(start_address + size, size)]),
@@ -634,7 +640,7 @@ impl Memory {
         }
     }
 
-    fn alloc(&mut self, size: i16) -> Option<i16> {
+    fn alloc(&mut self, size: Word) -> Option<Word> {
         let (&hole_start, &hole_size) = self
             .hole_starts
             .iter()
@@ -653,7 +659,7 @@ impl Memory {
         Some(hole_start)
     }
 
-    fn dealloc(&mut self, address: i16) -> bool {
+    fn dealloc(&mut self, address: Word) -> bool {
         let Some(size) = self.allocs.remove(&address) else {
             return false;
         };
@@ -705,7 +711,7 @@ mod tests {
     #[test]
     fn test_string() {
         let mut run_state = RunState::test_instance();
-        run_state.ram.set(0, PopSegment::Argument, 0, 10);
+        run_state.ram.set(0, PopSegment::Argument, 0, 11);
         let s = run_state.string_new();
         assert!(s.is_positive());
 
@@ -714,29 +720,35 @@ mod tests {
 
         run_state
             .ram
-            .set(0, PopSegment::Argument, 1, '5' as u8 as i16);
+            .set(0, PopSegment::Argument, 1, '5' as u8 as Word);
         assert_eq!(run_state.string_append_char(), s);
         assert_eq!(run_state.string_length(), 1);
 
         run_state.ram.set(0, PopSegment::Argument, 1, 0);
-        assert_eq!(run_state.string_char_at(), '5' as u8 as i16);
+        assert_eq!(run_state.string_char_at(), '5' as u8 as Word);
         assert_eq!(run_state.string_int_value(), 5);
 
         run_state
             .ram
-            .set(0, PopSegment::Argument, 2, '9' as u8 as i16);
+            .set(0, PopSegment::Argument, 2, '9' as u8 as Word);
         assert_eq!(run_state.string_set_char_at(), 0);
-        assert_eq!(run_state.string_char_at(), '9' as u8 as i16);
+        assert_eq!(run_state.string_char_at(), '9' as u8 as Word);
         assert_eq!(run_state.string_int_value(), 9);
 
-        run_state.ram.set(0, PopSegment::Argument, 1, i16::MAX);
+        run_state.ram.set(0, PopSegment::Argument, 1, Word::MAX);
         assert_eq!(run_state.string_set_int(), 0);
-        assert_eq!(run_state.string_length(), 5);
-        assert_eq!(run_state.string_int_value(), i16::MAX);
+        assert_eq!(
+            run_state.string_length(),
+            Word::MAX.to_string().len() as Word
+        );
+        assert_eq!(run_state.string_int_value(), Word::MAX);
 
-        run_state.ram.set(0, PopSegment::Argument, 1, i16::MIN);
+        run_state.ram.set(0, PopSegment::Argument, 1, Word::MIN);
         assert_eq!(run_state.string_set_int(), 0);
-        assert_eq!(run_state.string_length(), 6);
-        assert_eq!(run_state.string_int_value(), i16::MIN);
+        assert_eq!(
+            run_state.string_length(),
+            Word::MIN.to_string().len() as Word
+        );
+        assert_eq!(run_state.string_int_value(), Word::MIN);
     }
 }

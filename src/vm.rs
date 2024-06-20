@@ -5,10 +5,14 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{hardware::RAM, os::OS, vm_parse::parse_commands};
+use crate::{
+    hardware::{Word, RAM},
+    os::OS,
+    vm_parse::parse_commands,
+};
 
 impl Index<Register> for RAM {
-    type Output = i16;
+    type Output = Word;
 
     fn index(&self, index: Register) -> &Self::Output {
         &self[index.address()]
@@ -42,23 +46,23 @@ impl RAM {
         instance
     }
 
-    pub fn push(&mut self, value: i16) {
+    pub fn push(&mut self, value: Word) {
         let sp = self[Register::SP];
         self[sp] = value;
         self[Register::SP] += 1;
     }
 
-    fn pop(&mut self) -> i16 {
+    fn pop(&mut self) -> Word {
         self[Register::SP] -= 1;
         self[self[Register::SP]]
     }
 
-    fn stack_top(&mut self) -> &mut i16 {
+    fn stack_top(&mut self) -> &mut Word {
         let sp = self[Register::SP];
         &mut self[sp - 1]
     }
 
-    pub fn set(&mut self, static_segment: i16, segment: PopSegment, offset: i16, value: i16) {
+    pub fn set(&mut self, static_segment: Word, segment: PopSegment, offset: Word, value: Word) {
         match segment {
             PopSegment::Static => {
                 self[static_segment + offset] = value;
@@ -88,7 +92,7 @@ impl RAM {
         }
     }
 
-    pub fn get(&self, static_segment: i16, segment: PushSegment, offset: i16) -> i16 {
+    pub fn get(&self, static_segment: Word, segment: PushSegment, offset: Word) -> Word {
         match segment {
             PushSegment::Constant => offset,
             PushSegment::Static => self[static_segment + offset],
@@ -249,19 +253,19 @@ impl VM {
                 VMCommand::Eq => {
                     let y = run_state.ram.pop();
                     let x = run_state.ram.stack_top();
-                    *x = -((*x == y) as i16);
+                    *x = -((*x == y) as Word);
                     run_state.current_command_index += 1;
                 }
                 VMCommand::Gt => {
                     let y = run_state.ram.pop();
                     let x = run_state.ram.stack_top();
-                    *x = -((*x > y) as i16);
+                    *x = -((*x > y) as Word);
                     run_state.current_command_index += 1;
                 }
                 VMCommand::Lt => {
                     let y = run_state.ram.pop();
                     let x = run_state.ram.stack_top();
-                    *x = -((*x < y) as i16);
+                    *x = -((*x < y) as Word);
                     run_state.current_command_index += 1;
                 }
                 VMCommand::And => {
@@ -318,7 +322,7 @@ impl VM {
                     let argument_segment = run_state.ram[Register::SP] - argument_count;
                     run_state
                         .ram
-                        .push((run_state.current_command_index + 1) as i16);
+                        .push((run_state.current_command_index + 1) as Word);
                     for i in 1..=4 {
                         let value = run_state.ram[i];
                         run_state.ram.push(value);
@@ -389,8 +393,8 @@ pub struct Frame {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FunctionMetadata {
-    pub argument_count: i16,
-    pub local_var_count: i16,
+    pub argument_count: Word,
+    pub local_var_count: Word,
     command_index: usize,
     file_index: usize,
     label_name_to_command_index: HashMap<String, usize>,
@@ -401,7 +405,7 @@ pub struct File {
     pub name: String,
     pub starting_command_index: usize,
     command_count: usize,
-    pub static_segment: RangeInclusive<i16>,
+    pub static_segment: RangeInclusive<Word>,
 }
 
 impl File {
@@ -410,11 +414,11 @@ impl File {
         file_index: usize,
         commands: &[VMCommand],
         starting_command_index: usize,
-        static_segment_start: i16,
+        static_segment_start: Word,
         function_name_to_index: &mut HashMap<String, usize>,
         function_metadata: &mut Vec<FunctionMetadata>,
     ) -> Self {
-        let mut max_static_index: i16 = static_segment_start - 1;
+        let mut max_static_index: Word = static_segment_start - 1;
         for (i, command) in commands.iter().enumerate() {
             match command {
                 VMCommand::Label { name } => {
@@ -446,7 +450,7 @@ impl File {
                     offset,
                 } => {
                     let metadata = function_metadata.last_mut().unwrap();
-                    metadata.argument_count = i16::max(metadata.argument_count, *offset);
+                    metadata.argument_count = Word::max(metadata.argument_count, *offset);
                 }
                 VMCommand::Push {
                     segment: PushSegment::Static,
@@ -480,11 +484,11 @@ pub enum VMCommand {
     Add,
     Push {
         segment: PushSegment,
-        offset: i16,
+        offset: Word,
     },
     Pop {
         segment: PopSegment,
-        offset: i16,
+        offset: Word,
     },
     Sub,
     Neg,
@@ -505,11 +509,11 @@ pub enum VMCommand {
     },
     Function {
         name: String,
-        local_var_count: i16,
+        local_var_count: Word,
     },
     Call {
         function_name: String,
-        argument_count: i16,
+        argument_count: Word,
     },
     Return,
 }
@@ -551,11 +555,11 @@ pub enum Register {
     ARG,
     THIS,
     THAT,
-    TEMP(i16),
+    TEMP(Word),
 }
 
 impl Register {
-    pub fn address(&self) -> i16 {
+    pub fn address(&self) -> Word {
         match self {
             Register::SP => 0,
             Register::LCL => 1,
@@ -626,7 +630,7 @@ mod tests {
     use super::*;
 
     impl VM {
-        fn test_get(&self, segment: PushSegment, offset: i16) -> i16 {
+        fn test_get(&self, segment: PushSegment, offset: Word) -> Word {
             self.run_state.ram.get(
                 *self.program.files[self.run_state.current_file_index]
                     .static_segment
@@ -636,7 +640,7 @@ mod tests {
             )
         }
 
-        fn test_set(&mut self, segment: PopSegment, offset: i16, value: i16) {
+        fn test_set(&mut self, segment: PopSegment, offset: Word, value: Word) {
             self.run_state.ram.set(
                 *self.program.files[self.run_state.current_file_index]
                     .static_segment

@@ -1,7 +1,7 @@
 use super::hardware_state::{BreakpointAction, HardwareState};
 use super::instant::Instant;
 use super::vm_state::VMState;
-use crate::hardware::RAM;
+use crate::hardware::{Word, RAM};
 use eframe::egui::{DroppedFile, Key, Modifiers};
 
 #[allow(clippy::large_enum_variant)]
@@ -98,7 +98,7 @@ impl<T: CommonState> StepRunnable for T {
     }
 }
 
-fn keyboard_value_from_key(key: Option<Key>, modifiers: Modifiers) -> i16 {
+fn keyboard_value_from_key(key: Option<Key>, modifiers: Modifiers) -> Word {
     let mut value = match key {
         Some(Key::ArrowDown) => 133,
         Some(Key::ArrowLeft) => 130,

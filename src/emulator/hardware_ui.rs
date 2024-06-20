@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::hardware::BreakpointVar;
+use crate::hardware::{BreakpointVar, Word, MEM_SIZE};
 use eframe::{
     egui,
     epaint::{mutex::Mutex, Vec2},
@@ -45,7 +45,7 @@ impl HardwareState {
                                                     ui.rom_grid(
                                                         "ROM",
                                                         &self.hardware.rom,
-                                                        &(0..=i16::MAX),
+                                                        &(0..=(MEM_SIZE as Word)),
                                                         self.hardware.pc,
                                                         shared_state.scroll_once,
                                                     );
@@ -90,7 +90,7 @@ impl HardwareState {
                                                     ui.ram_grid(
                                                         "RAM",
                                                         &self.hardware.ram,
-                                                        &(0..=i16::MAX),
+                                                        &(0..=(MEM_SIZE as Word)),
                                                         UIStyle::Hardware,
                                                         Some(self.hardware.a),
                                                         shared_state.scroll_once,
@@ -216,7 +216,7 @@ impl HardwareState {
                         ui.add(
                             egui::TextEdit::singleline(&mut new_address_text).desired_width(50.0),
                         );
-                        if let Ok(new_address) = new_address_text.parse::<i16>() {
+                        if let Ok(new_address) = new_address_text.parse::<Word>() {
                             if new_address != address {
                                 new_selected_breakpoint_var = BreakpointVar::Mem(new_address);
                             }
@@ -233,7 +233,7 @@ impl HardwareState {
 
                     let mut new_value_text = self.breakpoint_value.to_string();
                     ui.add(egui::TextEdit::singleline(&mut new_value_text).desired_width(50.0));
-                    if let Ok(new_value) = new_value_text.parse::<i16>() {
+                    if let Ok(new_value) = new_value_text.parse::<Word>() {
                         if new_value != self.breakpoint_value {
                             *action = Some(Action::Breakpoint(BreakpointAction::ValueChanged(
                                 new_value,

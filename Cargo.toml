@@ -24,6 +24,7 @@ debug = true
 [features]
 default = ["emulator"]
 emulator = ["dep:eframe", "dep:egui_extras", "dep:rfd"]
+bit32 = []
 
 [[bin]]
 name = "nand2tetris"

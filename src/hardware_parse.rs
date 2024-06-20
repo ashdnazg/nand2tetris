@@ -1,13 +1,13 @@
 use crate::{
     hardware::*,
-    parse_utils::{is_not0, non_comment_lines, AndThenConsuming, IResult},
+    parse_utils::{is_not0, non_comment_lines, AndThenConsuming, IResult, ParsableWord},
 };
 
 use hashbrown::HashMap;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag},
-    character::complete::{alphanumeric1, char, i16, space0},
+    character::complete::{alphanumeric1, char, space0},
     combinator::{cut, map, recognize, success, value},
     error::{ParseError, VerboseError},
     multi::{many1, many1_count},
@@ -20,19 +20,19 @@ pub enum AssemblyInstruction {
     Instruction(Instruction),
     Label(String),
     AtIdentifierInstruction(String),
-    AtNumberInstruction(i16),
+    AtNumberInstruction(Word),
 }
 
 fn parse_identifier(input: &str) -> IResult<&str, &str> {
     recognize(many1_count(alt((alphanumeric1, tag("_"), tag(".")))))(input)
 }
 
-fn create_c_instruction(args: (DestinationRegisters, u16, JumpCondition)) -> AssemblyInstruction {
+fn create_c_instruction(args: (DestinationRegisters, UWord, JumpCondition)) -> AssemblyInstruction {
     AssemblyInstruction::Instruction(Instruction::create(args.0, args.1, args.2))
 }
 
 fn parse_at_number_instruction(input: &str) -> IResult<&str, AssemblyInstruction> {
-    let (remainder, number) = i16(input)?;
+    let (remainder, number) = ParsableWord::parse_word(input)?;
 
     if number < 0 {
         return Err(nom::Err::Error(VerboseError::from_error_kind(
@@ -74,7 +74,7 @@ fn parse_destination_registers(input: &str) -> IResult<&str, DestinationRegister
     ))(input)
 }
 
-fn parse_calculation(input: &str) -> IResult<&str, u16> {
+fn parse_calculation(input: &str) -> IResult<&str, UWord> {
     is_not(";/")
         .and_then_consuming(delimited(
             space0,
@@ -242,7 +242,7 @@ pub fn assemble_hack_file(input: &str) -> IResult<&str, Vec<Instruction>> {
 }
 
 pub fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instruction> {
-    let mut at_identifier_map: HashMap<&str, i16> = HashMap::from([
+    let mut at_identifier_map: HashMap<&str, Word> = HashMap::from([
         ("R0", 0),
         ("R1", 1),
         ("R2", 2),
@@ -265,7 +265,7 @@ pub fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instructio
         ("THIS", 3),
         ("THAT", 4),
         ("SCREEN", RAM::SCREEN),
-        ("SCREEN", RAM::KBD),
+        ("KBD", RAM::KBD),
     ]);
 
     let mut index = 0;
@@ -294,11 +294,11 @@ pub fn assemble(assembly_instructions: &[AssemblyInstruction]) -> Vec<Instructio
                     static_var_index += 1;
                 }
                 rom.push(Instruction::new(
-                    at_identifier_map[identifier.as_str()] as u16,
+                    at_identifier_map[identifier.as_str()] as UWord,
                 ));
             }
             AssemblyInstruction::AtNumberInstruction(value) => {
-                rom.push(Instruction::new(*value as u16))
+                rom.push(Instruction::new(*value as UWord))
             }
         }
     }
@@ -349,7 +349,7 @@ mod tests {
             65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
         ]
         .iter()
-        .map(|raw| Instruction::new(*raw))
+        .map(|raw| Instruction::from_legacy(*raw))
         .collect();
 
         assert_eq!(assemble_hack_file(program), Ok(("", expected_program)))
@@ -361,7 +361,7 @@ mod tests {
             instruction("M = D  -   1   "),
             Ok((
                 "",
-                AssemblyInstruction::Instruction(Instruction::new(58248))
+                AssemblyInstruction::Instruction(Instruction::from_legacy(58248))
             ))
         );
     }

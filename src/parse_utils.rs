@@ -1,15 +1,48 @@
+use std::ops::RangeFrom;
+
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{line_ending, not_line_ending, space0},
+    character::complete::{self, line_ending, not_line_ending, space0},
     combinator::{all_consuming, map, opt, rest, value},
     error::{ParseError, VerboseError},
     multi::separated_list0,
     sequence::{delimited, preceded, terminated},
-    FindToken, InputLength, InputTakeAtPosition, Parser,
+    AsChar, Compare, FindToken, InputIter, InputLength, InputTake, InputTakeAtPosition, Parser,
+    Slice,
 };
 
 pub type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;
+
+pub trait ParsableWord: Sized {
+    fn parse_word<T>(input: T) -> IResult<T, Self>
+    where
+        T: InputIter + Slice<RangeFrom<usize>> + InputLength + InputTake + Clone,
+        <T as InputIter>::Item: AsChar,
+        T: for<'a> Compare<&'a [u8]>;
+}
+
+impl ParsableWord for i16 {
+    fn parse_word<T>(input: T) -> IResult<T, Self>
+    where
+        T: InputIter + Slice<RangeFrom<usize>> + InputLength + InputTake + Clone,
+        <T as InputIter>::Item: AsChar,
+        T: for<'a> Compare<&'a [u8]>,
+    {
+        complete::i16(input)
+    }
+}
+
+impl ParsableWord for i32 {
+    fn parse_word<T>(input: T) -> IResult<T, Self>
+    where
+        T: InputIter + Slice<RangeFrom<usize>> + InputLength + InputTake + Clone,
+        <T as InputIter>::Item: AsChar,
+        T: for<'a> Compare<&'a [u8]>,
+    {
+        complete::i32(input)
+    }
+}
 
 pub trait AndThenConsuming<I, O, E> {
     fn and_then_consuming<O2, G>(self, g: G) -> impl Parser<I, O2, E>

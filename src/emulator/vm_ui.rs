@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::hardware::{Word, MEM_SIZE};
 use crate::vm::Register;
 use eframe::egui;
 use eframe::epaint::mutex::Mutex;
@@ -176,7 +177,7 @@ pub fn draw_vm(
                                         ui.ram_grid(
                                             "RAM",
                                             &state.vm.run_state.ram,
-                                            &(0..=i16::MAX),
+                                            &(0..=(MEM_SIZE as Word)),
                                             UIStyle::VM,
                                             None,
                                             shared_state.scroll_once,

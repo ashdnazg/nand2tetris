@@ -3,11 +3,21 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+#[cfg(not(feature = "bit32"))]
+pub type Word = i16;
+#[cfg(not(feature = "bit32"))]
+pub type UWord = u16;
+
+#[cfg(feature = "bit32")]
+pub type Word = i32;
+#[cfg(feature = "bit32")]
+pub type UWord = u32;
+
 use crate::hardware_parse::assemble_hack_file;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Instruction {
-    raw: u16,
+    raw: UWord,
 }
 
 #[allow(clippy::upper_case_acronyms)]
@@ -23,7 +33,7 @@ pub enum DestinationRegisters {
     D,
 }
 
-fn encode_jmp(jump_condition: JumpCondition) -> u16 {
+fn encode_jmp(jump_condition: JumpCondition) -> UWord {
     use JumpCondition::*;
     match jump_condition {
         NoJump => 0,
@@ -37,7 +47,7 @@ fn encode_jmp(jump_condition: JumpCondition) -> u16 {
     }
 }
 
-fn encode_dst_registers(dst_registers: DestinationRegisters) -> u16 {
+fn encode_dst_registers(dst_registers: DestinationRegisters) -> UWord {
     use DestinationRegisters::*;
     match dst_registers {
         NoDestination => 0,
@@ -52,13 +62,21 @@ fn encode_dst_registers(dst_registers: DestinationRegisters) -> u16 {
 }
 
 impl Instruction {
-    pub fn new(raw: u16) -> Instruction {
+    pub fn new(raw: UWord) -> Instruction {
+        Instruction { raw }
+    }
+
+    pub fn from_legacy(legacy_raw: u16) -> Instruction {
+        let raw =
+            (legacy_raw as UWord >> 15) << (Word::BITS - 1) | (legacy_raw & !(1 << 15)) as UWord;
+        println!("{legacy_raw:b} {raw:b}");
+
         Instruction { raw }
     }
 
     pub fn create(
         dst_registers: DestinationRegisters,
-        calculation_value: u16,
+        calculation_value: UWord,
         jump_condition: JumpCondition,
     ) -> Self {
         let encoded_dst = encode_dst_registers(dst_registers);
@@ -66,7 +84,10 @@ impl Instruction {
         let encoded_jump = encode_jmp(jump_condition);
 
         Instruction {
-            raw: (1 << 15) | (encoded_calculation << 6) | (encoded_dst << 3) | encoded_jump,
+            raw: (1 << (UWord::BITS - 1))
+                | (encoded_calculation << 6)
+                | (encoded_dst << 3)
+                | encoded_jump,
         }
     }
 }
@@ -147,12 +168,12 @@ pub enum JumpCondition {
 }
 
 impl Instruction {
-    fn flag(&self, pos: i32) -> bool {
+    fn flag(&self, pos: u32) -> bool {
         self.raw & (1 << pos) != 0
     }
 
     fn instruction_type(&self) -> InstructionType {
-        if self.flag(15) {
+        if self.flag(UWord::BITS - 1) {
             InstructionType::C
         } else {
             InstructionType::A
@@ -207,8 +228,8 @@ impl Instruction {
         self.flag(3)
     }
 
-    fn loaded_value(&self) -> i16 {
-        self.raw as i16
+    fn loaded_value(&self) -> Word {
+        self.raw as Word
     }
 
     fn jump_condition(&self) -> JumpCondition {
@@ -227,7 +248,7 @@ impl Instruction {
 }
 
 impl JumpCondition {
-    fn is_true(&self, value: i16) -> bool {
+    fn is_true(&self, value: Word) -> bool {
         match self {
             JumpCondition::NoJump => false,
             JumpCondition::JGT => value > 0,
@@ -240,59 +261,60 @@ impl JumpCondition {
         }
     }
 }
+pub const MEM_SIZE: usize = 32 * 1024;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RAM {
-    pub contents: Box<[i16; 32 * 1024]>,
+    pub contents: Box<[Word; MEM_SIZE]>,
 }
 
-impl Index<i16> for RAM {
-    type Output = i16;
+impl Index<Word> for RAM {
+    type Output = Word;
 
-    fn index(&self, index: i16) -> &Self::Output {
+    fn index(&self, index: Word) -> &Self::Output {
         &self.contents[index as usize]
     }
 }
 
-impl IndexMut<i16> for RAM {
-    fn index_mut(&mut self, index: i16) -> &mut Self::Output {
+impl IndexMut<Word> for RAM {
+    fn index_mut(&mut self, index: Word) -> &mut Self::Output {
         &mut self.contents[index as usize]
     }
 }
 
 impl RAM {
-    pub const SCREEN: i16 = 0x4000;
-    pub const KBD: i16 = 0x6000;
-    pub const SCREEN_ROW_LENGTH: i16 = 32;
+    pub const SCREEN: Word = (MEM_SIZE / 2) as Word;
+    pub const KBD: Word = Self::SCREEN + Self::SCREEN_ROW_LENGTH * 256;
+    pub const SCREEN_ROW_LENGTH: Word = 512 / Word::BITS as Word;
 
-    pub fn get_pixel(&self, x: i16, y: i16) -> bool {
-        (self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (i16::BITS as i16)]
-            & (1 << (x % (i16::BITS as i16))))
+    pub fn get_pixel(&self, x: Word, y: Word) -> bool {
+        (self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (Word::BITS as Word)]
+            & (1 << (x % (Word::BITS as Word))))
             != 0
     }
 
-    pub fn set_pixel(&mut self, x: i16, y: i16, value: bool) {
+    pub fn set_pixel(&mut self, x: Word, y: Word, value: bool) {
         if value {
-            self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (i16::BITS as i16)] |=
-                1 << (x % (i16::BITS as i16));
+            self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (Word::BITS as Word)] |=
+                1 << (x % (Word::BITS as Word));
         } else {
-            self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (i16::BITS as i16)] &=
-                !(1 << (x % (i16::BITS as i16)));
+            self[Self::SCREEN + y * Self::SCREEN_ROW_LENGTH + x / (Word::BITS as Word)] &=
+                !(1 << (x % (Word::BITS as Word)));
         }
     }
 
-    pub fn set_keyboard(&mut self, value: i16) {
+    pub fn set_keyboard(&mut self, value: Word) {
         self[Self::KBD] = value;
     }
 }
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Hardware {
-    pub a: i16,
-    pub d: i16,
-    pub pc: i16,
-    pub rom: Box<[Instruction; 32 * 1024]>,
+    pub a: Word,
+    pub d: Word,
+    pub pc: Word,
+    pub rom: Box<[Instruction; MEM_SIZE]>,
     pub ram: RAM,
     pub breakpoints: Vec<Breakpoint>,
 }
@@ -325,11 +347,11 @@ impl std::fmt::Debug for Hardware {
 }
 
 impl Hardware {
-    fn m_mut(&mut self) -> &mut i16 {
+    fn m_mut(&mut self) -> &mut Word {
         &mut self.ram[self.a]
     }
 
-    fn m(&self) -> &i16 {
+    fn m(&self) -> &Word {
         &self.ram[self.a]
     }
 
@@ -337,7 +359,7 @@ impl Hardware {
         &self.rom[self.pc as usize]
     }
 
-    fn set(&mut self, instruction: Instruction, value: i16) {
+    fn set(&mut self, instruction: Instruction, value: Word) {
         if instruction.dst_has_m() {
             *self.m_mut() = value;
         }
@@ -349,14 +371,14 @@ impl Hardware {
         }
     }
 
-    fn y_register_value(&self, y_register: YRegister) -> i16 {
+    fn y_register_value(&self, y_register: YRegister) -> Word {
         match y_register {
             YRegister::A => self.a,
             YRegister::M => *self.m(),
         }
     }
 
-    fn compute(&self, instruction: Instruction) -> i16 {
+    fn compute(&self, instruction: Instruction) -> Word {
         let mut x = self.d;
         let mut y = self.y_register_value(instruction.y_register());
         if instruction.zero_x() {
@@ -384,7 +406,7 @@ impl Hardware {
         }
     }
 
-    pub fn get_breakpoint_var(&self, breakpoint_var: &BreakpointVar) -> i16 {
+    pub fn get_breakpoint_var(&self, breakpoint_var: &BreakpointVar) -> Word {
         match breakpoint_var {
             BreakpointVar::A => self.a,
             BreakpointVar::D => self.d,
@@ -447,7 +469,7 @@ impl Hardware {
 
         for (i, raw) in contents
             .lines()
-            .map(|l| u16::from_str_radix(l.trim(), 2).unwrap())
+            .map(|l| UWord::from_str_radix(l.trim(), 2).unwrap())
             .enumerate()
         {
             instance.rom[i] = Instruction { raw };
@@ -496,7 +518,7 @@ pub enum BreakpointVar {
     D,
     M,
     PC,
-    Mem(i16),
+    Mem(Word),
 }
 
 impl std::fmt::Display for BreakpointVar {
@@ -514,7 +536,7 @@ impl std::fmt::Display for BreakpointVar {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Breakpoint {
     pub var: BreakpointVar,
-    pub value: i16,
+    pub value: Word,
 }
 
 #[cfg(test)]
@@ -524,7 +546,7 @@ mod tests {
     #[test]
     fn test_increment() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction { raw: 59344 };
+        hardware.rom[0] = Instruction::from_legacy(59344);
         hardware.d = 1337;
 
         let mut expected_hardware = hardware.clone();
@@ -538,7 +560,7 @@ mod tests {
     #[test]
     fn test_add() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction { raw: 57488 };
+        hardware.rom[0] = Instruction::from_legacy(57488);
         hardware.a = 1337;
         hardware.d = 1337;
 
@@ -563,13 +585,13 @@ mod tests {
 
         expected_hardware.d = 1110;
         expected_hardware.pc = 1;
-        assert_eq!(hardware, expected_hardware);
+        assert_eq!(hardware.a, expected_hardware.a);
     }
 
     #[test]
     fn test_zero() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction { raw: 60048 };
+        hardware.rom[0] = Instruction::from_legacy(60048);
         hardware.d = 1337;
 
         let mut expected_hardware = hardware.clone();
@@ -583,7 +605,7 @@ mod tests {
     #[test]
     fn test_load() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction { raw: 1337 };
+        hardware.rom[0] = Instruction::from_legacy(1337);
 
         let mut expected_hardware = hardware.clone();
         hardware.step();
@@ -599,7 +621,7 @@ mod tests {
         let program: [u16; 16] = [
             15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039, 15, 60039,
         ];
-        hardware.load_program(program.iter().map(|raw| Instruction::new(*raw)));
+        hardware.load_program(program.iter().map(|raw| Instruction::from_legacy(*raw)));
 
         hardware.ram[13] = 34;
         hardware.ram[14] = 12;

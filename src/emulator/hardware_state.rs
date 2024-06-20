@@ -1,10 +1,10 @@
-use crate::hardware::{BreakpointVar, Hardware, Instruction, RAM};
+use crate::hardware::{BreakpointVar, Hardware, Instruction, UWord, Word, RAM};
 
 use super::common_state::CommonState;
 
 pub struct HardwareState {
     pub selected_breakpoint_var: BreakpointVar,
-    pub breakpoint_value: i16,
+    pub breakpoint_value: Word,
     pub hardware: Hardware,
 }
 
@@ -12,14 +12,14 @@ pub struct HardwareState {
 pub enum BreakpointAction {
     AddClicked,
     VariableChanged(BreakpointVar),
-    ValueChanged(i16),
+    ValueChanged(Word),
     RemoveClicked(usize),
 }
 
 impl Default for HardwareState {
     fn default() -> Self {
         let mut hardware = Hardware::default();
-        let program: [u16; 29] = [
+        let program: [UWord; 29] = [
             16384, 60432, 16, 58248, 17, 60040, 24576, 64528, 12, 58114, 17, 61064, 17, 64528, 16,
             65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
         ];
