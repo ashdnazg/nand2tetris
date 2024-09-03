@@ -177,7 +177,7 @@ pub fn draw_vm(
                                         ui.ram_grid(
                                             "RAM",
                                             &state.vm.run_state.ram,
-                                            &(0..=(MEM_SIZE as Word)),
+                                            &(0..=((MEM_SIZE - 1) as Word)),
                                             UIStyle::VM,
                                             None,
                                             shared_state.scroll_once,

@@ -45,7 +45,7 @@ impl HardwareState {
                                                     ui.rom_grid(
                                                         "ROM",
                                                         &self.hardware.rom,
-                                                        &(0..=(MEM_SIZE as Word)),
+                                                        &(0..=((MEM_SIZE - 1) as Word)),
                                                         self.hardware.pc,
                                                         shared_state.scroll_once,
                                                     );
@@ -90,7 +90,7 @@ impl HardwareState {
                                                     ui.ram_grid(
                                                         "RAM",
                                                         &self.hardware.ram,
-                                                        &(0..=(MEM_SIZE as Word)),
+                                                        &(0..=((MEM_SIZE - 1) as Word)),
                                                         UIStyle::Hardware,
                                                         Some(self.hardware.a),
                                                         shared_state.scroll_once,

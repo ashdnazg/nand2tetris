@@ -24,7 +24,7 @@ impl Default for HardwareState {
             65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
         ];
         hardware.load_program(
-            &program
+            program
                 .iter()
                 .map(|raw| Instruction::new(*raw))
                 .collect::<Vec<_>>(),
