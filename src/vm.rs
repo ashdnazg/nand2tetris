@@ -122,6 +122,7 @@ pub struct RunState {
     pub ram: RAM,
     pub os: OS,
     pub call_stack: Vec<Frame>,
+    pub breakpoints: Vec<Breakpoint>,
 }
 
 #[derive(Clone)]
@@ -206,6 +207,7 @@ impl VM {
                 ram: RAM::new(),
                 os: Default::default(),
                 call_stack: vec![Frame { function_index }],
+                breakpoints: vec![],
             },
         }
     }
@@ -383,6 +385,18 @@ impl VM {
         label_name: &str,
     ) {
         *current_command_index = function_metadata.label_name_to_command_index[label_name]
+    }
+
+    pub fn get_breakpoints(&self) -> &Vec<Breakpoint> {
+        &self.run_state.breakpoints
+    }
+
+    pub fn add_breakpoint(&mut self, breakpoint: &Breakpoint) {
+        self.run_state.breakpoints.push(breakpoint.clone())
+    }
+
+    pub fn remove_breakpoint(&mut self, index: usize) {
+        self.run_state.breakpoints.remove(index);
     }
 }
 
@@ -624,6 +638,160 @@ impl std::fmt::Display for PopSegment {
         write!(f, "{name}")
     }
 }
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Breakpoint {
+    SP(Word),
+    CurrentFunction(String),
+    Line {
+        file_name: String,
+        line_number: Word,
+    },
+    RAM {
+        address: Word,
+        value: Word,
+    },
+    LCL(Word),
+    Local {
+        offset: Word,
+        value: Word,
+    },
+    ARG(Word),
+    Argument {
+        offset: Word,
+        value: Word,
+    },
+    This(Word),
+    ThisPointer {
+        offset: Word,
+        value: Word,
+    },
+    That(Word),
+    ThatPointer {
+        offset: Word,
+        value: Word,
+    },
+    Temp {
+        offset: Word,
+        value: Word,
+    },
+}
+
+impl Breakpoint {
+    pub fn variable_name(&self) -> String {
+        match self {
+            Breakpoint::SP(_) => "SP".to_owned(),
+            Breakpoint::CurrentFunction(_) => "Current Function".to_owned(),
+            Breakpoint::Line {
+                file_name: _,
+                line_number: _,
+            } => "Line".to_owned(),
+            Breakpoint::RAM { address, .. } => format!("RAM[{address}]"),
+            Breakpoint::LCL(_) => "LCL".to_owned(),
+            Breakpoint::Local { offset, .. } => format!("LCL[{offset}]"),
+            Breakpoint::ARG(_) => "ARG".to_owned(),
+            Breakpoint::Argument { offset, .. } => format!("ARG[{offset}]"),
+            Breakpoint::This(_) => "THIS".to_owned(),
+            Breakpoint::ThisPointer { offset, .. } => format!("THIS[{offset}]"),
+            Breakpoint::That(_) => "THAT".to_owned(),
+            Breakpoint::ThatPointer { offset, .. } => format!("THIS[{offset}]"),
+            Breakpoint::Temp { offset, .. } => format!("TEMP[{offset}]"),
+        }
+    }
+
+    pub fn value(&self) -> String {
+        match self {
+            Breakpoint::SP(value)
+            | Breakpoint::RAM { value, .. }
+            | Breakpoint::LCL(value)
+            | Breakpoint::Local { value, .. }
+            | Breakpoint::ARG(value)
+            | Breakpoint::Argument { value, .. }
+            | Breakpoint::This(value)
+            | Breakpoint::ThisPointer { value, .. }
+            | Breakpoint::That(value)
+            | Breakpoint::ThatPointer { value, .. }
+            | Breakpoint::Temp { value, .. } => value.to_string(),
+            Breakpoint::Line {
+                file_name,
+                line_number,
+            } => format!("{file_name}:{line_number}"),
+            Breakpoint::CurrentFunction(function_name) => function_name.clone(),
+        }
+    }
+
+    pub fn address(&self) -> Option<Word> {
+        match self {
+            Breakpoint::SP(_) => None,
+            Breakpoint::CurrentFunction(_) => None,
+            Breakpoint::Line { .. } => None,
+            Breakpoint::RAM { address, .. } => Some(*address),
+            Breakpoint::LCL(_) => None,
+            Breakpoint::Local { offset, .. } => Some(*offset),
+            Breakpoint::ARG(_) => None,
+            Breakpoint::Argument { offset, .. } => Some(*offset),
+            Breakpoint::This(_) => None,
+            Breakpoint::ThisPointer { offset, .. } => Some(*offset),
+            Breakpoint::That(_) => None,
+            Breakpoint::ThatPointer { offset, .. } => Some(*offset),
+            Breakpoint::Temp { offset, .. } => Some(*offset),
+        }
+    }
+
+    pub fn change_address(&mut self, new_address: Word) {
+        match self {
+            Breakpoint::RAM { address, .. } => *address = new_address,
+            Breakpoint::Local { offset, .. } => *offset = new_address,
+            Breakpoint::Argument { offset, .. } => *offset = new_address,
+            Breakpoint::ThisPointer { offset, .. } => *offset = new_address,
+            Breakpoint::ThatPointer { offset, .. } => *offset = new_address,
+            Breakpoint::Temp { offset, .. } => *offset = new_address,
+            _ => panic!("Tried to change address of a non-address breakpoint"),
+        }
+    }
+
+    pub fn change_value(&mut self, new_value: String) {
+        match self {
+            Breakpoint::SP(value)
+            | Breakpoint::RAM { value, .. }
+            | Breakpoint::LCL(value)
+            | Breakpoint::Local { value, .. }
+            | Breakpoint::ARG(value)
+            | Breakpoint::Argument { value, .. }
+            | Breakpoint::This(value)
+            | Breakpoint::ThisPointer { value, .. }
+            | Breakpoint::That(value)
+            | Breakpoint::ThatPointer { value, .. }
+            | Breakpoint::Temp { value, .. } => {
+                if let Ok(int_value) = new_value.parse::<Word>() {
+                    *value = int_value;
+                }
+            },
+            Breakpoint::CurrentFunction(value) => *value = new_value,
+            _ => panic!("Tried to change value of a non-value breakpoint"),
+        }
+    }
+}
+
+// impl std::fmt::Display for Breakpoint {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             Breakpoint::SP(_) => write!(f, "SP"),
+//             Breakpoint::CurrentFunction(_) => write!(f, "Current Function"),
+//             Breakpoint::Line { file_name, line_number } => write!(f, "Line"),
+//             Breakpoint::RAM { address, value } => write!(f, "RAM"),
+//             Breakpoint::LCL(_) => write!(f, "LCL"),
+//             Breakpoint::Local { offset, value } => write!(f, "LCL[{}]", offset),
+//             Breakpoint::ARG(_) => write!(f, "ARG"),
+//             Breakpoint::Argument { offset, value } => write!(f, "Argument"),
+//             Breakpoint::This(_) => write!(f, "THIS"),
+//             Breakpoint::ThisPointer { offset, value } => todo!(),
+//             Breakpoint::That(_) => todo!(),
+//             Breakpoint::ThatPointer { offset, value } => todo!(),
+//             Breakpoint::Temp { offset, value } => todo!(),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

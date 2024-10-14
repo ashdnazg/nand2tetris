@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use crate::hardware::{Word, MEM_SIZE};
-use crate::vm::Register;
+use crate::vm::{self, Register};
 use eframe::egui;
 use eframe::epaint::mutex::Mutex;
 use egui_extras::{Size, StripBuilder};
 
-use super::common_state::{SharedState, UIStyle};
+use super::common_state::{Breakpoint, BreakpointAction, SharedState, UIStyle};
 use super::shared_ui::{draw_screen, EmulatorWidgets, Screen};
 use super::vm_state::VMState;
 use super::Action;
@@ -189,4 +189,147 @@ pub fn draw_vm(
             });
         });
     });
+
+    let mut breakpoints_open = shared_state.breakpoints_open;
+
+    egui::Window::new("Breakpoints")
+        .open(&mut breakpoints_open)
+        .resizable(true)
+        .default_width(1000.0)
+        .show(ctx, |ui| {
+            let breakpoints = state.vm.get_breakpoints();
+            ui.horizontal(|ui| {
+                let mut new_selected_breakpoint = state.selected_breakpoint;
+                let selected_text = state.selected_breakpoint.variable_name();
+                egui::ComboBox::from_id_source("Variable")
+                    .selected_text(selected_text)
+                    .width(50.0)
+                    .show_ui(ui, |ui| {
+                        for breakpoint_type in [
+                            vm::Breakpoint::SP(0),
+                            vm::Breakpoint::CurrentFunction("".to_owned()),
+                            vm::Breakpoint::Line {
+                                file_name: "".to_owned(),
+                                line_number: 0,
+                            },
+                            vm::Breakpoint::RAM {
+                                address: 0,
+                                value: 0,
+                            },
+                            vm::Breakpoint::LCL(0),
+                            vm::Breakpoint::Local {
+                                offset: 0,
+                                value: 0,
+                            },
+                            vm::Breakpoint::ARG(0),
+                            vm::Breakpoint::Argument {
+                                offset: 0,
+                                value: 0,
+                            },
+                            vm::Breakpoint::This(0),
+                            vm::Breakpoint::ThisPointer {
+                                offset: 0,
+                                value: 0,
+                            },
+                            vm::Breakpoint::That(0),
+                            vm::Breakpoint::ThatPointer {
+                                offset: 0,
+                                value: 0,
+                            },
+                            vm::Breakpoint::Temp {
+                                offset: 0,
+                                value: 0,
+                            },
+                        ] {
+                            ui.selectable_value(
+                                &mut new_selected_breakpoint,
+                                breakpoint_type,
+                                breakpoint_type.variable_name(),
+                            );
+                        }
+                    });
+
+                if let Some(address) = state.selected_breakpoint.address() {
+                    ui.label("[");
+                    let mut new_address_text = address.to_string();
+                    ui.add(
+                        egui::TextEdit::singleline(&mut new_address_text).desired_width(50.0),
+                    );
+                    if let Ok(new_address) = new_address_text.parse::<Word>() {
+                        new_selected_breakpoint.change_address(new_address);
+                    }
+                    ui.label("]");
+                }
+
+                ui.label("=");
+
+                let mut new_value_text = state.selected_breakpoint.value().to_string();
+                ui.add(egui::TextEdit::singleline(&mut new_value_text).desired_width(50.0));
+                if let Ok(new_value) = new_value_text.parse::<Word>() {
+                    if new_value != state.selected_breakpoint.value() {
+                        new_selected_breakpoint.change_value(new_value);
+                    }
+                }
+
+                if new_selected_breakpoint != state.selected_breakpoint {
+                    *action = Some(Action::Breakpoint(BreakpointAction::BreakpointChanged(Breakpoint::VM(new_selected_breakpoint)
+                    )));
+                }
+
+                if ui.button("Add").clicked() {
+                    *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
+                }
+            });
+            ui.label("Breakpoints:");
+            let header_height = ui.text_style_height(&egui::TextStyle::Body);
+            let row_height = ui.text_style_height(&egui::TextStyle::Monospace)
+                + 2.0 * ui.spacing().button_padding.x;
+            TableBuilder::new(ui)
+                .striped(true)
+                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                .column(Column::exact(100.0))
+                .column(Column::exact(100.0))
+                .column(Column::exact(70.0))
+                .header(header_height, |mut header| {
+                    header.col(|ui| {
+                        ui.label("Variable");
+                    });
+                    header.col(|ui| {
+                        ui.label("Value");
+                    });
+                    header.col(|_| {});
+                })
+                .body(|body| {
+                    body.rows(row_height, usize::max(breakpoints.len(), 10), |mut row| {
+                        let row_index = row.index();
+                        let breakpoint = breakpoints.get(row_index);
+                        row.col(|ui| {
+                            ui.monospace(
+                                breakpoint
+                                    .map(|b| b.var.to_string())
+                                    .unwrap_or("".to_string()),
+                            );
+                        });
+                        row.col(|ui| {
+                            ui.monospace(
+                                breakpoint
+                                    .map(|b| b.value.to_string())
+                                    .unwrap_or("".to_string()),
+                            );
+                        });
+                        row.col(|ui| {
+                            if breakpoint.is_some() && ui.button("Remove").clicked() {
+                                *action = Some(Action::Breakpoint(
+                                    BreakpointAction::RemoveClicked(row_index),
+                                ));
+                            }
+                        });
+                    });
+                });
+        });
+
+    if shared_state.breakpoints_open != breakpoints_open {
+        assert!(shared_state.breakpoints_open);
+        *action = Some(Action::Common(CommonAction::BreakpointsClosed));
+    }
 }

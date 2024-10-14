@@ -9,7 +9,7 @@ pub mod vm_parse;
 #[cfg(feature = "emulator")]
 pub mod emulator;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "emulator"))]
 fn main() {
     // Redirect `log` message to `console.log` and friends:
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();

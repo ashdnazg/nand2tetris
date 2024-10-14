@@ -1,7 +1,10 @@
-use super::hardware_state::{BreakpointAction, HardwareState};
+use super::hardware_state::HardwareState;
 use super::instant::Instant;
 use super::vm_state::VMState;
-use crate::hardware::{Word, RAM};
+use crate::{
+    hardware::{self, Word, RAM},
+    vm,
+};
 use eframe::egui::{DroppedFile, Key, Modifiers};
 
 #[allow(clippy::large_enum_variant)]
@@ -34,6 +37,19 @@ pub enum CommonAction {
     BreakpointsClicked,
     BreakpointsClosed,
     SpeedSliderMoved(u64),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Breakpoint {
+    Hardware(hardware::Breakpoint),
+    VM(vm::Breakpoint),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BreakpointAction {
+    AddClicked,
+    BreakpointChanged(Breakpoint),
+    RemoveClicked(usize),
 }
 
 #[derive(Debug)]

@@ -1,11 +1,12 @@
 use crate::hardware::RAM;
-use crate::vm::VM;
+use crate::vm::{Breakpoint, VM};
 
 use super::common_state::CommonState;
 
 pub struct VMState {
     pub vm: VM,
     pub selected_file: String,
+    pub selected_breakpoint: Breakpoint,
 }
 
 impl VMState {
@@ -14,7 +15,12 @@ impl VMState {
         let selected_file = vm.program.files[vm.run_state.current_file_index]
             .name
             .clone();
-        VMState { vm, selected_file }
+        let selected_breakpoint = Breakpoint::SP(0);
+        VMState {
+            vm,
+            selected_file,
+            selected_breakpoint,
+        }
     }
 }
 

@@ -97,42 +97,12 @@ impl std::fmt::Display for Instruction {
         match self.instruction_type() {
             InstructionType::A => write!(f, "@{}", self.raw),
             InstructionType::C => {
-                let op = match (self.raw >> 6) & 0x01FF {
-                    0x01AA => "0",
-                    0x01BF => "1",
-                    0x01BA => "-1",
-                    0x018C => "D",
-                    0x01B0 => "A",
-                    0x01F0 => "M",
-                    0x018D => "!D",
-                    0x01B1 => "!A",
-                    0x01F1 => "!M",
-                    0x018F => "-D",
-                    0x01B3 => "-A",
-                    0x01F3 => "-M",
-                    0x019F => "D+1",
-                    0x01B7 => "A+1",
-                    0x01F7 => "M+1",
-                    0x018E => "D-1",
-                    0x01B2 => "A-1",
-                    0x01F2 => "M-1",
-                    0x0182 => "A+D",
-                    0x01C2 => "D+M",
-                    0x0193 => "D-A",
-                    0x0187 => "A-D",
-                    0x01D3 => "D-M",
-                    0x01C7 => "M-D",
-                    0x0180 => "A&D",
-                    0x01C0 => "D&M",
-                    0x0195 => "A|D",
-                    0x01D5 => "D|M",
-                    _ => "???",
-                };
+                let op_name = self.op_name();
                 let dst = ["", "M=", "D=", "MD=", "A=", "AM=", "AD=", "AMD="]
                     [((self.raw >> 3) & 7) as usize];
                 let jmp = ["", ";JGT", ";JEQ", ";JGE", ";JLT", ";JNE", ";JLE", ";JMP"]
                     [(self.raw & 7) as usize];
-                write!(f, "{}{}{}", dst, op, jmp)
+                write!(f, "{}{}{}", dst, op_name, jmp)
             }
         }
     }
@@ -149,7 +119,7 @@ enum Operator {
 }
 
 #[derive(PartialEq)]
-enum InstructionType {
+pub enum InstructionType {
     A,
     C,
 }
@@ -172,7 +142,7 @@ impl Instruction {
         self.raw & (1 << pos) != 0
     }
 
-    fn instruction_type(&self) -> InstructionType {
+    pub fn instruction_type(&self) -> InstructionType {
         if self.flag(UWord::BITS - 1) {
             InstructionType::C
         } else {
@@ -216,23 +186,23 @@ impl Instruction {
         self.flag(6)
     }
 
-    fn dst_has_a(&self) -> bool {
+    pub fn dst_has_a(&self) -> bool {
         self.flag(5)
     }
 
-    fn dst_has_d(&self) -> bool {
+    pub fn dst_has_d(&self) -> bool {
         self.flag(4)
     }
 
-    fn dst_has_m(&self) -> bool {
+    pub fn dst_has_m(&self) -> bool {
         self.flag(3)
     }
 
-    fn loaded_value(&self) -> Word {
+    pub fn loaded_value(&self) -> Word {
         self.raw as Word
     }
 
-    fn jump_condition(&self) -> JumpCondition {
+    pub fn jump_condition(&self) -> JumpCondition {
         match self.raw & 7 {
             0 => JumpCondition::NoJump,
             1 => JumpCondition::JGT,
@@ -243,6 +213,40 @@ impl Instruction {
             6 => JumpCondition::JLE,
             7 => JumpCondition::JMP,
             _ => unreachable!(),
+        }
+    }
+
+    pub fn op_name(&self) -> &'static str {
+        match (self.raw >> 6) & 0x01FF {
+            0x01AA => "0",
+            0x01BF => "1",
+            0x01BA => "-1",
+            0x018C => "D",
+            0x01B0 => "A",
+            0x01F0 => "M",
+            0x018D => "!D",
+            0x01B1 => "!A",
+            0x01F1 => "!M",
+            0x018F => "-D",
+            0x01B3 => "-A",
+            0x01F3 => "-M",
+            0x019F => "D+1",
+            0x01B7 => "A+1",
+            0x01F7 => "M+1",
+            0x018E => "D-1",
+            0x01B2 => "A-1",
+            0x01F2 => "M-1",
+            0x0182 => "D+A",
+            0x01C2 => "D+M",
+            0x0193 => "D-A",
+            0x0187 => "A-D",
+            0x01D3 => "D-M",
+            0x01C7 => "M-D",
+            0x0180 => "A&D",
+            0x01C0 => "D&M",
+            0x0195 => "A|D",
+            0x01D5 => "D|M",
+            _ => "???",
         }
     }
 }
@@ -412,7 +416,7 @@ impl Hardware {
             BreakpointVar::D => self.d,
             BreakpointVar::M => self.ram[self.a],
             BreakpointVar::PC => self.pc,
-            BreakpointVar::Mem(address) => self.ram[*address],
+            BreakpointVar::RAM(address) => self.ram[*address],
         }
     }
 
@@ -518,7 +522,7 @@ pub enum BreakpointVar {
     D,
     M,
     PC,
-    Mem(Word),
+    RAM(Word),
 }
 
 impl std::fmt::Display for BreakpointVar {
@@ -528,12 +532,12 @@ impl std::fmt::Display for BreakpointVar {
             BreakpointVar::D => write!(f, "D"),
             BreakpointVar::M => write!(f, "M"),
             BreakpointVar::PC => write!(f, "PC"),
-            BreakpointVar::Mem(address) => write!(f, "RAM[{}]", address),
+            BreakpointVar::RAM(address) => write!(f, "RAM[{}]", address),
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Breakpoint {
     pub var: BreakpointVar,
     pub value: Word,

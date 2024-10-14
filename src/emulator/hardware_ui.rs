@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
-use crate::hardware::{BreakpointVar, Word, MEM_SIZE};
+use crate::hardware::{self, BreakpointVar, Word, MEM_SIZE};
 use eframe::{
     egui,
     epaint::{mutex::Mutex, Vec2},
 };
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
-use super::common_state::{Action, CommonAction, SharedState, UIStyle};
-use super::hardware_state::{BreakpointAction, HardwareState};
+use super::common_state::{
+    Action, Breakpoint, BreakpointAction, CommonAction, SharedState, UIStyle,
+};
+use super::hardware_state::HardwareState;
 use super::shared_ui::*;
 
 impl HardwareState {
@@ -168,16 +170,16 @@ impl HardwareState {
                 let breakpoints = self.hardware.get_breakpoints();
                 ui.horizontal(|ui| {
                     let breakpoint_address =
-                        if let BreakpointVar::Mem(address) = self.selected_breakpoint_var {
+                        if let BreakpointVar::RAM(address) = self.selected_breakpoint.var {
                             address
                         } else {
                             0
                         };
 
-                    let mut new_selected_breakpoint_var = self.selected_breakpoint_var;
-                    let selected_text = match self.selected_breakpoint_var {
-                        BreakpointVar::Mem(_) => "Mem".to_string(),
-                        _ => self.selected_breakpoint_var.to_string(),
+                    let mut new_selected_breakpoint_var = self.selected_breakpoint.var;
+                    let selected_text = match self.selected_breakpoint.var {
+                        BreakpointVar::RAM(_) => "Mem".to_string(),
+                        _ => self.selected_breakpoint.var.to_string(),
                     };
                     egui::ComboBox::from_id_source("Variable")
                         .selected_text(selected_text)
@@ -205,12 +207,12 @@ impl HardwareState {
                             );
                             ui.selectable_value(
                                 &mut new_selected_breakpoint_var,
-                                BreakpointVar::Mem(breakpoint_address),
+                                BreakpointVar::RAM(breakpoint_address),
                                 "Mem",
                             );
                         });
 
-                    if let BreakpointVar::Mem(address) = self.selected_breakpoint_var {
+                    if let BreakpointVar::RAM(address) = self.selected_breakpoint.var {
                         ui.label("[");
                         let mut new_address_text = address.to_string();
                         ui.add(
@@ -218,26 +220,33 @@ impl HardwareState {
                         );
                         if let Ok(new_address) = new_address_text.parse::<Word>() {
                             if new_address != address {
-                                new_selected_breakpoint_var = BreakpointVar::Mem(new_address);
+                                new_selected_breakpoint_var = BreakpointVar::RAM(new_address);
                             }
                         }
                         ui.label("]");
                     }
 
-                    if new_selected_breakpoint_var != self.selected_breakpoint_var {
-                        *action = Some(Action::Breakpoint(BreakpointAction::VariableChanged(
-                            new_selected_breakpoint_var,
+                    if new_selected_breakpoint_var != self.selected_breakpoint.var {
+                        *action = Some(Action::Breakpoint(BreakpointAction::BreakpointChanged(
+                            Breakpoint::Hardware(hardware::Breakpoint {
+                                var: new_selected_breakpoint_var,
+                                value: self.selected_breakpoint.value,
+                            }),
                         )));
                     }
                     ui.label("=");
 
-                    let mut new_value_text = self.breakpoint_value.to_string();
+                    let mut new_value_text = self.selected_breakpoint.value.to_string();
                     ui.add(egui::TextEdit::singleline(&mut new_value_text).desired_width(50.0));
                     if let Ok(new_value) = new_value_text.parse::<Word>() {
-                        if new_value != self.breakpoint_value {
-                            *action = Some(Action::Breakpoint(BreakpointAction::ValueChanged(
-                                new_value,
-                            )));
+                        if new_value != self.selected_breakpoint.value {
+                            *action =
+                                Some(Action::Breakpoint(BreakpointAction::BreakpointChanged(
+                                    Breakpoint::Hardware(hardware::Breakpoint {
+                                        var: self.selected_breakpoint.var,
+                                        value: new_value,
+                                    }),
+                                )));
                         }
                     }
 

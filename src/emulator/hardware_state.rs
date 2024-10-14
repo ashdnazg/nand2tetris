@@ -1,19 +1,10 @@
-use crate::hardware::{BreakpointVar, Hardware, Instruction, UWord, Word, RAM};
+use crate::hardware::{Breakpoint, BreakpointVar, Hardware, Instruction, UWord, RAM};
 
 use super::common_state::CommonState;
 
 pub struct HardwareState {
-    pub selected_breakpoint_var: BreakpointVar,
-    pub breakpoint_value: Word,
+    pub selected_breakpoint: Breakpoint,
     pub hardware: Hardware,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BreakpointAction {
-    AddClicked,
-    VariableChanged(BreakpointVar),
-    ValueChanged(Word),
-    RemoveClicked(usize),
 }
 
 impl Default for HardwareState {
@@ -31,8 +22,10 @@ impl Default for HardwareState {
         );
 
         HardwareState {
-            selected_breakpoint_var: BreakpointVar::A,
-            breakpoint_value: 0,
+            selected_breakpoint: Breakpoint {
+                var: BreakpointVar::A,
+                value: 0,
+            },
             hardware,
         }
     }
@@ -41,16 +34,20 @@ impl Default for HardwareState {
 impl HardwareState {
     pub fn from_file_contents(contents: &str) -> Self {
         HardwareState {
-            selected_breakpoint_var: BreakpointVar::A,
-            breakpoint_value: 0,
+            selected_breakpoint: Breakpoint {
+                var: BreakpointVar::A,
+                value: 0,
+            },
             hardware: Hardware::from_file_contents(contents),
         }
     }
 
     pub fn from_hack_file_contents(contents: &str) -> Self {
         HardwareState {
-            selected_breakpoint_var: BreakpointVar::A,
-            breakpoint_value: 0,
+            selected_breakpoint: Breakpoint {
+                var: BreakpointVar::A,
+                value: 0,
+            },
             hardware: Hardware::from_hack_file_contents(contents),
         }
     }

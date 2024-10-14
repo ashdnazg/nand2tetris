@@ -700,6 +700,7 @@ mod tests {
                 ram: Default::default(),
                 os: Default::default(),
                 call_stack: vec![],
+                breakpoints: vec![],
             };
 
             instance.ram[Register::ARG] = 100;
