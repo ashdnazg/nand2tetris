@@ -69,7 +69,6 @@ impl Instruction {
     pub fn from_legacy(legacy_raw: u16) -> Instruction {
         let raw =
             (legacy_raw as UWord >> 15) << (Word::BITS - 1) | (legacy_raw & !(1 << 15)) as UWord;
-        println!("{legacy_raw:b} {raw:b}");
 
         Instruction { raw }
     }
@@ -313,6 +312,102 @@ impl RAM {
     }
 }
 
+pub trait Emulator {
+    fn a_mut(&mut self) -> &mut Word;
+    fn a(&self) -> Word;
+    fn d_mut(&mut self) -> &mut Word;
+    fn d(&self) -> Word;
+    fn get_ram_value(&self, address: Word) -> Word;
+    fn set_ram_value(&mut self, address: Word, value: Word);
+    fn pc(&self) -> Word;
+    fn step(&mut self) -> bool;
+    fn load_program(&mut self, program: impl IntoIterator<Item = impl Borrow<Instruction>>);
+    fn run_program(&mut self);
+    fn reset(&mut self);
+}
+
+impl Emulator for Hardware {
+    fn a_mut(&mut self) -> &mut Word {
+        &mut self.a
+    }
+
+    fn a(&self) -> Word {
+        self.a
+    }
+
+    fn d_mut(&mut self) -> &mut Word {
+        &mut self.d
+    }
+
+    fn d(&self) -> Word {
+        self.d
+    }
+
+    fn pc(&self) -> Word {
+        self.pc
+    }
+
+    fn get_ram_value(&self, address: Word) -> Word {
+        self.ram[address]
+    }
+
+    fn set_ram_value(&mut self, address: Word, value: Word) {
+        self.ram[address] = value;
+    }
+
+    fn step(&mut self) -> bool {
+        self.ticks += 1;
+        let instruction = *self.current_instruction();
+        match instruction.instruction_type() {
+            InstructionType::A => {
+                self.a = instruction.loaded_value();
+                self.pc += 1;
+            }
+            InstructionType::C => {
+                let result = self.compute(instruction);
+                self.pc = if instruction.jump_condition().is_true(result) {
+                    self.a
+                } else {
+                    self.pc + 1
+                };
+                self.set(instruction, result);
+            }
+        }
+
+        for breakpoint in &self.breakpoints {
+            if self.get_breakpoint_var(&breakpoint.var) == breakpoint.value {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn load_program(&mut self, program: impl IntoIterator<Item = impl Borrow<Instruction>>) {
+        self.rom.fill(Instruction { raw: 0 });
+        self.length = 0;
+        for (i, instruction) in program.into_iter().enumerate() {
+            self.rom[i] = *instruction.borrow();
+            self.length += 1;
+        }
+    }
+
+    fn run_program(&mut self) {
+        while (self.pc as usize) < self.length {
+            self.step();
+        }
+    }
+
+    fn reset(&mut self) {
+        *self = Hardware {
+            rom: self.rom.clone(),
+            breakpoints: self.breakpoints.clone(),
+            length: self.length,
+            ..Default::default()
+        };
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Hardware {
     pub a: Word,
@@ -321,6 +416,8 @@ pub struct Hardware {
     pub rom: Box<[Instruction; MEM_SIZE]>,
     pub ram: RAM,
     pub breakpoints: Vec<Breakpoint>,
+    pub length: usize,
+    pub ticks: u64,
 }
 
 impl Default for Hardware {
@@ -334,6 +431,8 @@ impl Default for Hardware {
                 contents: Box::new([0; 32 * 1024]),
             },
             breakpoints: vec![],
+            length: 32 * 1024,
+            ticks: 0,
         }
     }
 }
@@ -346,6 +445,7 @@ impl std::fmt::Debug for Hardware {
             .field("pc", &self.pc)
             .field("m", &self.m())
             .field("current instruction", &self.rom[self.pc as usize])
+            .field("ticks", &self.ticks)
             .finish()
     }
 }
@@ -430,37 +530,11 @@ impl Hardware {
         false
     }
 
-    pub fn step(&mut self) -> bool {
-        let instruction = *self.current_instruction();
-        match instruction.instruction_type() {
-            InstructionType::A => {
-                self.a = instruction.loaded_value();
-                self.pc += 1;
-            }
-            InstructionType::C => {
-                let result = self.compute(instruction);
-                self.pc = if instruction.jump_condition().is_true(result) {
-                    self.a
-                } else {
-                    self.pc + 1
-                };
-                self.set(instruction, result);
-            }
-        }
-
-        for breakpoint in &self.breakpoints {
-            if self.get_breakpoint_var(&breakpoint.var) == breakpoint.value {
-                return true;
-            }
-        }
-
-        false
-    }
-
     pub fn from_file_contents(contents: &str) -> Self {
         let mut instance = Self::default();
         let instructions = assemble_hack_file(contents).unwrap().1;
 
+        instance.length = instructions.len();
         for (i, instruction) in instructions.into_iter().enumerate() {
             instance.rom[i] = instruction;
         }
@@ -480,27 +554,6 @@ impl Hardware {
         }
 
         instance
-    }
-
-    pub fn load_program(&mut self, program: impl IntoIterator<Item = impl Borrow<Instruction>>) {
-        self.rom.fill(Instruction { raw: 0 });
-        for (i, instruction) in program.into_iter().enumerate() {
-            self.rom[i] = *instruction.borrow();
-        }
-    }
-
-    pub fn run_program(&mut self, program_length: usize) {
-        while (self.pc as usize) < program_length - 1 {
-            self.step();
-        }
-    }
-
-    pub fn reset(&mut self) {
-        *self = Hardware {
-            rom: self.rom.clone(),
-            breakpoints: self.breakpoints.clone(),
-            ..Default::default()
-        };
     }
 
     pub fn get_breakpoints(&self) -> &Vec<Breakpoint> {
@@ -548,103 +601,121 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_increment() {
+    fn test_increment_hardware() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction::from_legacy(59344);
-        hardware.d = 1337;
+        test_increment(&mut hardware);
+    }
 
-        let mut expected_hardware = hardware.clone();
-        hardware.step();
+    fn test_increment(emulator: &mut impl Emulator) {
+        emulator.load_program([Instruction::from_legacy(59344)]);
+        *emulator.d_mut() = 1337;
 
-        expected_hardware.d = 1338;
-        expected_hardware.pc = 1;
-        assert_eq!(hardware, expected_hardware);
+        emulator.step();
+
+        assert_eq!(emulator.d(), 1338);
     }
 
     #[test]
-    fn test_add() {
+    fn test_add_hardware() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction::from_legacy(57488);
-        hardware.a = 1337;
-        hardware.d = 1337;
+        test_add(&mut hardware);
+    }
 
-        let mut expected_hardware = hardware.clone();
-        hardware.step();
+    fn test_add(emulator: &mut impl Emulator) {
+        emulator.load_program([Instruction::from_legacy(57488)]);
+        *emulator.d_mut() = 1337;
+        *emulator.a_mut() = 1337;
 
-        expected_hardware.d = 1337 * 2;
-        expected_hardware.pc = 1;
-        assert_eq!(hardware, expected_hardware);
+        emulator.step();
+
+        assert_eq!(emulator.d(), 1337 * 2);
     }
 
     #[test]
-    fn test_sub_minus_1() {
+    fn test_sub_minus_1_hardware() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] =
-            Instruction::create(DestinationRegisters::D, 0x186, JumpCondition::NoJump);
-        hardware.a = 1234;
-        hardware.d = 2345;
+        test_sub_minus_1(&mut hardware);
+    }
 
-        let mut expected_hardware = hardware.clone();
-        hardware.step();
+    fn test_sub_minus_1(emulator: &mut impl Emulator) {
+        emulator.load_program([Instruction::create(
+            DestinationRegisters::D,
+            0x186,
+            JumpCondition::NoJump,
+        )]);
+        *emulator.a_mut() = 1234;
+        *emulator.d_mut() = 2345;
 
-        expected_hardware.d = 1110;
-        expected_hardware.pc = 1;
-        assert_eq!(hardware.a, expected_hardware.a);
+        emulator.step();
+
+        assert_eq!(emulator.d(), 1110);
     }
 
     #[test]
-    fn test_zero() {
+    fn test_zero_hardware() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction::from_legacy(60048);
-        hardware.d = 1337;
+        test_zero(&mut hardware);
+    }
 
-        let mut expected_hardware = hardware.clone();
-        hardware.step();
+    fn test_zero(emulator: &mut impl Emulator) {
+        emulator.load_program([Instruction::from_legacy(60048)]);
+        *emulator.d_mut() = 1337;
 
-        expected_hardware.d = 0;
-        expected_hardware.pc = 1;
-        assert_eq!(hardware, expected_hardware);
+        emulator.step();
+
+        assert_eq!(emulator.d(), 0);
     }
 
     #[test]
-    fn test_load() {
+    fn test_load_hardware() {
         let mut hardware = Hardware::default();
-        hardware.rom[0] = Instruction::from_legacy(1337);
+        test_load(&mut hardware);
+    }
 
-        let mut expected_hardware = hardware.clone();
-        hardware.step();
+    fn test_load(emulator: &mut impl Emulator) {
+        emulator.load_program([Instruction::from_legacy(1337)]);
 
-        expected_hardware.a = 1337;
-        expected_hardware.pc = 1;
-        assert_eq!(hardware, expected_hardware);
+        emulator.step();
+
+        assert_eq!(emulator.a(), 1337);
     }
 
     #[test]
-    fn test_integration() {
+    fn test_integration_hardware() {
         let mut hardware = Hardware::default();
-        let program: [u16; 16] = [
-            15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039, 15, 60039,
+        test_integration(&mut hardware);
+    }
+
+    fn test_integration(emulator: &mut impl Emulator) {
+        let program = [
+            15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039,
         ];
-        hardware.load_program(program.iter().map(|raw| Instruction::from_legacy(*raw)));
+        emulator.load_program(program.iter().copied().map(Instruction::from_legacy));
 
-        hardware.ram[13] = 34;
-        hardware.ram[14] = 12;
+        emulator.set_ram_value(13, 34);
+        emulator.set_ram_value(14, 12);
 
-        hardware.run_program(program.len());
+        emulator.run_program();
 
-        assert_eq!(hardware.ram[15], 34 * 12);
+        assert_eq!(emulator.get_ram_value(15), 34 * 12);
     }
 
     #[test]
-    fn test_jump_setting_a() {
+    fn test_jump_setting_a_hardware() {
         let mut hardware = Hardware::default();
-        hardware.load_program(&[Instruction::create(
+        test_jump_setting_a(&mut hardware);
+    }
+
+    fn test_jump_setting_a(emulator: &mut impl Emulator) {
+        emulator.load_program(&[Instruction::create(
             DestinationRegisters::A,
             0x01BF, // 1
             JumpCondition::JMP,
         )]);
-        hardware.step();
+        *emulator.a_mut() = 0;
 
-        assert_eq!(hardware.pc, 0);
+        emulator.step();
+
+        assert_eq!(emulator.pc(), 0);
     }
 }

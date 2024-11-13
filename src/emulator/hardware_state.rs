@@ -1,4 +1,6 @@
-use crate::hardware::{Breakpoint, BreakpointVar, Hardware, Instruction, UWord, RAM};
+use crate::hardware::{
+    Breakpoint, BreakpointVar, Emulator as _, Hardware, Instruction, UWord, RAM,
+};
 
 use super::common_state::CommonState;
 

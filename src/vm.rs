@@ -766,7 +766,7 @@ impl Breakpoint {
                 if let Ok(int_value) = new_value.parse::<Word>() {
                     *value = int_value;
                 }
-            },
+            }
             Breakpoint::CurrentFunction(value) => *value = new_value,
             _ => panic!("Tried to change value of a non-value breakpoint"),
         }
