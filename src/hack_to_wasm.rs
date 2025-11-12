@@ -554,9 +554,7 @@ fn hack_instr_to_wasm(
 }
 
 fn hack_to_cases(hack: &str, loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
-    let instructions = crate::hardware_parse::assemble_hack_file(hack)
-        .unwrap()
-        .1;
+    let instructions = crate::hardware_parse::assemble_hack_file(hack).unwrap().1;
 
     let mut a_values: Vec<Option<i32>> = Vec::new();
     a_values.resize(instructions.len() + 1, None);

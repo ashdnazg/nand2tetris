@@ -17,6 +17,7 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::time::Duration;
 
 use common_reducer::reduce;
 use common_reducer::steps_to_run;
@@ -82,7 +83,7 @@ impl eframe::App for EmulatorApp {
             &action,
         );
 
-        let key_down = if ctx.memory(|m| m.focus().is_none()) {
+        let key_down = if ctx.memory(|m| m.focused().is_none()) {
             ctx.input(|i| i.keys_down.iter().cloned().next())
         } else {
             None
@@ -99,9 +100,8 @@ impl eframe::App for EmulatorApp {
             }
             _ => {}
         }
-
-        if steps_to_run > 0 {
-            ctx.request_repaint();
+        if self.shared_state.run_started {
+            ctx.request_repaint_after(Duration::from_secs_f64(1.0 / 60.0));
         }
         self.shared_state.scroll_once |= steps_to_run > 0;
 
