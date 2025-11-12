@@ -19,7 +19,7 @@ impl HardwareState {
         ctx: &egui::Context,
         action: &mut Option<Action>,
         shared_state: &SharedState,
-        screen: &Arc<Mutex<Screen>>,
+        screen: &Arc<Screen>,
         frame: &eframe::Frame,
     ) {
         egui::CentralPanel::default().show(ctx, |ui| {

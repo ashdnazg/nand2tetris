@@ -32,7 +32,7 @@ pub struct EmulatorApp {
     performance_data: PerformanceData,
     shared_state: SharedState,
     state: AppState,
-    screen: Arc<Mutex<Screen>>,
+    screen: Arc<Screen>,
     async_actions: (Sender<Action>, Receiver<Action>),
 }
 
@@ -42,7 +42,7 @@ impl EmulatorApp {
             performance_data: Default::default(),
             shared_state: Default::default(),
             state: Default::default(),
-            screen: Arc::new(Mutex::new(Screen::new(cc.gl.as_ref().unwrap()))),
+            screen: Arc::new(Screen::new(cc.gl.as_ref().unwrap())),
             async_actions: channel(),
         }
     }
@@ -192,7 +192,7 @@ impl eframe::App for EmulatorApp {
 
     fn on_exit(&mut self, gl: Option<&eframe::glow::Context>) {
         if let Some(context) = gl {
-            self.screen.lock().destroy(context);
+            self.screen.destroy(context);
         }
     }
 }

@@ -8,9 +8,9 @@ use eframe::{
     epaint::Rect,
     glow,
 };
-use egui::mutex::Mutex;
 use egui_extras::{Column, TableBuilder};
 use futures::future::join_all;
+use core::slice;
 use std::{future::Future, sync::mpsc::Sender};
 use std::{ops::RangeInclusive, sync::Arc};
 
@@ -151,7 +151,7 @@ impl Screen {
 
 pub fn draw_screen(
     ui: &mut egui::Ui,
-    screen: &Arc<Mutex<Screen>>,
+    screen: &Arc<Screen>,
     ram: &RAM,
     frame: &eframe::Frame,
 ) {
@@ -162,16 +162,15 @@ pub fn draw_screen(
 
     // Clone locals so we can move them into the paint callback:
     let screen = screen.clone();
-    let screen_buffer =
-        &ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize];
+    // let screen_ptr = ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize].as_ptr() as usize;
+    let screen_vec = ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize].to_vec();
+    // let screen_slice = &ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize];
 
     unsafe {
         use glow::HasContext as _;
         let context = frame.gl().unwrap();
-
         context.active_texture(glow::TEXTURE0);
-        let guard = screen.lock();
-        context.bind_texture(glow::TEXTURE_2D, Some(guard.texture));
+        context.bind_texture(glow::TEXTURE_2D, Some(screen.texture));
         context.tex_image_2d(
             glow::TEXTURE_2D,
             0,
@@ -181,13 +180,35 @@ pub fn draw_screen(
             0,
             glow::RED_INTEGER,
             glow::UNSIGNED_BYTE,
-            Some(screen_buffer.align_to::<u8>().1),
+            // Some(screen_slice.align_to().1),
+            Some(screen_vec.align_to().1),
+            // Some(&*std::ptr::slice_from_raw_parts(screen_ptr as *const u8, 64*256))
         );
         context.bind_texture(glow::TEXTURE_2D, None);
     }
 
     let cb = eframe::egui_glow::CallbackFn::new(move |_info, painter| {
-        screen.lock().paint(painter.gl());
+        let context = painter.gl();
+        // unsafe {
+        //     use glow::HasContext as _;
+        //     context.active_texture(glow::TEXTURE0);
+        //     context.bind_texture(glow::TEXTURE_2D, Some(screen.texture));
+        //     context.tex_image_2d(
+        //         glow::TEXTURE_2D,
+        //         0,
+        //         glow::R8UI as i32,
+        //         64,
+        //         256,
+        //         0,
+        //         glow::RED_INTEGER,
+        //         glow::UNSIGNED_BYTE,
+        //         Some(screen_vec.align_to().1),
+        //         // Some(std::slice::from_raw_parts(screen_ptr as *const u8, 64*256))
+        //     );
+        //     context.bind_texture(glow::TEXTURE_2D, None);
+        // }
+
+        screen.paint(painter.gl());
     });
 
     let callback = egui::PaintCallback {

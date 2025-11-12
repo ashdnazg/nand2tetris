@@ -1,4 +1,5 @@
 pub(crate) mod characters;
+pub mod hack_to_wasm;
 pub mod hardware;
 pub mod hardware_parse;
 mod os;
