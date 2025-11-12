@@ -22,7 +22,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::new(emulator::EmulatorApp::new(cc))),
+                Box::new(|cc| Ok(Box::new(emulator::EmulatorApp::new(cc)))),
             )
             .await
             .expect("failed to start eframe");

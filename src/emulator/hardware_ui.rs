@@ -56,7 +56,7 @@ impl HardwareState {
                                                 strip.empty();
                                                 strip.cell(|ui| {
                                                     ui.horizontal(|ui| {
-                                                        egui::Frame::none()
+                                                        egui::Frame::NONE
                                                             .stroke(egui::Stroke::new(
                                                                 1.0,
                                                                 ui.style().visuals.text_color(),
@@ -102,7 +102,7 @@ impl HardwareState {
                                                 strip.empty();
                                                 strip.cell(|ui| {
                                                     ui.horizontal(|ui| {
-                                                        egui::Frame::none()
+                                                        egui::Frame::NONE
                                                             .stroke(egui::Stroke::new(
                                                                 1.0,
                                                                 ui.style().visuals.text_color(),
@@ -141,7 +141,7 @@ impl HardwareState {
                             ui.add_space(screen_height + 20.0);
                             ui.horizontal(|ui| {
                                 ui.add_space(screen_width / 2.0 - 70.0);
-                                egui::Frame::none()
+                                egui::Frame::NONE
                                     .stroke(egui::Stroke::new(1.0, ui.style().visuals.text_color()))
                                     .inner_margin(2.0)
                                     .show(ui, |ui| {
@@ -181,7 +181,7 @@ impl HardwareState {
                         BreakpointVar::RAM(_) => "Mem".to_string(),
                         _ => self.selected_breakpoint.var.to_string(),
                     };
-                    egui::ComboBox::from_id_source("Variable")
+                    egui::ComboBox::from_id_salt("Variable")
                         .selected_text(selected_text)
                         .width(50.0)
                         .show_ui(ui, |ui| {
@@ -260,6 +260,7 @@ impl HardwareState {
                     + 2.0 * ui.spacing().button_padding.x;
                 TableBuilder::new(ui)
                     .striped(true)
+                    .animate_scrolling(false)
                     .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
                     .column(Column::exact(100.0))
                     .column(Column::exact(100.0))

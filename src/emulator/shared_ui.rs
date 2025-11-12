@@ -3,14 +3,14 @@ use crate::{
     hardware::{Instruction, Word, RAM},
     vm::{Program, RunState},
 };
+use core::slice;
 use eframe::{
     egui::{self, Slider},
     epaint::Rect,
-    glow,
+    glow::{self, PixelUnpackData},
 };
 use egui_extras::{Column, TableBuilder};
 use futures::future::join_all;
-use core::slice;
 use std::{future::Future, sync::mpsc::Sender};
 use std::{ops::RangeInclusive, sync::Arc};
 
@@ -149,12 +149,7 @@ impl Screen {
     }
 }
 
-pub fn draw_screen(
-    ui: &mut egui::Ui,
-    screen: &Arc<Screen>,
-    ram: &RAM,
-    frame: &eframe::Frame,
-) {
+pub fn draw_screen(ui: &mut egui::Ui, screen: &Arc<Screen>, ram: &RAM, frame: &eframe::Frame) {
     let rect = Rect::from_min_size(
         ui.cursor().min,
         egui::Vec2::new(ui.available_width(), ui.available_height()),
@@ -163,7 +158,9 @@ pub fn draw_screen(
     // Clone locals so we can move them into the paint callback:
     let screen = screen.clone();
     // let screen_ptr = ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize].as_ptr() as usize;
-    let screen_vec = ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize].to_vec();
+    let screen_vec = ram.contents
+        [RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize]
+        .to_vec();
     // let screen_slice = &ram.contents[RAM::SCREEN as usize..(RAM::SCREEN + 256 * RAM::SCREEN_ROW_LENGTH) as usize];
 
     unsafe {
@@ -181,14 +178,15 @@ pub fn draw_screen(
             glow::RED_INTEGER,
             glow::UNSIGNED_BYTE,
             // Some(screen_slice.align_to().1),
-            Some(screen_vec.align_to().1),
+            PixelUnpackData::Slice(Some(screen_vec.align_to().1)),
+            // Some(screen_vec.align_to().1),
             // Some(&*std::ptr::slice_from_raw_parts(screen_ptr as *const u8, 64*256))
         );
         context.bind_texture(glow::TEXTURE_2D, None);
     }
 
     let cb = eframe::egui_glow::CallbackFn::new(move |_info, painter| {
-        let context = painter.gl();
+        // let context = painter.gl();
         // unsafe {
         //     use glow::HasContext as _;
         //     context.active_texture(glow::TEXTURE0);
@@ -230,10 +228,10 @@ pub fn draw_shared(
         // The top panel is often a good place for a menu bar:
         // #[cfg(not(target_arch = "wasm32"))]
         {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Load VM Files").clicked() {
-                        ui.close_menu();
+                        ui.close();
                         let mut dialog = rfd::AsyncFileDialog::new();
                         if let Ok(current_dir) = std::env::current_dir() {
                             dialog = dialog.set_directory(current_dir);
@@ -257,7 +255,7 @@ pub fn draw_shared(
                         });
                     }
                     if ui.button("Load Hack File").clicked() {
-                        ui.close_menu();
+                        ui.close();
                         let mut dialog = rfd::AsyncFileDialog::new();
                         if let Ok(current_dir) = std::env::current_dir() {
                             dialog = dialog.set_directory(current_dir);
@@ -276,7 +274,7 @@ pub fn draw_shared(
                         });
                     }
                     if ui.button("Close File(s)").clicked() {
-                        ui.close_menu();
+                        ui.close();
                         *action = Some(Action::CloseFile)
                     }
                     if ui.button("Quit").clicked() {
@@ -393,6 +391,7 @@ impl EmulatorWidgets for egui::Ui {
 
                 let available_height = ui.available_height();
                 let mut builder = TableBuilder::new(ui)
+                    .animate_scrolling(false)
                     .auto_shrink(false)
                     .min_scrolled_height(header_height + row_height)
                     .max_scroll_height(available_height);
@@ -459,6 +458,7 @@ impl EmulatorWidgets for egui::Ui {
 
                 let available_height = ui.available_height();
                 let mut builder = TableBuilder::new(ui)
+                    .animate_scrolling(false)
                     .min_scrolled_height(header_height + row_height)
                     .max_scroll_height(available_height);
 
@@ -512,7 +512,7 @@ impl EmulatorWidgets for egui::Ui {
                 if scroll_to_row {
                     selected_file.clone_from(&program.files[run_state.current_file_index].name);
                 }
-                egui::ComboBox::from_id_source("VM combo")
+                egui::ComboBox::from_id_salt("VM combo")
                     .selected_text(&*selected_file)
                     .show_ui(ui, |ui| {
                         for file_name in program.files.iter().map(|f| &f.name) {
@@ -527,6 +527,7 @@ impl EmulatorWidgets for egui::Ui {
 
                 let available_height = ui.available_height();
                 let mut builder = TableBuilder::new(ui)
+                    .animate_scrolling(false)
                     .min_scrolled_height(header_height + row_height)
                     .max_scroll_height(available_height);
 

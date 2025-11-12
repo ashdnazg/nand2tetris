@@ -16,7 +16,7 @@ fn main() {
         Box::new(|cc| {
             cc.egui_ctx.set_pixels_per_point(1.0);
             cc.egui_ctx.set_visuals(eframe::egui::Visuals::dark());
-            Box::new(nand2tetris::emulator::EmulatorApp::new(cc))
+            Ok(Box::new(nand2tetris::emulator::EmulatorApp::new(cc)))
         }),
     )
     .unwrap();
@@ -34,7 +34,7 @@ fn main() {
             .start(
                 "the_canvas_id", // hardcode it
                 web_options,
-                Box::new(|cc| Box::new(nand2tetris::emulator::EmulatorApp::new(cc))),
+                Box::new(|cc| Ok(Box::new(nand2tetris::emulator::EmulatorApp::new(cc)))),
             )
             .await
             .expect("failed to start eframe");
