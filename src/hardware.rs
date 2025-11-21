@@ -312,7 +312,10 @@ impl RAM {
     }
 }
 
-pub trait Emulator {
+pub trait AnyHardware {
+    fn is_ready(&self) -> bool;
+    fn rom(&self) -> &[Instruction; MEM_SIZE];
+    fn copy_ram(&self) -> RAM;
     fn a_mut(&mut self) -> &mut Word;
     fn a(&self) -> Word;
     fn d_mut(&mut self) -> &mut Word;
@@ -321,12 +324,25 @@ pub trait Emulator {
     fn set_ram_value(&mut self, address: Word, value: Word);
     fn pc(&self) -> Word;
     fn step(&mut self) -> bool;
-    fn load_program(&mut self, program: impl IntoIterator<Item = impl Borrow<Instruction>>);
+    fn load_program(&mut self, program: &[Instruction]);
     fn run_program(&mut self);
+    fn run(&mut self, step_count: u64) -> bool;
     fn reset(&mut self);
 }
 
-impl Emulator for Hardware {
+impl AnyHardware for Hardware {
+    fn is_ready(&self) -> bool {
+        true
+    }
+
+    fn rom(&self) -> &[Instruction; MEM_SIZE] {
+        &self.rom
+    }
+
+    fn copy_ram(&self) -> RAM {
+        self.ram.clone()
+    }
+
     fn a_mut(&mut self) -> &mut Word {
         &mut self.a
     }
@@ -383,11 +399,21 @@ impl Emulator for Hardware {
         false
     }
 
-    fn load_program(&mut self, program: impl IntoIterator<Item = impl Borrow<Instruction>>) {
+    fn run(&mut self, step_count: u64) -> bool {
+        for _ in 0..step_count {
+            if self.step() {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn load_program(&mut self, program: &[Instruction]) {
         self.rom.fill(Instruction { raw: 0 });
         self.length = 0;
         for (i, instruction) in program.into_iter().enumerate() {
-            self.rom[i] = *instruction.borrow();
+            self.rom[i] = *instruction;
             self.length += 1;
         }
     }
@@ -520,16 +546,6 @@ impl Hardware {
         }
     }
 
-    pub fn run(&mut self, step_count: u64) -> bool {
-        for _ in 0..step_count {
-            if self.step() {
-                return true;
-            }
-        }
-
-        false
-    }
-
     pub fn from_file_contents(contents: &str) -> Self {
         let mut instance = Self::default();
         let instructions = assemble_hack_file(contents).unwrap().1;
@@ -606,8 +622,8 @@ mod tests {
         test_increment(&mut hardware);
     }
 
-    fn test_increment(emulator: &mut impl Emulator) {
-        emulator.load_program([Instruction::from_legacy(59344)]);
+    fn test_increment(emulator: &mut impl AnyHardware) {
+        emulator.load_program(&[Instruction::from_legacy(59344)]);
         *emulator.d_mut() = 1337;
 
         emulator.step();
@@ -621,8 +637,8 @@ mod tests {
         test_add(&mut hardware);
     }
 
-    fn test_add(emulator: &mut impl Emulator) {
-        emulator.load_program([Instruction::from_legacy(57488)]);
+    fn test_add(emulator: &mut impl AnyHardware) {
+        emulator.load_program(&[Instruction::from_legacy(57488)]);
         *emulator.d_mut() = 1337;
         *emulator.a_mut() = 1337;
 
@@ -637,8 +653,8 @@ mod tests {
         test_sub_minus_1(&mut hardware);
     }
 
-    fn test_sub_minus_1(emulator: &mut impl Emulator) {
-        emulator.load_program([Instruction::create(
+    fn test_sub_minus_1(emulator: &mut impl AnyHardware) {
+        emulator.load_program(&[Instruction::create(
             DestinationRegisters::D,
             0x186,
             JumpCondition::NoJump,
@@ -657,8 +673,8 @@ mod tests {
         test_zero(&mut hardware);
     }
 
-    fn test_zero(emulator: &mut impl Emulator) {
-        emulator.load_program([Instruction::from_legacy(60048)]);
+    fn test_zero(emulator: &mut impl AnyHardware) {
+        emulator.load_program(&[Instruction::from_legacy(60048)]);
         *emulator.d_mut() = 1337;
 
         emulator.step();
@@ -672,8 +688,8 @@ mod tests {
         test_load(&mut hardware);
     }
 
-    fn test_load(emulator: &mut impl Emulator) {
-        emulator.load_program([Instruction::from_legacy(1337)]);
+    fn test_load(emulator: &mut impl AnyHardware) {
+        emulator.load_program(&[Instruction::from_legacy(1337)]);
 
         emulator.step();
 
@@ -686,11 +702,11 @@ mod tests {
         test_integration(&mut hardware);
     }
 
-    fn test_integration(emulator: &mut impl Emulator) {
+    fn test_integration(emulator: &mut impl AnyHardware) {
         let program = [
             15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039,
         ];
-        emulator.load_program(program.iter().copied().map(Instruction::from_legacy));
+        emulator.load_program(&program.iter().copied().map(Instruction::from_legacy).collect::<Vec<_>>());
 
         emulator.set_ram_value(13, 34);
         emulator.set_ram_value(14, 12);
@@ -706,7 +722,7 @@ mod tests {
         test_jump_setting_a(&mut hardware);
     }
 
-    fn test_jump_setting_a(emulator: &mut impl Emulator) {
+    fn test_jump_setting_a(emulator: &mut impl AnyHardware) {
         emulator.load_program(&[Instruction::create(
             DestinationRegisters::A,
             0x01BF, // 1

@@ -24,7 +24,7 @@ pub enum UIStyle {
 
 pub trait CommonState {
     fn run(&mut self, step_count: u64) -> bool;
-    fn ram_mut(&mut self) -> &mut RAM;
+    fn set_ram_value(&mut self, address: i16, value: i16);
     fn reset(&mut self);
 }
 
@@ -104,7 +104,7 @@ impl<T: CommonState> StepRunnable for T {
     ) -> bool {
         if steps_to_run > 0 {
             let keyboard_value = keyboard_value_from_key(key_down, modifiers);
-            self.ram_mut().set_keyboard(keyboard_value);
+            self.set_ram_value(RAM::KBD, keyboard_value);
 
             if self.run(steps_to_run) {
                 return false;

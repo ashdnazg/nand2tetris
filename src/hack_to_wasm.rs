@@ -2,9 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use wast::{
     core::{
-        BlockType, BrTableIndices, BranchHint, Export, ExportKind, Expression, Func, FuncKind,
-        FunctionType, InlineExport, Instruction, Limits, Local, MemArg, Memory, MemoryKind,
-        MemoryType, Module, ModuleField, ModuleKind, TypeUse, ValType,
+        BlockType, BrTableIndices, BranchHint, Export, ExportKind, Expression, Func, FuncKind, FunctionType, Global, GlobalKind, GlobalType, InlineExport, Instruction, Limits, Local, MemArg, Memory, MemoryKind, MemoryType, Module, ModuleField, ModuleKind, TypeUse, ValType
     },
     token::{Id, Index, NameAnnotation, Span},
 };
@@ -323,6 +321,53 @@ fn locals() -> Box<[Local<'static>]> {
     ])
 }
 
+fn globals() -> Vec<Global<'static>> {
+    vec![
+        Global {
+            span: Span::from_offset(0),
+            id: Some(id_a()),
+            name: None,
+            exports: InlineExport::default(),
+            ty: GlobalType {
+                ty: ValType::I32,
+                mutable: true,
+                shared: false,
+            },
+            kind: GlobalKind::Inline(ExpressionBuilder::default()
+                .instr(Instruction::I32Const(1337))
+                .build()),
+        },
+        Global {
+            span: Span::from_offset(0),
+            id: Some(id_d()),
+            name: None,
+            exports: InlineExport::default(),
+            ty: GlobalType {
+                ty: ValType::I32,
+                mutable: true,
+                shared: false,
+            },
+            kind: GlobalKind::Inline(ExpressionBuilder::default()
+                .instr(Instruction::I32Const(1337))
+                .build()),
+        },
+        Global {
+            span: Span::from_offset(0),
+            id: Some(id_jump_target()),
+            name: None,
+            exports: InlineExport { names: vec!["jump_target"] },
+            ty: GlobalType {
+                ty: ValType::I32,
+                mutable: true,
+                shared: false,
+            },
+            kind: GlobalKind::Inline(ExpressionBuilder::default()
+                .instr(Instruction::I32Const(0))
+                .build()),
+        },
+    ]
+}
+
 fn mem_arg_m() -> MemArg<'static> {
     MemArg {
         align: 4,
@@ -332,11 +377,11 @@ fn mem_arg_m() -> MemArg<'static> {
 }
 
 fn hack_instr_to_wasm(
-    hack_instr: crate::hardware::Instruction,
-    jump_index: Index,
+    hack_instr: &crate::hardware::Instruction,
+    jump_index: Index<'static>,
     jump_target: Option<i32>,
-) -> Vec<Instruction> {
-    let mut wasm_instructions = vec![
+) -> Vec<Instruction<'static>> {
+    let mut wasm_instructions: Vec<Instruction<'static>> = vec![
         Instruction::I32Const(1),
         Instruction::LocalGet(index_ticks()),
         Instruction::I32Add,
@@ -353,8 +398,10 @@ fn hack_instr_to_wasm(
     if hack_instr.jump_condition() != crate::hardware::JumpCondition::NoJump {
         if let Some(jump_target) = jump_target {
             wasm_instructions.push(Instruction::I32Const(jump_target));
-            wasm_instructions.push(Instruction::LocalSet(index_jump_target()));
+        } else {
+            wasm_instructions.push(Instruction::LocalGet(index_a()));
         }
+        wasm_instructions.push(Instruction::LocalSet(index_jump_target()));
     }
 
     if hack_instr.dst_has_m() || hack_instr.op_name().contains('M') {
@@ -432,12 +479,12 @@ fn hack_instr_to_wasm(
             wasm_instructions.push(Instruction::LocalGet(index_d()));
             wasm_instructions.push(Instruction::I32Sub);
         }
-        "D&A" => {
+        "A&D" => {
             wasm_instructions.push(Instruction::LocalGet(index_d()));
             wasm_instructions.push(Instruction::LocalGet(index_a()));
             wasm_instructions.push(Instruction::I32And);
         }
-        "D|A" => {
+        "A|D" => {
             wasm_instructions.push(Instruction::LocalGet(index_d()));
             wasm_instructions.push(Instruction::LocalGet(index_a()));
             wasm_instructions.push(Instruction::I32Or);
@@ -553,9 +600,21 @@ fn hack_instr_to_wasm(
     wasm_instructions
 }
 
-fn hack_to_cases(hack: &str, loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
-    let instructions = crate::hardware_parse::assemble_hack_file(hack).unwrap().1;
+fn hack_dynamic_slow(instructions: &[crate::hardware::Instruction], loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
+    instructions.iter().enumerate().map(|(i, instruction)| {
+        let mut instrs = hack_instr_to_wasm(instruction, Index::Id(loop_id), None);
+        instrs.push(Instruction::I32Const(i as i32 + 1));
+        instrs.push(Instruction::LocalSet(index_jump_target()));
+        instrs.push(Instruction::Br(Index::Id(loop_id)));
+        instrs
+    }).collect()
+}
 
+fn hack_to_dynamic_cases(instructions: &[crate::hardware::Instruction], loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
+    instructions.iter().map(|instruction| hack_instr_to_wasm(instruction, Index::Id(loop_id), None)).collect()
+}
+
+fn hack_to_static_cases(instructions: &[crate::hardware::Instruction], loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
     let mut a_values: Vec<Option<i32>> = Vec::new();
     a_values.resize(instructions.len() + 1, None);
     let mut targets = HashSet::new();
@@ -590,7 +649,7 @@ fn hack_to_cases(hack: &str, loop_id: Id<'static>) -> Vec<Vec<Instruction<'stati
 
     let mut cases = vec![];
     let mut current_case = vec![];
-    for (index, instruction) in instructions.into_iter().enumerate() {
+    for (index, instruction) in instructions.iter().enumerate() {
         let mut jump_target = None;
         let mut loop_index = Index::Id(loop_id);
 
@@ -622,39 +681,57 @@ fn hack_to_cases(hack: &str, loop_id: Id<'static>) -> Vec<Vec<Instruction<'stati
     cases
 }
 
-pub fn hack_to_wasm(hack: &str) -> Result<Vec<u8>, String> {
+pub fn hack_to_wasm(instructions: &[crate::hardware::Instruction], with_limit: bool) -> Result<Vec<u8>, String> {
     let loop_id = Id::new("loop", Span::from_offset(0));
 
-    let cases = hack_to_cases(hack, loop_id);
+    let cases = hack_to_dynamic_cases(&instructions, loop_id);
+    let case_count = cases.len();
 
     let memory_id = Id::new("memory", Span::from_offset(0));
 
     let expression = ExpressionBuilder::default()
-        .instr(Instruction::I32Const(0))
-        .instr(Instruction::LocalGet(Index::Num(0, Span::from_offset(0))))
-        .instr(Instruction::I32Store(MemArg {
-            align: 4,
-            offset: 0,
-            memory: Index::Num(0, Span::from_offset(0)),
-        }))
-        .instr(Instruction::I32Const(4))
-        .instr(Instruction::LocalGet(Index::Num(1, Span::from_offset(0))))
-        .instr(Instruction::I32Store(MemArg {
-            align: 4,
-            offset: 0,
-            memory: Index::Num(0, Span::from_offset(0)),
-        }))
-        .with_loop(loop_id, |builder| builder.switch(cases, vec![]))
-        .instr(Instruction::I32Const(8))
-        .instr(Instruction::I32Load(MemArg {
-            align: 4,
-            offset: 0,
-            memory: Index::Num(0, Span::from_offset(0)),
-        }))
+        .instr(Instruction::GlobalGet(index_a()))
+        .instr(Instruction::LocalSet(index_a()))
+        .instr(Instruction::GlobalGet(index_d()))
+        .instr(Instruction::LocalSet(index_d()))
+        .instr(Instruction::GlobalGet(index_jump_target()))
+        .instr(Instruction::LocalSet(index_jump_target()))
+        .with_loop(loop_id, |mut builder|
+            {
+                if with_limit {
+                    builder = builder
+                        .instr(Instruction::LocalGet(index_ticks()))
+                        .instr(Instruction::LocalGet(Index::Num(0, Span::from_offset(0))))
+                        .instr(Instruction::I32GeU)
+                        .instr(Instruction::If(Box::new(BlockType {
+                            label: None,
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })))
+                        .instr(Instruction::LocalGet(index_a()))
+                        .instr(Instruction::GlobalSet(index_a()))
+                        .instr(Instruction::LocalGet(index_d()))
+                        .instr(Instruction::GlobalSet(index_d()))
+                        .instr(Instruction::LocalGet(index_jump_target()))
+                        .instr(Instruction::GlobalSet(index_jump_target()))
+                        .instr(Instruction::LocalGet(index_ticks()))
+                        .instr(Instruction::Return)
+                        .instr(Instruction::End(None));
+                }
+                builder.switch(cases, vec![])
+            })
+        .instr(Instruction::I32Const(case_count as i32))
+        .instr(Instruction::GlobalSet(index_jump_target()))
         .instr(Instruction::LocalGet(index_ticks()))
         .build();
 
+    let params = if with_limit { vec![(None, None, ValType::I32)] } else { vec![] };
+
     let mut m = ModuleBuilder::default()
+        .fields(globals().into_iter().map(|g| ModuleField::Global(g)).collect())
         .field(ModuleField::Memory(create_memory(memory_id, 32768)))
         .field(ModuleField::Export(Export {
             span: Span::from_offset(0),
@@ -672,8 +749,8 @@ pub fn hack_to_wasm(hack: &str) -> Result<Vec<u8>, String> {
                 .ty(TypeUse {
                     index: None,
                     inline: Some(FunctionType {
-                        params: [(None, None, ValType::I32), (None, None, ValType::I32)].into(),
-                        results: [ValType::I32, ValType::I32].into(),
+                        params: params.into(),
+                        results: [ValType::I32].into(),
                     }),
                 })
                 .build(),
@@ -682,35 +759,5 @@ pub fn hack_to_wasm(hack: &str) -> Result<Vec<u8>, String> {
 
     let unoptimized_data = m.encode().map_err(|e| e.to_string())?;
 
-    // unsafe {
-    //     let binaryen_module = binaryen_sys::BinaryenModuleRead(unoptimized_data.as_ptr() as *mut _, unoptimized_data.len());
-    //     binaryen_sys::BinaryenModuleSetFeatures(binaryen_module, binaryen_sys::BinaryenFeatureSignExt());
-    //     binaryen_sys::BinaryenSetOptimizeLevel(2);
-    //     binaryen_sys::BinaryenSetShrinkLevel(2);
-    //     binaryen_sys::BinaryenModuleOptimize(binaryen_module);
-    //     binaryen_sys::BinaryenModuleOptimize(binaryen_module);
-    //     Ok(write_module(binaryen_module))
-    // }
-
     Ok(unoptimized_data)
 }
-
-// pub fn write_module(module: binaryen_sys::BinaryenModuleRef) -> Vec<u8> {
-//     unsafe {
-//         let write_result =
-//             binaryen_sys::BinaryenModuleAllocateAndWrite(module, std::ptr::null());
-
-//         // Create a slice from the resulting array and then copy it in vector.
-//         let binary_buf = if write_result.binaryBytes == 0 {
-//             vec![]
-//         } else {
-//             std::slice::from_raw_parts(write_result.binary as *const u8, write_result.binaryBytes)
-//                 .to_vec()
-//         };
-
-//         // This will free buffers in the write_result.
-//         binaryen_sys::BinaryenShimDisposeBinaryenModuleAllocateAndWriteResult(write_result);
-
-//         binary_buf
-//     }
-// }

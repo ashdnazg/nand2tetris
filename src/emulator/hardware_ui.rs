@@ -22,6 +22,11 @@ impl HardwareState {
         screen: &Arc<Screen>,
         frame: &eframe::Frame,
     ) {
+        if !self.hardware.is_ready() {
+            ctx.request_repaint();
+            return;
+        }
+        let ram_copy = self.hardware.copy_ram();
         egui::CentralPanel::default().show(ctx, |ui| {
             let available_width = ui.available_width();
             let thin_layout = available_width < 768.0;
@@ -46,9 +51,9 @@ impl HardwareState {
                                                 strip.cell(|ui| {
                                                     ui.rom_grid(
                                                         "ROM",
-                                                        &self.hardware.rom,
+                                                        &self.hardware.rom(),
                                                         &(0..=((MEM_SIZE - 1) as Word)),
-                                                        self.hardware.pc,
+                                                        self.hardware.pc(),
                                                         shared_state.scroll_once,
                                                     );
                                                 });
@@ -72,7 +77,7 @@ impl HardwareState {
                                                                     |ui| {
                                                                         ui.label(
                                                                             self.hardware
-                                                                                .pc
+                                                                                .pc()
                                                                                 .to_string(),
                                                                         );
                                                                     },
@@ -91,10 +96,10 @@ impl HardwareState {
                                                 strip.cell(|ui| {
                                                     ui.ram_grid(
                                                         "RAM",
-                                                        &self.hardware.ram,
+                                                        &ram_copy,
                                                         &(0..=((MEM_SIZE - 1) as Word)),
                                                         UIStyle::Hardware,
-                                                        Some(self.hardware.a),
+                                                        Some(self.hardware.a()),
                                                         shared_state.scroll_once,
                                                     );
                                                 });
@@ -118,7 +123,7 @@ impl HardwareState {
                                                                     |ui| {
                                                                         ui.label(
                                                                             self.hardware
-                                                                                .a
+                                                                                .a()
                                                                                 .to_string(),
                                                                         );
                                                                     },
@@ -136,7 +141,7 @@ impl HardwareState {
                             let screen_height = (available_width / 2.0).min(256.0);
                             let screen_width = available_width.min(512.0);
                             ui.allocate_ui(Vec2::new(screen_width, screen_height), |ui| {
-                                draw_screen(ui, screen, &self.hardware.ram, frame);
+                                draw_screen(ui, screen, &ram_copy, frame);
                             });
                             ui.add_space(screen_height + 20.0);
                             ui.horizontal(|ui| {
@@ -150,7 +155,7 @@ impl HardwareState {
                                             [110.0, ui.available_height()].into(),
                                             egui::Layout::right_to_left(egui::Align::Center),
                                             |ui| {
-                                                ui.label(self.hardware.d.to_string());
+                                                ui.label(self.hardware.d().to_string());
                                             },
                                         );
                                     });
@@ -160,152 +165,152 @@ impl HardwareState {
                 });
         });
 
-        let mut breakpoints_open = shared_state.breakpoints_open;
+        // let mut breakpoints_open = shared_state.breakpoints_open;
 
-        egui::Window::new("Breakpoints")
-            .open(&mut breakpoints_open)
-            .resizable(true)
-            .default_width(1000.0)
-            .show(ctx, |ui| {
-                let breakpoints = self.hardware.get_breakpoints();
-                ui.horizontal(|ui| {
-                    let breakpoint_address =
-                        if let BreakpointVar::RAM(address) = self.selected_breakpoint.var {
-                            address
-                        } else {
-                            0
-                        };
+        // egui::Window::new("Breakpoints")
+        //     .open(&mut breakpoints_open)
+        //     .resizable(true)
+        //     .default_width(1000.0)
+        //     .show(ctx, |ui| {
+        //         let breakpoints = self.hardware.get_breakpoints();
+        //         ui.horizontal(|ui| {
+        //             let breakpoint_address =
+        //                 if let BreakpointVar::RAM(address) = self.selected_breakpoint.var {
+        //                     address
+        //                 } else {
+        //                     0
+        //                 };
 
-                    let mut new_selected_breakpoint_var = self.selected_breakpoint.var;
-                    let selected_text = match self.selected_breakpoint.var {
-                        BreakpointVar::RAM(_) => "Mem".to_string(),
-                        _ => self.selected_breakpoint.var.to_string(),
-                    };
-                    egui::ComboBox::from_id_salt("Variable")
-                        .selected_text(selected_text)
-                        .width(50.0)
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut new_selected_breakpoint_var,
-                                BreakpointVar::A,
-                                "A",
-                            );
-                            ui.selectable_value(
-                                &mut new_selected_breakpoint_var,
-                                BreakpointVar::D,
-                                "D",
-                            );
-                            ui.selectable_value(
-                                &mut new_selected_breakpoint_var,
-                                BreakpointVar::M,
-                                "M",
-                            );
-                            ui.selectable_value(
-                                &mut new_selected_breakpoint_var,
-                                BreakpointVar::PC,
-                                "PC",
-                            );
-                            ui.selectable_value(
-                                &mut new_selected_breakpoint_var,
-                                BreakpointVar::RAM(breakpoint_address),
-                                "Mem",
-                            );
-                        });
+        //             let mut new_selected_breakpoint_var = self.selected_breakpoint.var;
+        //             let selected_text = match self.selected_breakpoint.var {
+        //                 BreakpointVar::RAM(_) => "Mem".to_string(),
+        //                 _ => self.selected_breakpoint.var.to_string(),
+        //             };
+        //             egui::ComboBox::from_id_salt("Variable")
+        //                 .selected_text(selected_text)
+        //                 .width(50.0)
+        //                 .show_ui(ui, |ui| {
+        //                     ui.selectable_value(
+        //                         &mut new_selected_breakpoint_var,
+        //                         BreakpointVar::A,
+        //                         "A",
+        //                     );
+        //                     ui.selectable_value(
+        //                         &mut new_selected_breakpoint_var,
+        //                         BreakpointVar::D,
+        //                         "D",
+        //                     );
+        //                     ui.selectable_value(
+        //                         &mut new_selected_breakpoint_var,
+        //                         BreakpointVar::M,
+        //                         "M",
+        //                     );
+        //                     ui.selectable_value(
+        //                         &mut new_selected_breakpoint_var,
+        //                         BreakpointVar::PC,
+        //                         "PC",
+        //                     );
+        //                     ui.selectable_value(
+        //                         &mut new_selected_breakpoint_var,
+        //                         BreakpointVar::RAM(breakpoint_address),
+        //                         "Mem",
+        //                     );
+        //                 });
 
-                    if let BreakpointVar::RAM(address) = self.selected_breakpoint.var {
-                        ui.label("[");
-                        let mut new_address_text = address.to_string();
-                        ui.add(
-                            egui::TextEdit::singleline(&mut new_address_text).desired_width(50.0),
-                        );
-                        if let Ok(new_address) = new_address_text.parse::<Word>() {
-                            if new_address != address {
-                                new_selected_breakpoint_var = BreakpointVar::RAM(new_address);
-                            }
-                        }
-                        ui.label("]");
-                    }
+        //             if let BreakpointVar::RAM(address) = self.selected_breakpoint.var {
+        //                 ui.label("[");
+        //                 let mut new_address_text = address.to_string();
+        //                 ui.add(
+        //                     egui::TextEdit::singleline(&mut new_address_text).desired_width(50.0),
+        //                 );
+        //                 if let Ok(new_address) = new_address_text.parse::<Word>() {
+        //                     if new_address != address {
+        //                         new_selected_breakpoint_var = BreakpointVar::RAM(new_address);
+        //                     }
+        //                 }
+        //                 ui.label("]");
+        //             }
 
-                    if new_selected_breakpoint_var != self.selected_breakpoint.var {
-                        *action = Some(Action::Breakpoint(BreakpointAction::BreakpointChanged(
-                            Breakpoint::Hardware(hardware::Breakpoint {
-                                var: new_selected_breakpoint_var,
-                                value: self.selected_breakpoint.value,
-                            }),
-                        )));
-                    }
-                    ui.label("=");
+        //             if new_selected_breakpoint_var != self.selected_breakpoint.var {
+        //                 *action = Some(Action::Breakpoint(BreakpointAction::BreakpointChanged(
+        //                     Breakpoint::Hardware(hardware::Breakpoint {
+        //                         var: new_selected_breakpoint_var,
+        //                         value: self.selected_breakpoint.value,
+        //                     }),
+        //                 )));
+        //             }
+        //             ui.label("=");
 
-                    let mut new_value_text = self.selected_breakpoint.value.to_string();
-                    ui.add(egui::TextEdit::singleline(&mut new_value_text).desired_width(50.0));
-                    if let Ok(new_value) = new_value_text.parse::<Word>() {
-                        if new_value != self.selected_breakpoint.value {
-                            *action =
-                                Some(Action::Breakpoint(BreakpointAction::BreakpointChanged(
-                                    Breakpoint::Hardware(hardware::Breakpoint {
-                                        var: self.selected_breakpoint.var,
-                                        value: new_value,
-                                    }),
-                                )));
-                        }
-                    }
+        //             let mut new_value_text = self.selected_breakpoint.value.to_string();
+        //             ui.add(egui::TextEdit::singleline(&mut new_value_text).desired_width(50.0));
+        //             if let Ok(new_value) = new_value_text.parse::<Word>() {
+        //                 if new_value != self.selected_breakpoint.value {
+        //                     *action =
+        //                         Some(Action::Breakpoint(BreakpointAction::BreakpointChanged(
+        //                             Breakpoint::Hardware(hardware::Breakpoint {
+        //                                 var: self.selected_breakpoint.var,
+        //                                 value: new_value,
+        //                             }),
+        //                         )));
+        //                 }
+        //             }
 
-                    if ui.button("Add").clicked() {
-                        *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
-                    }
-                });
-                ui.label("Breakpoints:");
-                let header_height = ui.text_style_height(&egui::TextStyle::Body);
-                let row_height = ui.text_style_height(&egui::TextStyle::Monospace)
-                    + 2.0 * ui.spacing().button_padding.x;
-                TableBuilder::new(ui)
-                    .striped(true)
-                    .animate_scrolling(false)
-                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-                    .column(Column::exact(100.0))
-                    .column(Column::exact(100.0))
-                    .column(Column::exact(70.0))
-                    .header(header_height, |mut header| {
-                        header.col(|ui| {
-                            ui.label("Variable");
-                        });
-                        header.col(|ui| {
-                            ui.label("Value");
-                        });
-                        header.col(|_| {});
-                    })
-                    .body(|body| {
-                        body.rows(row_height, usize::max(breakpoints.len(), 10), |mut row| {
-                            let row_index = row.index();
-                            let breakpoint = breakpoints.get(row_index);
-                            row.col(|ui| {
-                                ui.monospace(
-                                    breakpoint
-                                        .map(|b| b.var.to_string())
-                                        .unwrap_or("".to_string()),
-                                );
-                            });
-                            row.col(|ui| {
-                                ui.monospace(
-                                    breakpoint
-                                        .map(|b| b.value.to_string())
-                                        .unwrap_or("".to_string()),
-                                );
-                            });
-                            row.col(|ui| {
-                                if breakpoint.is_some() && ui.button("Remove").clicked() {
-                                    *action = Some(Action::Breakpoint(
-                                        BreakpointAction::RemoveClicked(row_index),
-                                    ));
-                                }
-                            });
-                        });
-                    });
-            });
+        //             if ui.button("Add").clicked() {
+        //                 *action = Some(Action::Breakpoint(BreakpointAction::AddClicked));
+        //             }
+        //         });
+        //         ui.label("Breakpoints:");
+        //         let header_height = ui.text_style_height(&egui::TextStyle::Body);
+        //         let row_height = ui.text_style_height(&egui::TextStyle::Monospace)
+        //             + 2.0 * ui.spacing().button_padding.x;
+        //         TableBuilder::new(ui)
+        //             .striped(true)
+        //             .animate_scrolling(false)
+        //             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+        //             .column(Column::exact(100.0))
+        //             .column(Column::exact(100.0))
+        //             .column(Column::exact(70.0))
+        //             .header(header_height, |mut header| {
+        //                 header.col(|ui| {
+        //                     ui.label("Variable");
+        //                 });
+        //                 header.col(|ui| {
+        //                     ui.label("Value");
+        //                 });
+        //                 header.col(|_| {});
+        //             })
+        //             .body(|body| {
+        //                 body.rows(row_height, usize::max(breakpoints.len(), 10), |mut row| {
+        //                     let row_index = row.index();
+        //                     let breakpoint = breakpoints.get(row_index);
+        //                     row.col(|ui| {
+        //                         ui.monospace(
+        //                             breakpoint
+        //                                 .map(|b| b.var.to_string())
+        //                                 .unwrap_or("".to_string()),
+        //                         );
+        //                     });
+        //                     row.col(|ui| {
+        //                         ui.monospace(
+        //                             breakpoint
+        //                                 .map(|b| b.value.to_string())
+        //                                 .unwrap_or("".to_string()),
+        //                         );
+        //                     });
+        //                     row.col(|ui| {
+        //                         if breakpoint.is_some() && ui.button("Remove").clicked() {
+        //                             *action = Some(Action::Breakpoint(
+        //                                 BreakpointAction::RemoveClicked(row_index),
+        //                             ));
+        //                         }
+        //                     });
+        //                 });
+        //             });
+        //     });
 
-        if shared_state.breakpoints_open != breakpoints_open {
-            assert!(shared_state.breakpoints_open);
-            *action = Some(Action::Common(CommonAction::BreakpointsClosed));
-        }
+        // if shared_state.breakpoints_open != breakpoints_open {
+        //     assert!(shared_state.breakpoints_open);
+        //     *action = Some(Action::Common(CommonAction::BreakpointsClosed));
+        // }
     }
 }

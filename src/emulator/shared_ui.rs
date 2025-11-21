@@ -313,7 +313,7 @@ pub fn draw_shared(
                             ui.spacing_mut().interact_size.x = 100.0;
                             ui.add_sized(
                                 [200.0, height],
-                                Slider::new(&mut new_steps_per_second, 0..=1000000000)
+                                Slider::new(&mut new_steps_per_second, 0..=10000000000)
                                     .logarithmic(true),
                             );
                         })

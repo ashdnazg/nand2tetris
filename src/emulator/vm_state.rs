@@ -30,8 +30,8 @@ impl CommonState for VMState {
         false
     }
 
-    fn ram_mut(&mut self) -> &mut RAM {
-        &mut self.vm.run_state.ram
+    fn set_ram_value(&mut self, address: i16, value: i16) {
+        self.vm.run_state.ram[address] = value;
     }
 
     fn reset(&mut self) {
