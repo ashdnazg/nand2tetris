@@ -1,6 +1,6 @@
 use super::instant::Instant;
 use crate::{
-    hardware::{Instruction, Word, RAM},
+    hardware::{Instruction, RAM, Word},
     vm::{Program, RunState},
 };
 use core::slice;

@@ -2,6 +2,7 @@ use eframe::egui::DroppedFile;
 
 use super::instant::Instant;
 
+use super::EmulatorApp;
 use super::common_state::{
     Action, AppState, CommonAction, CommonState, PerformanceData, SharedState,
 };
@@ -9,7 +10,6 @@ use super::hardware_reducer::reduce_breakpoint_hardware;
 use super::hardware_state::HardwareState;
 use super::vm_reducer::reduce_vm_file_selected;
 use super::vm_state::VMState;
-use super::EmulatorApp;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn get_contents(dropped_file: &DroppedFile) -> String {

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use crate::hardware::{self, BreakpointVar, Word, MEM_SIZE};
+use crate::hardware::{self, BreakpointVar, MEM_SIZE, Word};
 use eframe::{
     egui,
-    epaint::{mutex::Mutex, Vec2},
+    epaint::{Vec2, mutex::Mutex},
 };
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 

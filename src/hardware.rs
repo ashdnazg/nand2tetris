@@ -706,7 +706,13 @@ mod tests {
         let program = [
             15, 60040, 14, 64528, 15, 58114, 13, 64528, 15, 61576, 14, 64648, 2, 60039,
         ];
-        emulator.load_program(&program.iter().copied().map(Instruction::from_legacy).collect::<Vec<_>>());
+        emulator.load_program(
+            &program
+                .iter()
+                .copied()
+                .map(Instruction::from_legacy)
+                .collect::<Vec<_>>(),
+        );
 
         emulator.set_ram_value(13, 34);
         emulator.set_ram_value(14, 12);
