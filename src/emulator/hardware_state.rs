@@ -1,12 +1,12 @@
-use crate::hardware::{
-    Breakpoint, BreakpointVar, Emulator as _, Hardware, Instruction, UWord, RAM,
-};
+use crate::{hardware::{
+    AnyHardware, Breakpoint, BreakpointVar, Hardware, Instruction, RAM, UWord
+}, wasm_hardware::WasmHardware};
 
 use super::common_state::CommonState;
 
 pub struct HardwareState {
     pub selected_breakpoint: Breakpoint,
-    pub hardware: Hardware,
+    pub hardware: Box<dyn AnyHardware>,
 }
 
 impl Default for HardwareState {
@@ -17,7 +17,7 @@ impl Default for HardwareState {
             65000, 58120, 24576, 60560, 16, 62672, 4, 58115, 16384, 60432, 16, 58248, 4, 60039,
         ];
         hardware.load_program(
-            program
+            &program
                 .iter()
                 .map(|raw| Instruction::new(*raw))
                 .collect::<Vec<_>>(),
@@ -28,7 +28,7 @@ impl Default for HardwareState {
                 var: BreakpointVar::A,
                 value: 0,
             },
-            hardware,
+            hardware: Box::new(hardware),
         }
     }
 }
@@ -40,7 +40,7 @@ impl HardwareState {
                 var: BreakpointVar::A,
                 value: 0,
             },
-            hardware: Hardware::from_file_contents(contents),
+            hardware: Box::new(WasmHardware::from_file_contents(contents)),
         }
     }
 
@@ -50,7 +50,7 @@ impl HardwareState {
                 var: BreakpointVar::A,
                 value: 0,
             },
-            hardware: Hardware::from_hack_file_contents(contents),
+            hardware: Box::new(WasmHardware::from_hack_file_contents(contents)),
         }
     }
 }
@@ -60,8 +60,8 @@ impl CommonState for HardwareState {
         self.hardware.run(step_count)
     }
 
-    fn ram_mut(&mut self) -> &mut RAM {
-        &mut self.hardware.ram
+    fn set_ram_value(&mut self, address: i16, value: i16) {
+        self.hardware.set_ram_value(address, value);
     }
 
     fn reset(&mut self) {
