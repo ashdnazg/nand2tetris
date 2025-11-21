@@ -2,7 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use wast::{
     core::{
-        BlockType, BrTableIndices, BranchHint, Export, ExportKind, Expression, Func, FuncKind, FunctionType, Global, GlobalKind, GlobalType, InlineExport, Instruction, Limits, Local, MemArg, Memory, MemoryKind, MemoryType, Module, ModuleField, ModuleKind, TypeUse, ValType
+        BlockType, BrTableIndices, BranchHint, Export, ExportKind, Expression, Func, FuncKind,
+        FunctionType, Global, GlobalKind, GlobalType, InlineExport, Instruction, Limits, Local,
+        MemArg, Memory, MemoryKind, MemoryType, Module, ModuleField, ModuleKind, TypeUse, ValType,
     },
     token::{Id, Index, NameAnnotation, Span},
 };
@@ -327,43 +329,49 @@ fn globals() -> Vec<Global<'static>> {
             span: Span::from_offset(0),
             id: Some(id_a()),
             name: None,
-            exports: InlineExport::default(),
+            exports: InlineExport { names: vec!["a"] },
             ty: GlobalType {
                 ty: ValType::I32,
                 mutable: true,
                 shared: false,
             },
-            kind: GlobalKind::Inline(ExpressionBuilder::default()
-                .instr(Instruction::I32Const(1337))
-                .build()),
+            kind: GlobalKind::Inline(
+                ExpressionBuilder::default()
+                    .instr(Instruction::I32Const(1337))
+                    .build(),
+            ),
         },
         Global {
             span: Span::from_offset(0),
             id: Some(id_d()),
             name: None,
-            exports: InlineExport::default(),
+            exports: InlineExport { names: vec!["d"] },
             ty: GlobalType {
                 ty: ValType::I32,
                 mutable: true,
                 shared: false,
             },
-            kind: GlobalKind::Inline(ExpressionBuilder::default()
-                .instr(Instruction::I32Const(1337))
-                .build()),
+            kind: GlobalKind::Inline(
+                ExpressionBuilder::default()
+                    .instr(Instruction::I32Const(1337))
+                    .build(),
+            ),
         },
         Global {
             span: Span::from_offset(0),
             id: Some(id_jump_target()),
             name: None,
-            exports: InlineExport { names: vec!["jump_target"] },
+            exports: InlineExport { names: vec!["pc"] },
             ty: GlobalType {
                 ty: ValType::I32,
                 mutable: true,
                 shared: false,
             },
-            kind: GlobalKind::Inline(ExpressionBuilder::default()
-                .instr(Instruction::I32Const(0))
-                .build()),
+            kind: GlobalKind::Inline(
+                ExpressionBuilder::default()
+                    .instr(Instruction::I32Const(0))
+                    .build(),
+            ),
         },
     ]
 }
@@ -600,44 +608,58 @@ fn hack_instr_to_wasm(
     wasm_instructions
 }
 
-fn hack_dynamic_slow(instructions: &[crate::hardware::Instruction], loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
-    instructions.iter().enumerate().map(|(i, instruction)| {
-        let mut instrs = hack_instr_to_wasm(instruction, Index::Id(loop_id), None);
-        instrs.push(Instruction::I32Const(i as i32 + 1));
-        instrs.push(Instruction::LocalSet(index_jump_target()));
-        instrs.push(Instruction::Br(Index::Id(loop_id)));
-        instrs
-    }).collect()
+fn hack_dynamic_slow(
+    instructions: &[crate::hardware::Instruction],
+    loop_id: Id<'static>,
+) -> Vec<Vec<Instruction<'static>>> {
+    instructions
+        .iter()
+        .enumerate()
+        .map(|(i, instruction)| {
+            let mut instrs = hack_instr_to_wasm(instruction, Index::Id(loop_id), None);
+            instrs.push(Instruction::I32Const(i as i32 + 1));
+            instrs.push(Instruction::LocalSet(index_jump_target()));
+            instrs.push(Instruction::Br(Index::Id(loop_id)));
+            instrs
+        })
+        .collect()
 }
 
-fn hack_to_dynamic_cases(instructions: &[crate::hardware::Instruction], loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
-    instructions.iter().map(|instruction| hack_instr_to_wasm(instruction, Index::Id(loop_id), None)).collect()
+fn hack_to_dynamic_cases(
+    instructions: &[crate::hardware::Instruction],
+    loop_id: Id<'static>,
+) -> Vec<Vec<Instruction<'static>>> {
+    instructions
+        .iter()
+        .map(|instruction| hack_instr_to_wasm(instruction, Index::Id(loop_id), None))
+        .collect()
 }
 
-fn hack_to_static_cases(instructions: &[crate::hardware::Instruction], loop_id: Id<'static>) -> Vec<Vec<Instruction<'static>>> {
-    let mut a_values: Vec<Option<i32>> = Vec::new();
-    a_values.resize(instructions.len() + 1, None);
+fn hack_to_static_cases(
+    instructions: &[crate::hardware::Instruction],
+    loop_id: Id<'static>,
+) -> Vec<Vec<Instruction<'static>>> {
     let mut targets = HashSet::new();
     targets.insert(0);
-    for (index, instruction) in instructions.iter().enumerate() {
-        if instruction.instruction_type() == crate::hardware::InstructionType::A {
-            a_values[index + 1] = Some(instruction.loaded_value() as i32);
-            continue;
-        }
+    {
+        let mut a_value = None;
+        for instruction in instructions.iter() {
+            if instruction.instruction_type() == crate::hardware::InstructionType::A {
+                a_value = Some(instruction.loaded_value() as i32);
+            } else {
+                if instruction.jump_condition() != crate::hardware::JumpCondition::NoJump {
+                    if let Some(target) = a_value {
+                        targets.insert(target as usize);
+                    }
+                }
 
-        if instruction.jump_condition() != crate::hardware::JumpCondition::NoJump {
-            let target = a_values[index].unwrap() as usize;
-            targets.insert(target);
-            a_values[target] = None;
-            continue;
-        }
-
-        if instruction.dst_has_a() {
-            a_values[index + 1] = None;
-        } else {
-            a_values[index + 1] = a_values[index];
+                if instruction.dst_has_a() {
+                    a_value = None;
+                }
+            }
         }
     }
+    targets.insert(instructions.len());
 
     let mut sorted: Vec<_> = targets.into_iter().collect();
     sorted.sort();
@@ -648,43 +670,68 @@ fn hack_to_static_cases(instructions: &[crate::hardware::Instruction], loop_id: 
         .collect();
 
     let mut cases = vec![];
+    for (index, instruction) in instructions.iter().enumerate() {
+        let mut case = hack_instr_to_wasm(instruction, Index::Id(loop_id), None);
+        if let Some(&case_index) = index_to_case_index.get(&(index + 1)) {
+            let offset = case_index as usize + instructions.len() - index;
+            case.push(Instruction::Br(Index::Num(
+                offset as u32,
+                Span::from_offset(0),
+            )));
+        }
+        cases.push(case);
+    }
+
+    cases.push(vec![Instruction::Br(Index::Num(
+        index_to_case_index.len() as u32 - 1,
+        Span::from_offset(0),
+    ))]);
+
     let mut current_case = vec![];
+    let mut a_value = None;
     for (index, instruction) in instructions.iter().enumerate() {
         let mut jump_target = None;
-        let mut loop_index = Index::Id(loop_id);
+        let mut jump_index = Index::Id(loop_id);
 
-        if instruction.instruction_type() == crate::hardware::InstructionType::C
-            && instruction.jump_condition() != crate::hardware::JumpCondition::NoJump
-        {
-            if let Some(a_value) = a_values[index] {
-                if let Some(&case_index) = index_to_case_index.get(&(a_value as usize)) {
-                    if case_index as usize > cases.len() {
-                        loop_index = Index::Num(
-                            case_index as u32 - cases.len() as u32 - 1,
-                            Span::from_offset(0),
-                        );
+        if instruction.instruction_type() == crate::hardware::InstructionType::A {
+            a_value = Some(instruction.loaded_value() as i32);
+        } else {
+            if instruction.jump_condition() != crate::hardware::JumpCondition::NoJump {
+                if let Some(a_value) = a_value {
+                    if let Some(&case_index) = index_to_case_index.get(&(a_value as usize)) {
+                        let offset = case_index - (cases.len() - instructions.len()) as i32;
+                        if offset >= 0 {
+                            jump_index = Index::Num(offset as u32, Span::from_offset(0));
+                        }
+                        jump_target = Some(instructions.len() as i32 + case_index + 1);
                     }
-                    jump_target = Some(case_index);
                 }
+            }
+
+            if instruction.dst_has_a() {
+                a_value = None;
             }
         }
 
-        current_case.extend(hack_instr_to_wasm(instruction, loop_index, jump_target));
+        current_case.extend(hack_instr_to_wasm(instruction, jump_index, jump_target));
 
         if index_to_case_index.contains_key(&(index + 1)) {
             cases.push(current_case);
             current_case = vec![];
+            a_value = None;
         }
     }
-    cases.push(current_case);
 
     cases
 }
 
-pub fn hack_to_wasm(instructions: &[crate::hardware::Instruction], with_limit: bool) -> Result<Vec<u8>, String> {
+pub fn hack_to_wasm(
+    instructions: &[crate::hardware::Instruction],
+    with_limit: bool,
+) -> Result<Vec<u8>, String> {
     let loop_id = Id::new("loop", Span::from_offset(0));
 
-    let cases = hack_to_dynamic_cases(&instructions, loop_id);
+    let cases = hack_to_static_cases(&instructions, loop_id);
     let case_count = cases.len();
 
     let memory_id = Id::new("memory", Span::from_offset(0));
@@ -696,42 +743,50 @@ pub fn hack_to_wasm(instructions: &[crate::hardware::Instruction], with_limit: b
         .instr(Instruction::LocalSet(index_d()))
         .instr(Instruction::GlobalGet(index_jump_target()))
         .instr(Instruction::LocalSet(index_jump_target()))
-        .with_loop(loop_id, |mut builder|
-            {
-                if with_limit {
-                    builder = builder
-                        .instr(Instruction::LocalGet(index_ticks()))
-                        .instr(Instruction::LocalGet(Index::Num(0, Span::from_offset(0))))
-                        .instr(Instruction::I32GeU)
-                        .instr(Instruction::If(Box::new(BlockType {
-                            label: None,
-                            label_name: None,
-                            ty: TypeUse {
-                                index: None,
-                                inline: None,
-                            },
-                        })))
-                        .instr(Instruction::LocalGet(index_a()))
-                        .instr(Instruction::GlobalSet(index_a()))
-                        .instr(Instruction::LocalGet(index_d()))
-                        .instr(Instruction::GlobalSet(index_d()))
-                        .instr(Instruction::LocalGet(index_jump_target()))
-                        .instr(Instruction::GlobalSet(index_jump_target()))
-                        .instr(Instruction::LocalGet(index_ticks()))
-                        .instr(Instruction::Return)
-                        .instr(Instruction::End(None));
-                }
-                builder.switch(cases, vec![])
-            })
+        .with_loop(loop_id, |mut builder| {
+            if with_limit {
+                builder = builder
+                    .instr(Instruction::LocalGet(index_ticks()))
+                    .instr(Instruction::LocalGet(Index::Num(0, Span::from_offset(0))))
+                    .instr(Instruction::I32GeU)
+                    .instr(Instruction::If(Box::new(BlockType {
+                        label: None,
+                        label_name: None,
+                        ty: TypeUse {
+                            index: None,
+                            inline: None,
+                        },
+                    })))
+                    .instr(Instruction::LocalGet(index_a()))
+                    .instr(Instruction::GlobalSet(index_a()))
+                    .instr(Instruction::LocalGet(index_d()))
+                    .instr(Instruction::GlobalSet(index_d()))
+                    .instr(Instruction::LocalGet(index_jump_target()))
+                    .instr(Instruction::GlobalSet(index_jump_target()))
+                    .instr(Instruction::LocalGet(index_ticks()))
+                    .instr(Instruction::Return)
+                    .instr(Instruction::End(None));
+            }
+            builder.switch(cases, vec![])
+        })
         .instr(Instruction::I32Const(case_count as i32))
         .instr(Instruction::GlobalSet(index_jump_target()))
         .instr(Instruction::LocalGet(index_ticks()))
         .build();
 
-    let params = if with_limit { vec![(None, None, ValType::I32)] } else { vec![] };
+    let params = if with_limit {
+        vec![(None, None, ValType::I32)]
+    } else {
+        vec![]
+    };
 
     let mut m = ModuleBuilder::default()
-        .fields(globals().into_iter().map(|g| ModuleField::Global(g)).collect())
+        .fields(
+            globals()
+                .into_iter()
+                .map(|g| ModuleField::Global(g))
+                .collect(),
+        )
         .field(ModuleField::Memory(create_memory(memory_id, 32768)))
         .field(ModuleField::Export(Export {
             span: Span::from_offset(0),
@@ -741,7 +796,7 @@ pub fn hack_to_wasm(instructions: &[crate::hardware::Instruction], with_limit: b
         }))
         .field(ModuleField::Func(
             FuncBuilder::default()
-                .export("foo")
+                .export("run")
                 .kind(FuncKind::Inline {
                     locals: locals(),
                     expression,
