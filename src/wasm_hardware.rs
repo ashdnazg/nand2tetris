@@ -2,11 +2,16 @@ use std::{cell::UnsafeCell, sync::Arc, vec};
 
 use eframe::web_sys::console;
 use wasm_bindgen::{JsCast as _, prelude::wasm_bindgen};
-use wasm_bindgen_futures::js_sys::{self, Function, Int32Array, Object, WebAssembly::{self, Instance}};
+use wasm_bindgen_futures::js_sys::{
+    self, Function, Int32Array, Object,
+    WebAssembly::{self, Instance},
+};
 
 use crate::{hardware::AnyHardware, hardware_parse::assemble_hack_file};
 
-#[wasm_bindgen(raw_module = "https://cdn.jsdelivr.net/gh/AssemblyScript/binaryen.js@v124.0.0/index.js")]
+#[wasm_bindgen(
+    raw_module = "https://cdn.jsdelivr.net/gh/AssemblyScript/binaryen.js@v124.0.0/index.js"
+)]
 extern "C" {
     type Binaryen;
 
@@ -83,20 +88,30 @@ impl WasmHardware {
         wasm_bindgen_futures::spawn_local(async move {
             match future.await {
                 Ok(object) => {
-                    let instance = js_sys::Reflect::get(&object, &"instance".into()).unwrap().dyn_into::<Instance>().unwrap();
+                    let instance = js_sys::Reflect::get(&object, &"instance".into())
+                        .unwrap()
+                        .dyn_into::<Instance>()
+                        .unwrap();
                     let exports = instance.exports();
-                    let func = js_sys::Reflect::get(&exports, &"foo".into()).unwrap().dyn_into::<Function>().unwrap();
-                    let mem = js_sys::Reflect::get(&exports, &"memory".into()).unwrap().dyn_into::<js_sys::WebAssembly::Memory>().unwrap();
-                    let typed_mem = Int32Array::new_with_byte_offset_and_length(&mem.buffer(), 0, 32768);
+                    let func = js_sys::Reflect::get(&exports, &"run".into())
+                        .unwrap()
+                        .dyn_into::<Function>()
+                        .unwrap();
+                    let mem = js_sys::Reflect::get(&exports, &"memory".into())
+                        .unwrap()
+                        .dyn_into::<js_sys::WebAssembly::Memory>()
+                        .unwrap();
+                    let typed_mem =
+                        Int32Array::new_with_byte_offset_and_length(&mem.buffer(), 0, 32768);
                     unsafe {
                         *function_clone.get() = Some(func);
                         *memory_clone.get() = Some(typed_mem);
                     }
                     console::log_1(&"Finished!".into());
-                },
+                }
                 Err(err) => {
                     console::log_1(&err);
-                },
+                }
             }
         });
 
@@ -199,7 +214,9 @@ impl AnyHardware for WasmHardware {
     fn run(&mut self, step_count: u64) -> bool {
         let func_ptr = self.function.get();
         let function = unsafe { (*func_ptr).as_ref().unwrap() };
-        _ = function.call1(&Object::new(), &(step_count as u32).into()).unwrap();
+        _ = function
+            .call1(&Object::new(), &(step_count as u32).into())
+            .unwrap();
 
         false
     }

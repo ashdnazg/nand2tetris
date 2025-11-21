@@ -13,16 +13,16 @@ use common_state::SharedState;
 use eframe::egui;
 
 use egui::mutex::Mutex;
-use std::sync::mpsc::channel;
+use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
-use std::sync::Arc;
+use std::sync::mpsc::channel;
 use std::time::Duration;
 
 use common_reducer::reduce;
 use common_reducer::steps_to_run;
 use common_state::{Action, AppState, PerformanceData, StepRunnable};
-use shared_ui::{draw_shared, Screen};
+use shared_ui::{Screen, draw_shared};
 use vm_ui::draw_vm;
 
 use crate::emulator::hardware_state::HardwareState;

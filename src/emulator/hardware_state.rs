@@ -1,6 +1,7 @@
-use crate::{hardware::{
-    AnyHardware, Breakpoint, BreakpointVar, Hardware, Instruction, RAM, UWord
-}, wasm_hardware::WasmHardware};
+use crate::{
+    hardware::{AnyHardware, Breakpoint, BreakpointVar, Hardware, Instruction, RAM, UWord},
+    wasm_hardware::WasmHardware,
+};
 
 use super::common_state::CommonState;
 

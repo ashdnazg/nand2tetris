@@ -1,6 +1,8 @@
 use std::ops::RangeFrom;
 
 use nom::{
+    AsChar, Compare, FindToken, InputIter, InputLength, InputTake, InputTakeAtPosition, Parser,
+    Slice,
     branch::alt,
     bytes::complete::tag,
     character::complete::{self, line_ending, not_line_ending, space0},
@@ -8,8 +10,6 @@ use nom::{
     error::{ParseError, VerboseError},
     multi::separated_list0,
     sequence::{delimited, preceded, terminated},
-    AsChar, Compare, FindToken, InputIter, InputLength, InputTake, InputTakeAtPosition, Parser,
-    Slice,
 };
 
 pub type IResult<I, O> = nom::IResult<I, O, VerboseError<I>>;

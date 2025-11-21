@@ -2,7 +2,7 @@ use super::hardware_state::HardwareState;
 use super::instant::Instant;
 use super::vm_state::VMState;
 use crate::{
-    hardware::{self, Word, RAM},
+    hardware::{self, RAM, Word},
     vm,
 };
 use eframe::egui::{DroppedFile, Key, Modifiers};
@@ -92,7 +92,7 @@ impl Default for SharedState {
 
 pub trait StepRunnable {
     fn run_steps(&mut self, steps_to_run: u64, key_down: Option<Key>, modifiers: Modifiers)
-        -> bool;
+    -> bool;
 }
 
 impl<T: CommonState> StepRunnable for T {

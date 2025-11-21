@@ -1,10 +1,11 @@
 use crate::{
     hardware::*,
-    parse_utils::{is_not0, non_comment_lines, AndThenConsuming, IResult, ParsableWord},
+    parse_utils::{AndThenConsuming, IResult, ParsableWord, is_not0, non_comment_lines},
 };
 
 use hashbrown::HashMap;
 use nom::{
+    Parser,
     branch::alt,
     bytes::complete::{is_not, tag},
     character::complete::{alphanumeric1, char, space0},
@@ -12,7 +13,6 @@ use nom::{
     error::{ParseError, VerboseError},
     multi::{many1, many1_count},
     sequence::{delimited, preceded, terminated, tuple},
-    Parser,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

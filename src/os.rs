@@ -2,7 +2,7 @@ use hashbrown::HashMap;
 
 use crate::{
     characters::character_bitmaps,
-    hardware::{Word, RAM},
+    hardware::{RAM, Word},
     vm::{PushSegment, RunState},
 };
 
@@ -283,11 +283,7 @@ impl RunState {
         let index = self.ram.get(0, PushSegment::Argument, 1);
         let new_value = self.ram.get(0, PushSegment::Argument, 2);
         let result = VMString { address }.set_char_at(self, index, new_value);
-        if result.is_some() {
-            0
-        } else {
-            panic!()
-        }
+        if result.is_some() { 0 } else { panic!() }
     }
 
     fn string_append_char(&mut self) -> Word {
@@ -295,22 +291,14 @@ impl RunState {
         let new_char = self.ram.get(0, PushSegment::Argument, 1);
         let result = VMString { address }.append_char(self, new_char);
 
-        if result.is_some() {
-            address
-        } else {
-            panic!()
-        }
+        if result.is_some() { address } else { panic!() }
     }
 
     fn string_erase_last_char(&mut self) -> Word {
         let address = self.ram.get(0, PushSegment::Argument, 0);
         let result = VMString { address }.erase_last_char(self);
 
-        if result.is_some() {
-            0
-        } else {
-            panic!()
-        }
+        if result.is_some() { 0 } else { panic!() }
     }
 
     fn string_int_value(&mut self) -> Word {
@@ -323,11 +311,7 @@ impl RunState {
         let value = self.ram.get(0, PushSegment::Argument, 1);
         let result = VMString { address }.set_int(self, value);
 
-        if result.is_some() {
-            0
-        } else {
-            panic!()
-        }
+        if result.is_some() { 0 } else { panic!() }
     }
 
     fn string_backspace(&mut self) -> Word {

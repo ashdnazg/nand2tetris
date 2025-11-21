@@ -1,6 +1,6 @@
 use crate::{
     hardware::Word,
-    parse_utils::{non_comment_lines, IResult, ParsableWord},
+    parse_utils::{IResult, ParsableWord, non_comment_lines},
     vm::*,
 };
 

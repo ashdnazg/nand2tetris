@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    hardware::{Word, RAM},
+    hardware::{RAM, Word},
     os::OS,
     vm_parse::parse_commands,
 };

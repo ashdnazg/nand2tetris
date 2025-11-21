@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use crate::emulator::common_state::CommonAction;
-use crate::hardware::{Word, MEM_SIZE};
+use crate::hardware::{MEM_SIZE, Word};
 use crate::vm::{self, Register};
 use eframe::egui;
 use eframe::epaint::mutex::Mutex;
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
-use super::common_state::{Breakpoint, BreakpointAction, SharedState, UIStyle};
-use super::shared_ui::{draw_screen, EmulatorWidgets, Screen};
-use super::vm_state::VMState;
 use super::Action;
+use super::common_state::{Breakpoint, BreakpointAction, SharedState, UIStyle};
+use super::shared_ui::{EmulatorWidgets, Screen, draw_screen};
+use super::vm_state::VMState;
 
 pub fn draw_vm(
     state: &VMState,
