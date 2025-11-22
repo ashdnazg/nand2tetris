@@ -4,10 +4,7 @@ pub fn reduce_vm_file_selected(vm_state: &mut VMState, selected_file: &str) {
     selected_file.clone_into(&mut vm_state.selected_file);
 }
 
-use super::{
-    common_state::{Breakpoint, BreakpointAction},
-    hardware_state::HardwareState,
-};
+use super::common_state::{Breakpoint, BreakpointAction};
 
 pub fn reduce_breakpoint_vm(vm_state: &mut VMState, action: &BreakpointAction) {
     match action {

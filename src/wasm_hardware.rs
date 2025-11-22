@@ -1,7 +1,7 @@
-use std::{cell::UnsafeCell, sync::Arc, vec};
+use std::{cell::OnceCell, rc::Rc, vec};
 
 use eframe::web_sys::console;
-use wasm_bindgen::{JsCast as _, prelude::wasm_bindgen};
+use wasm_bindgen::JsCast as _;
 use wasm_bindgen_futures::js_sys::{
     self, Function, Int32Array, Object,
     WebAssembly::{self, Global, Instance},
@@ -9,6 +9,7 @@ use wasm_bindgen_futures::js_sys::{
 
 use crate::{hardware::AnyHardware, hardware_parse::assemble_hack_file};
 
+#[derive(Debug)]
 struct State {
     function: Function,
     memory: Int32Array,
@@ -17,9 +18,10 @@ struct State {
     pc: Global,
 }
 
+#[derive(Debug)]
 pub struct WasmHardware {
     rom: Box<[crate::hardware::Instruction; crate::hardware::MEM_SIZE]>,
-    state: Arc<UnsafeCell<Option<State>>>,
+    state: Rc<OnceCell<State>>,
 }
 
 impl WasmHardware {
@@ -27,8 +29,8 @@ impl WasmHardware {
         let unoptimized_wasm = crate::hack_to_wasm::hack_to_wasm(instructions, true).unwrap();
         let promise = WebAssembly::instantiate_buffer(&unoptimized_wasm, &Object::new());
         let future = wasm_bindgen_futures::JsFuture::from(promise);
-        let state = Arc::new(UnsafeCell::new(None));
-        let state_clone = Arc::clone(&state);
+        let state = Rc::new(OnceCell::new());
+        let state_clone = Rc::clone(&state);
         wasm_bindgen_futures::spawn_local(async move {
             match future.await {
                 Ok(object) => {
@@ -67,9 +69,7 @@ impl WasmHardware {
                         d,
                         pc,
                     };
-                    unsafe {
-                        *state_clone.get() = Some(new_state);
-                    }
+                    state_clone.set(new_state).unwrap();
                     console::log_1(&"Finished!".into());
                 }
                 Err(err) => {
@@ -96,7 +96,7 @@ impl WasmHardware {
         let instructions = contents
             .lines()
             .map(|l| crate::hardware::UWord::from_str_radix(l.trim(), 2).unwrap())
-            .map(|raw| crate::hardware::Instruction::new(raw))
+            .map(crate::hardware::Instruction::new)
             .collect::<Vec<_>>();
 
         Self::from_instructions(&instructions)
@@ -105,9 +105,7 @@ impl WasmHardware {
 
 impl AnyHardware for WasmHardware {
     fn is_ready(&self) -> bool {
-        let state_ptr = self.state.get();
-        let state = unsafe { &*state_ptr };
-        state.is_some()
+        self.state.get().is_some()
     }
 
     fn rom(&self) -> &[crate::hardware::Instruction; crate::hardware::MEM_SIZE] {
@@ -115,14 +113,13 @@ impl AnyHardware for WasmHardware {
     }
 
     fn copy_ram(&self) -> crate::hardware::RAM {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
-        let mut target = vec![0i32; crate::hardware::MEM_SIZE];
-        state.memory.copy_to(&mut target);
+        let mut dest = vec![0i32; crate::hardware::MEM_SIZE];
+        state.memory.copy_to(&mut dest);
         let mut ram = crate::hardware::RAM::default();
-        for i in 0..crate::hardware::MEM_SIZE {
-            ram.contents[i] = target[i] as crate::hardware::Word;
+        for (i, value) in dest.into_iter().enumerate().take(crate::hardware::MEM_SIZE) {
+            ram.contents[i] = value as crate::hardware::Word;
         }
         ram
     }
@@ -132,8 +129,7 @@ impl AnyHardware for WasmHardware {
     }
 
     fn a(&self) -> crate::hardware::Word {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
         state.a.value().as_f64().unwrap() as crate::hardware::Word
     }
@@ -143,29 +139,25 @@ impl AnyHardware for WasmHardware {
     }
 
     fn d(&self) -> crate::hardware::Word {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
         state.d.value().as_f64().unwrap() as crate::hardware::Word
     }
 
     fn get_ram_value(&self, address: crate::hardware::Word) -> crate::hardware::Word {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
         state.memory.get_index(address as u32) as crate::hardware::Word
     }
 
     fn set_ram_value(&mut self, address: crate::hardware::Word, value: crate::hardware::Word) {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
         state.memory.set_index(address as u32, value as i32);
     }
 
     fn pc(&self) -> crate::hardware::Word {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
         state.pc.value().as_f64().unwrap() as crate::hardware::Word
     }
@@ -175,7 +167,7 @@ impl AnyHardware for WasmHardware {
     }
 
     fn load_program(&mut self, program: &[crate::hardware::Instruction]) {
-        *self = Self::from_instructions(&program)
+        *self = Self::from_instructions(program)
     }
 
     fn run_program(&mut self) {
@@ -183,8 +175,7 @@ impl AnyHardware for WasmHardware {
     }
 
     fn run(&mut self, step_count: u64) -> bool {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
         _ = state
             .function
@@ -195,8 +186,7 @@ impl AnyHardware for WasmHardware {
     }
 
     fn reset(&mut self) {
-        let state_ptr = self.state.get();
-        let state = unsafe { (*state_ptr).as_ref().unwrap() };
+        let state = self.state.get().unwrap();
 
         state.a.set_value(&0.into());
         state.d.set_value(&0.into());
