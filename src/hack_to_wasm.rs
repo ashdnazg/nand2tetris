@@ -190,7 +190,12 @@ impl<'a> ExpressionBuilder<'a> {
         self.instr(Instruction::End(None))
     }
 
-    fn switch(mut self, cases: Vec<Vec<Instruction<'a>>>, default: Vec<Instruction<'a>>) -> Self {
+    fn switch(
+        mut self,
+        cases: Vec<Vec<Instruction<'a>>>,
+        default: Vec<Instruction<'a>>,
+        overrides: HashMap<usize, i32>,
+    ) -> Self {
         for _ in 0..(cases.len() + 1) {
             self = self.instr(Instruction::Block(Box::new(BlockType {
                 label: None,
@@ -206,7 +211,10 @@ impl<'a> ExpressionBuilder<'a> {
             .instr(Instruction::LocalGet(index_jump_target()))
             .instr(Instruction::BrTable(BrTableIndices {
                 labels: (0..cases.len())
-                    .map(|i| Index::Num(i as u32, Span::from_offset(0)))
+                    .map(|i| {
+                        let target = *overrides.get(&i).unwrap_or(&(i as i32));
+                        Index::Num(target as u32, Span::from_offset(0))
+                    })
                     .collect(),
                 default: Index::Num(cases.len() as u32, Span::from_offset(0)),
             }));
@@ -403,13 +411,15 @@ fn hack_instr_to_wasm(
         return wasm_instructions;
     }
 
-    if hack_instr.jump_condition() != crate::hardware::JumpCondition::NoJump {
-        if let Some(jump_target) = jump_target {
-            wasm_instructions.push(Instruction::I32Const(jump_target));
-        } else {
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
+    if matches!(jump_index, Index::Id(_)) {
+        if hack_instr.jump_condition() != crate::hardware::JumpCondition::NoJump {
+            if let Some(jump_target) = jump_target {
+                wasm_instructions.push(Instruction::I32Const(jump_target));
+            } else {
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+            }
+            wasm_instructions.push(Instruction::LocalSet(index_jump_target()));
         }
-        wasm_instructions.push(Instruction::LocalSet(index_jump_target()));
     }
 
     if hack_instr.dst_has_m() || hack_instr.op_name().contains('M') {
@@ -638,7 +648,7 @@ fn hack_to_dynamic_cases(
 fn hack_to_static_cases(
     instructions: &[crate::hardware::Instruction],
     loop_id: Id<'static>,
-) -> Vec<Vec<Instruction<'static>>> {
+) -> (Vec<Vec<Instruction<'static>>>, HashMap<usize, i32>) {
     let mut targets = HashSet::new();
     targets.insert(0);
     {
@@ -703,7 +713,7 @@ fn hack_to_static_cases(
                         if offset >= 0 {
                             jump_index = Index::Num(offset as u32, Span::from_offset(0));
                         }
-                        jump_target = Some(instructions.len() as i32 + case_index + 1);
+                        jump_target = Some(a_value);
                     }
                 }
             }
@@ -722,7 +732,12 @@ fn hack_to_static_cases(
         }
     }
 
-    cases
+    let overrides = index_to_case_index
+        .into_iter()
+        .map(|(i, j)| (i, j + instructions.len() as i32 + 1))
+        .collect();
+
+    (cases, overrides)
 }
 
 pub fn hack_to_wasm(
@@ -731,7 +746,7 @@ pub fn hack_to_wasm(
 ) -> Result<Vec<u8>, String> {
     let loop_id = Id::new("loop", Span::from_offset(0));
 
-    let cases = hack_to_static_cases(&instructions, loop_id);
+    let (cases, overrides) = hack_to_static_cases(&instructions, loop_id);
     let case_count = cases.len();
 
     let memory_id = Id::new("memory", Span::from_offset(0));
@@ -767,7 +782,7 @@ pub fn hack_to_wasm(
                     .instr(Instruction::Return)
                     .instr(Instruction::End(None));
             }
-            builder.switch(cases, vec![])
+            builder.switch(cases, vec![], overrides)
         })
         .instr(Instruction::I32Const(case_count as i32))
         .instr(Instruction::GlobalSet(index_jump_target()))
