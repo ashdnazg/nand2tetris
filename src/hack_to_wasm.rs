@@ -424,23 +424,29 @@ fn hack_instr_to_wasm(
             && hack_instr.jump_condition() != JumpCondition::JMP) as u8;
 
     if result_users > 0 {
-        if hack_instr.dst_has_m() || hack_instr.op_name().contains('M') {
-            wasm_instructions.extend([
-                Instruction::LocalGet(index_a()),
-                Instruction::I32Const(2),
-                Instruction::I32Shl,
-            ]);
-            if hack_instr.dst_has_m() && hack_instr.op_name().contains('M') {
+        let load_m_address = [
+            Instruction::LocalGet(index_a()),
+            Instruction::I32Const(2),
+            Instruction::I32Shl,
+        ];
+        if hack_instr.dst_has_m() {
+            wasm_instructions.extend(load_m_address.clone());
+            if hack_instr.op_name().contains('M') {
                 wasm_instructions.push(Instruction::LocalTee(index_ram_address()));
-            } else if hack_instr.op_name().contains('M') {
-                wasm_instructions.push(Instruction::LocalSet(index_ram_address()));
             }
         }
 
-        let load_m = [
-            Instruction::LocalGet(index_ram_address()),
-            Instruction::I32Load(mem_arg_m()),
-        ];
+        let load_m = if hack_instr.dst_has_m() {
+            vec![
+                Instruction::LocalGet(index_ram_address()),
+                Instruction::I32Load(mem_arg_m()),
+            ]
+        } else {
+            load_m_address
+                .into_iter()
+                .chain(std::iter::once(Instruction::I32Load(mem_arg_m())))
+                .collect()
+        };
 
         match hack_instr.op_name() {
             "0" => wasm_instructions.push(Instruction::I32Const(0)),
@@ -523,57 +529,57 @@ fn hack_instr_to_wasm(
                 wasm_instructions.push(Instruction::I32Or);
             }
             "M" => {
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
             }
             "!M" => {
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32Const(-1));
                 wasm_instructions.push(Instruction::I32Xor);
             }
             "-M" => {
                 wasm_instructions.push(Instruction::I32Const(0));
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32Sub);
                 wasm_instructions.push(Instruction::I32Extend16S);
             }
             "M+1" => {
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32Const(1));
                 wasm_instructions.push(Instruction::I32Add);
                 wasm_instructions.push(Instruction::I32Extend16S);
             }
             "M-1" => {
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32Const(1));
                 wasm_instructions.push(Instruction::I32Sub);
                 wasm_instructions.push(Instruction::I32Extend16S);
             }
             "D+M" => {
                 wasm_instructions.push(Instruction::LocalGet(index_d()));
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32Add);
                 wasm_instructions.push(Instruction::I32Extend16S);
             }
             "D-M" => {
                 wasm_instructions.push(Instruction::LocalGet(index_d()));
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32Sub);
                 wasm_instructions.push(Instruction::I32Extend16S);
             }
             "M-D" => {
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::LocalGet(index_d()));
                 wasm_instructions.push(Instruction::I32Sub);
                 wasm_instructions.push(Instruction::I32Extend16S);
             }
             "D&M" => {
                 wasm_instructions.push(Instruction::LocalGet(index_d()));
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32And);
             }
             "D|M" => {
                 wasm_instructions.push(Instruction::LocalGet(index_d()));
-                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.extend(load_m);
                 wasm_instructions.push(Instruction::I32Or);
             }
             _ => panic!("Unknown instruction: {}", hack_instr.op_name()),
