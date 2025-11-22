@@ -395,7 +395,6 @@ fn mem_arg_m() -> MemArg<'static> {
 fn hack_instr_to_wasm(
     hack_instr: &crate::hardware::Instruction,
     jump_index: Index<'static>,
-    jump_target: Option<i32>,
 ) -> Vec<Instruction<'static>> {
     let mut wasm_instructions: Vec<Instruction<'static>> = vec![
         Instruction::I32Const(1),
@@ -411,176 +410,205 @@ fn hack_instr_to_wasm(
         return wasm_instructions;
     }
 
-    if matches!(jump_index, Index::Id(_)) {
-        if hack_instr.jump_condition() != crate::hardware::JumpCondition::NoJump {
-            if let Some(jump_target) = jump_target {
-                wasm_instructions.push(Instruction::I32Const(jump_target));
-            } else {
-                wasm_instructions.push(Instruction::LocalGet(index_a()));
+    if matches!(jump_index, Index::Id(_))
+        && hack_instr.jump_condition() != crate::hardware::JumpCondition::NoJump
+    {
+        wasm_instructions.push(Instruction::LocalGet(index_a()));
+        wasm_instructions.push(Instruction::LocalSet(index_jump_target()));
+    }
+
+    let mut result_users = hack_instr.dst_has_a() as u8
+        + hack_instr.dst_has_d() as u8
+        + hack_instr.dst_has_m() as u8
+        + (hack_instr.jump_condition() != JumpCondition::NoJump
+            && hack_instr.jump_condition() != JumpCondition::JMP) as u8;
+
+    if result_users > 0 {
+        if hack_instr.dst_has_m() || hack_instr.op_name().contains('M') {
+            wasm_instructions.extend([
+                Instruction::LocalGet(index_a()),
+                Instruction::I32Const(2),
+                Instruction::I32Shl,
+            ]);
+            if hack_instr.dst_has_m() && hack_instr.op_name().contains('M') {
+                wasm_instructions.push(Instruction::LocalTee(index_ram_address()));
+            } else if hack_instr.op_name().contains('M') {
+                wasm_instructions.push(Instruction::LocalSet(index_ram_address()));
             }
-            wasm_instructions.push(Instruction::LocalSet(index_jump_target()));
+        }
+
+        let load_m = [
+            Instruction::LocalGet(index_ram_address()),
+            Instruction::I32Load(mem_arg_m()),
+        ];
+
+        match hack_instr.op_name() {
+            "0" => wasm_instructions.push(Instruction::I32Const(0)),
+            "1" => wasm_instructions.push(Instruction::I32Const(1)),
+            "-1" => wasm_instructions.push(Instruction::I32Const(-1)),
+            "D" => wasm_instructions.push(Instruction::LocalGet(index_d())),
+            "!D" => {
+                wasm_instructions.push(Instruction::I32Const(-1));
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::I32Xor);
+            }
+            "-D" => {
+                wasm_instructions.push(Instruction::I32Const(0));
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "D+1" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::I32Const(1));
+                wasm_instructions.push(Instruction::I32Add);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "D-1" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::I32Const(1));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "A" => wasm_instructions.push(Instruction::LocalGet(index_a())),
+            "!A" => {
+                wasm_instructions.push(Instruction::I32Const(-1));
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32Xor);
+            }
+            "-A" => {
+                wasm_instructions.push(Instruction::I32Const(0));
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "A+1" => {
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32Const(1));
+                wasm_instructions.push(Instruction::I32Add);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "A-1" => {
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32Const(1));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "D+A" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32Add);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "D-A" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "A-D" => {
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "A&D" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32And);
+            }
+            "A|D" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::LocalGet(index_a()));
+                wasm_instructions.push(Instruction::I32Or);
+            }
+            "M" => {
+                wasm_instructions.extend(load_m.clone());
+            }
+            "!M" => {
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32Const(-1));
+                wasm_instructions.push(Instruction::I32Xor);
+            }
+            "-M" => {
+                wasm_instructions.push(Instruction::I32Const(0));
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "M+1" => {
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32Const(1));
+                wasm_instructions.push(Instruction::I32Add);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "M-1" => {
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32Const(1));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "D+M" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32Add);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "D-M" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "M-D" => {
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.push(Instruction::I32Sub);
+                wasm_instructions.push(Instruction::I32Extend16S);
+            }
+            "D&M" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32And);
+            }
+            "D|M" => {
+                wasm_instructions.push(Instruction::LocalGet(index_d()));
+                wasm_instructions.extend(load_m.clone());
+                wasm_instructions.push(Instruction::I32Or);
+            }
+            _ => panic!("Unknown instruction: {}", hack_instr.op_name()),
         }
     }
 
-    if hack_instr.dst_has_m() || hack_instr.op_name().contains('M') {
-        wasm_instructions.extend([
-            Instruction::LocalGet(index_a()),
-            Instruction::I32Const(2),
-            Instruction::I32Shl,
-            Instruction::LocalSet(index_ram_address()),
-        ]);
-    }
+    let mut set_local = |index| {
+        if result_users > 1 {
+            wasm_instructions.push(Instruction::LocalTee(index));
+        } else {
+            wasm_instructions.push(Instruction::LocalSet(index));
+        }
 
-    let load_m = [
-        Instruction::LocalGet(index_ram_address()),
-        Instruction::I32Load(mem_arg_m()),
-    ];
-
-    match hack_instr.op_name() {
-        "0" => wasm_instructions.push(Instruction::I32Const(0)),
-        "1" => wasm_instructions.push(Instruction::I32Const(1)),
-        "-1" => wasm_instructions.push(Instruction::I32Const(-1)),
-        "D" => wasm_instructions.push(Instruction::LocalGet(index_d())),
-        "!D" => {
-            wasm_instructions.push(Instruction::I32Const(-1));
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::I32Xor);
-        }
-        "-D" => {
-            wasm_instructions.push(Instruction::I32Const(0));
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "D+1" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::I32Const(1));
-            wasm_instructions.push(Instruction::I32Add);
-        }
-        "D-1" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::I32Const(1));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "A" => wasm_instructions.push(Instruction::LocalGet(index_a())),
-        "!A" => {
-            wasm_instructions.push(Instruction::I32Const(-1));
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32Xor);
-        }
-        "-A" => {
-            wasm_instructions.push(Instruction::I32Const(0));
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "A+1" => {
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32Const(1));
-            wasm_instructions.push(Instruction::I32Add);
-        }
-        "A-1" => {
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32Const(1));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "D+A" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32Add);
-        }
-        "D-A" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "A-D" => {
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "A&D" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32And);
-        }
-        "A|D" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::LocalGet(index_a()));
-            wasm_instructions.push(Instruction::I32Or);
-        }
-        "M" => {
-            wasm_instructions.extend(load_m.clone());
-        }
-        "!M" => {
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32Const(-1));
-            wasm_instructions.push(Instruction::I32Xor);
-        }
-        "-M" => {
-            wasm_instructions.push(Instruction::I32Const(0));
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "M+1" => {
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32Const(1));
-            wasm_instructions.push(Instruction::I32Add);
-        }
-        "M-1" => {
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32Const(1));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "D+M" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32Add);
-        }
-        "D-M" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "M-D" => {
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.push(Instruction::I32Sub);
-        }
-        "D&M" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32And);
-        }
-        "D|M" => {
-            wasm_instructions.push(Instruction::LocalGet(index_d()));
-            wasm_instructions.extend(load_m.clone());
-            wasm_instructions.push(Instruction::I32Or);
-        }
-        _ => panic!("Unknown instruction: {}", hack_instr.op_name()),
-    }
-
-    wasm_instructions.push(Instruction::I32Extend16S);
-    wasm_instructions.push(Instruction::LocalSet(index_result()));
+        result_users -= 1;
+    };
 
     if hack_instr.dst_has_a() {
-        wasm_instructions.push(Instruction::LocalGet(index_result()));
-        wasm_instructions.push(Instruction::LocalSet(index_a()));
+        set_local(index_a());
     }
 
     if hack_instr.dst_has_d() {
-        wasm_instructions.push(Instruction::LocalGet(index_result()));
-        wasm_instructions.push(Instruction::LocalSet(index_d()));
+        set_local(index_d());
     }
 
     if hack_instr.dst_has_m() {
-        wasm_instructions.push(Instruction::LocalGet(index_ram_address()));
-        wasm_instructions.push(Instruction::LocalGet(index_result()));
+        if result_users > 1 {
+            wasm_instructions.push(Instruction::LocalTee(index_result()));
+        }
         wasm_instructions.push(Instruction::I32Store(mem_arg_m()));
+        if result_users > 1 {
+            wasm_instructions.push(Instruction::LocalGet(index_result()));
+        }
     }
 
     use crate::hardware::JumpCondition;
-    if hack_instr.jump_condition() != JumpCondition::NoJump {
-        wasm_instructions.push(Instruction::LocalGet(index_result()));
-    }
     match hack_instr.jump_condition() {
         JumpCondition::JMP => wasm_instructions.push(Instruction::Br(jump_index)),
         JumpCondition::JNE => {
@@ -626,7 +654,7 @@ fn hack_dynamic_slow(
         .iter()
         .enumerate()
         .map(|(i, instruction)| {
-            let mut instrs = hack_instr_to_wasm(instruction, Index::Id(loop_id), None);
+            let mut instrs = hack_instr_to_wasm(instruction, Index::Id(loop_id));
             instrs.push(Instruction::I32Const(i as i32 + 1));
             instrs.push(Instruction::LocalSet(index_jump_target()));
             instrs.push(Instruction::Br(Index::Id(loop_id)));
@@ -638,11 +666,13 @@ fn hack_dynamic_slow(
 fn hack_to_dynamic_cases(
     instructions: &[crate::hardware::Instruction],
     loop_id: Id<'static>,
-) -> Vec<Vec<Instruction<'static>>> {
-    instructions
+) -> (Vec<Vec<Instruction<'static>>>, HashMap<usize, i32>) {
+    let cases = instructions
         .iter()
-        .map(|instruction| hack_instr_to_wasm(instruction, Index::Id(loop_id), None))
-        .collect()
+        .map(|instruction| hack_instr_to_wasm(instruction, Index::Id(loop_id)))
+        .collect();
+
+    (cases, HashMap::new())
 }
 
 fn hack_to_static_cases(
@@ -657,10 +687,10 @@ fn hack_to_static_cases(
             if instruction.instruction_type() == crate::hardware::InstructionType::A {
                 a_value = Some(instruction.loaded_value() as i32);
             } else {
-                if instruction.jump_condition() != crate::hardware::JumpCondition::NoJump {
-                    if let Some(target) = a_value {
-                        targets.insert(target as usize);
-                    }
+                if instruction.jump_condition() != crate::hardware::JumpCondition::NoJump
+                    && let Some(target) = a_value
+                {
+                    targets.insert(target as usize);
                 }
 
                 if instruction.dst_has_a() {
@@ -681,7 +711,7 @@ fn hack_to_static_cases(
 
     let mut cases = vec![];
     for (index, instruction) in instructions.iter().enumerate() {
-        let mut case = hack_instr_to_wasm(instruction, Index::Id(loop_id), None);
+        let mut case = hack_instr_to_wasm(instruction, Index::Id(loop_id));
         if let Some(&case_index) = index_to_case_index.get(&(index + 1)) {
             let offset = case_index as usize + instructions.len() - index;
             case.push(Instruction::Br(Index::Num(
@@ -700,21 +730,18 @@ fn hack_to_static_cases(
     let mut current_case = vec![];
     let mut a_value = None;
     for (index, instruction) in instructions.iter().enumerate() {
-        let mut jump_target = None;
         let mut jump_index = Index::Id(loop_id);
 
         if instruction.instruction_type() == crate::hardware::InstructionType::A {
             a_value = Some(instruction.loaded_value() as i32);
         } else {
-            if instruction.jump_condition() != crate::hardware::JumpCondition::NoJump {
-                if let Some(a_value) = a_value {
-                    if let Some(&case_index) = index_to_case_index.get(&(a_value as usize)) {
-                        let offset = case_index - (cases.len() - instructions.len()) as i32;
-                        if offset >= 0 {
-                            jump_index = Index::Num(offset as u32, Span::from_offset(0));
-                        }
-                        jump_target = Some(a_value);
-                    }
+            if instruction.jump_condition() != crate::hardware::JumpCondition::NoJump
+                && let Some(a_value) = a_value
+                && let Some(&case_index) = index_to_case_index.get(&(a_value as usize))
+            {
+                let offset = case_index - (cases.len() - instructions.len()) as i32;
+                if offset >= 0 {
+                    jump_index = Index::Num(offset as u32, Span::from_offset(0));
                 }
             }
 
@@ -723,7 +750,7 @@ fn hack_to_static_cases(
             }
         }
 
-        current_case.extend(hack_instr_to_wasm(instruction, jump_index, jump_target));
+        current_case.extend(hack_instr_to_wasm(instruction, jump_index));
 
         if index_to_case_index.contains_key(&(index + 1)) {
             cases.push(current_case);
@@ -746,7 +773,7 @@ pub fn hack_to_wasm(
 ) -> Result<Vec<u8>, String> {
     let loop_id = Id::new("loop", Span::from_offset(0));
 
-    let (cases, overrides) = hack_to_static_cases(&instructions, loop_id);
+    let (cases, overrides) = hack_to_static_cases(instructions, loop_id);
     let case_count = cases.len();
 
     let memory_id = Id::new("memory", Span::from_offset(0));
@@ -796,12 +823,7 @@ pub fn hack_to_wasm(
     };
 
     let mut m = ModuleBuilder::default()
-        .fields(
-            globals()
-                .into_iter()
-                .map(|g| ModuleField::Global(g))
-                .collect(),
-        )
+        .fields(globals().into_iter().map(ModuleField::Global).collect())
         .field(ModuleField::Memory(create_memory(memory_id, 32768)))
         .field(ModuleField::Export(Export {
             span: Span::from_offset(0),

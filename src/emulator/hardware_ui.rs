@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use crate::hardware::{self, BreakpointVar, MEM_SIZE, Word};
-use eframe::{
-    egui,
-    epaint::{Vec2, mutex::Mutex},
-};
+use eframe::{egui, epaint::Vec2};
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
 use super::common_state::{
@@ -51,7 +48,7 @@ impl HardwareState {
                                                 strip.cell(|ui| {
                                                     ui.rom_grid(
                                                         "ROM",
-                                                        &self.hardware.rom(),
+                                                        self.hardware.rom(),
                                                         &(0..=((MEM_SIZE - 1) as Word)),
                                                         self.hardware.pc(),
                                                         shared_state.scroll_once,

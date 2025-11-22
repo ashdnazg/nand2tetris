@@ -4,7 +4,6 @@ use crate::emulator::common_state::CommonAction;
 use crate::hardware::{MEM_SIZE, Word};
 use crate::vm::{self, Register};
 use eframe::egui;
-use eframe::epaint::mutex::Mutex;
 use egui_extras::{Column, Size, StripBuilder, TableBuilder};
 
 use super::Action;

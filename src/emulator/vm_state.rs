@@ -1,4 +1,3 @@
-use crate::hardware::RAM;
 use crate::vm::{Breakpoint, VM};
 
 use super::common_state::CommonState;

@@ -12,7 +12,6 @@ mod vm_ui;
 use common_state::SharedState;
 use eframe::egui;
 
-use egui::mutex::Mutex;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
@@ -165,8 +164,15 @@ impl eframe::App for EmulatorApp {
                             self.state = AppState::VM(VMState::from_file_contents(file_contents));
                             self.shared_state = Default::default();
                         }
-                        if ui.button("Hack Example: Ray Marcher").clicked() {
+                        if ui.button("Hack Example 1: Ray Marcher").clicked() {
                             let file_contents = include_str!("../../r_soj.hack");
+                            self.state = AppState::Hardware(
+                                HardwareState::from_hack_file_contents(file_contents),
+                            );
+                            self.shared_state = Default::default();
+                        }
+                        if ui.button("Hack Example 2: Game of Life").clicked() {
+                            let file_contents = include_str!("../../life-128-hibit.hack");
                             self.state = AppState::Hardware(
                                 HardwareState::from_hack_file_contents(file_contents),
                             );

@@ -50,13 +50,13 @@ impl Instant {
     // pub fn elapsed(&self) -> Duration { Self::now().duration_since(*self) }
     pub fn checked_add(&self, duration: Duration) -> Option<Self> {
         match duration.as_micros().try_into() {
-            Ok(duration) => self.0.checked_add(duration).map(|i| Self(i)),
+            Ok(duration) => self.0.checked_add(duration).map(Self),
             Err(_) => None,
         }
     }
     pub fn checked_sub(&self, duration: Duration) -> Option<Self> {
         match duration.as_micros().try_into() {
-            Ok(duration) => self.0.checked_sub(duration).map(|i| Self(i)),
+            Ok(duration) => self.0.checked_sub(duration).map(Self),
             Err(_) => None,
         }
     }

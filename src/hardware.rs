@@ -1,7 +1,4 @@
-use std::{
-    borrow::Borrow,
-    ops::{Index, IndexMut},
-};
+use std::ops::{Index, IndexMut};
 
 #[cfg(not(feature = "bit32"))]
 pub type Word = i16;
@@ -412,7 +409,7 @@ impl AnyHardware for Hardware {
     fn load_program(&mut self, program: &[Instruction]) {
         self.rom.fill(Instruction { raw: 0 });
         self.length = 0;
-        for (i, instruction) in program.into_iter().enumerate() {
+        for (i, instruction) in program.iter().enumerate() {
             self.rom[i] = *instruction;
             self.length += 1;
         }

@@ -298,9 +298,9 @@ pub fn draw_shared(
                 if ui.button("Reset").clicked() {
                     *action = Some(Action::Common(CommonAction::ResetClicked));
                 }
-                if ui.button("Breakpoints").clicked() {
-                    *action = Some(Action::Common(CommonAction::BreakpointsClicked));
-                }
+                // if ui.button("Breakpoints").clicked() {
+                //     *action = Some(Action::Common(CommonAction::BreakpointsClicked));
+                // }
 
                 let mut new_steps_per_second = state.desired_steps_per_second;
                 let height = ui.text_style_height(&egui::TextStyle::Body);
@@ -329,7 +329,17 @@ pub fn draw_shared(
                     let run_time = (Instant::now() - run_start).as_secs_f64();
                     let steps_per_second = performance_data.total_steps as f64 / run_time;
                     ui.label("Actual:");
-                    ui.label((steps_per_second.round() as u64).to_string());
+                    ui.label(
+                        (steps_per_second.round() as u64)
+                            .to_string()
+                            .as_bytes()
+                            .rchunks(3)
+                            .rev()
+                            .map(std::str::from_utf8)
+                            .collect::<Result<Vec<&str>, _>>()
+                            .unwrap()
+                            .join(","),
+                    );
                 }
             });
         });
@@ -396,10 +406,8 @@ impl EmulatorWidgets for egui::Ui {
                     .min_scrolled_height(header_height + row_height)
                     .max_scroll_height(available_height);
 
-                if scroll_to_address {
-                    if let Some(address) = highlight_address {
-                        builder = builder.scroll_to_row((address - range.start()) as usize, None);
-                    }
+                if scroll_to_address && let Some(address) = highlight_address {
+                    builder = builder.scroll_to_row((address - range.start()) as usize, None);
                 }
 
                 builder
@@ -418,6 +426,9 @@ impl EmulatorWidgets for egui::Ui {
                         }
                     })
                     .body(|body| {
+                        if range.end() < range.start() {
+                            return;
+                        }
                         body.rows(
                             row_height,
                             *range.end() as usize - *range.start() as usize,

@@ -1,7 +1,10 @@
-use crate::{
-    hardware::{AnyHardware, Breakpoint, BreakpointVar, Hardware, Instruction, RAM, UWord},
-    wasm_hardware::WasmHardware,
-};
+use crate::hardware::{AnyHardware, Breakpoint, BreakpointVar, Hardware, Instruction, UWord};
+
+#[cfg(target_arch = "wasm32")]
+use crate::wasm_hardware::WasmHardware;
+
+type HardwareImpl = WasmHardware;
+// type HardwareImpl = Hardware;
 
 use super::common_state::CommonState;
 
@@ -41,7 +44,7 @@ impl HardwareState {
                 var: BreakpointVar::A,
                 value: 0,
             },
-            hardware: Box::new(WasmHardware::from_file_contents(contents)),
+            hardware: Box::new(HardwareImpl::from_file_contents(contents)),
         }
     }
 
@@ -51,7 +54,7 @@ impl HardwareState {
                 var: BreakpointVar::A,
                 value: 0,
             },
-            hardware: Box::new(WasmHardware::from_hack_file_contents(contents)),
+            hardware: Box::new(HardwareImpl::from_hack_file_contents(contents)),
         }
     }
 }
