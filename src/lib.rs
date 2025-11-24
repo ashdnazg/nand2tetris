@@ -9,6 +9,10 @@ pub mod vm_parse;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_hardware;
+#[cfg(target_arch = "wasm32")]
+pub mod wasm_utils;
+#[cfg(target_arch = "wasm32")]
+pub mod vm_to_wasm;
 
 #[cfg(feature = "emulator")]
 pub mod emulator;
