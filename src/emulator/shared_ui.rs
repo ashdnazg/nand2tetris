@@ -1,7 +1,6 @@
 use super::instant::Instant;
 use crate::{
-    hardware::{Instruction, RAM, Word},
-    vm::{Program, RunState},
+    emulator::EmulatorApp, hardware::{Instruction, RAM, Word}, vm::{Program, RunState}
 };
 use core::slice;
 use eframe::{
@@ -220,7 +219,7 @@ pub fn draw_shared(
     state: &SharedState,
     ctx: &egui::Context,
     performance_data: &PerformanceData,
-    is_top_bar_enabled: bool,
+    is_file_loaded: bool,
     action: &mut Option<Action>,
     async_actions_sender: &Sender<Action>,
 ) {
@@ -273,10 +272,14 @@ pub fn draw_shared(
                             }
                         });
                     }
-                    if ui.button("Close File(s)").clicked() {
-                        ui.close();
-                        *action = Some(Action::CloseFile)
-                    }
+
+                    ui.add_enabled_ui(is_file_loaded, |ui| {
+                        if ui.button("Close File(s)").clicked() {
+                            ui.close();
+                            *action = Some(Action::CloseFile)
+                        }
+                    });
+
                     if ui.button("Quit").clicked() {
                         *action = Some(Action::Quit);
                     }
@@ -284,7 +287,7 @@ pub fn draw_shared(
             });
         }
         ui.separator();
-        ui.add_enabled_ui(is_top_bar_enabled, |ui| {
+        ui.add_enabled_ui(is_file_loaded, |ui| {
             ui.horizontal_wrapped(|ui| {
                 if ui.button("Step").clicked() {
                     *action = Some(Action::Common(CommonAction::StepClicked));
@@ -320,7 +323,7 @@ pub fn draw_shared(
                     },
                 );
 
-                if is_top_bar_enabled && new_steps_per_second != state.desired_steps_per_second {
+                if is_file_loaded && new_steps_per_second != state.desired_steps_per_second {
                     *action = Some(Action::Common(CommonAction::SpeedSliderMoved(
                         new_steps_per_second,
                     )))

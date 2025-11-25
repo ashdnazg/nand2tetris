@@ -1,0 +1,737 @@
+function Dither.init 1
+push constant 64
+call Array.new 1
+pop static 0
+label WHILE_EXP0
+push local 0
+push constant 64
+lt
+not
+if-goto WHILE_END0
+push local 0
+push static 0
+add
+call Float316.newZero 0
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push local 0
+push constant 1
+add
+pop local 0
+goto WHILE_EXP0
+label WHILE_END0
+push constant 0
+push static 0
+add
+push constant 1
+push constant 126
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 1
+push static 0
+add
+push constant 0
+push constant 125
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 2
+push static 0
+add
+push constant 1
+push constant 125
+push constant 10240
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 3
+push static 0
+add
+push constant 0
+push constant 125
+push constant 14336
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 4
+push static 0
+add
+push constant 1
+push constant 125
+push constant 14848
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 5
+push static 0
+add
+push constant 0
+push constant 125
+push constant 9728
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 6
+push static 0
+add
+push constant 1
+push constant 125
+push constant 8704
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 7
+push static 0
+add
+push constant 0
+push constant 125
+push constant 15872
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 8
+push static 0
+add
+push constant 0
+push constant 0
+push constant 0
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 9
+push static 0
+add
+push constant 1
+push constant 125
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 10
+push static 0
+add
+push constant 0
+push constant 124
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 11
+push static 0
+add
+push constant 1
+push constant 123
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 12
+push static 0
+add
+push constant 0
+push constant 122
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 13
+push static 0
+add
+push constant 1
+push constant 124
+push constant 13312
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 14
+push static 0
+add
+push constant 0
+push constant 124
+push constant 15360
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 15
+push static 0
+add
+push constant 1
+push constant 121
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 16
+push static 0
+add
+push constant 1
+push constant 125
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 17
+push static 0
+add
+push constant 0
+push constant 125
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 18
+push static 0
+add
+push constant 1
+push constant 125
+push constant 14336
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 19
+push static 0
+add
+push constant 0
+push constant 125
+push constant 10240
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 20
+push static 0
+add
+push constant 1
+push constant 125
+push constant 10752
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 21
+push static 0
+add
+push constant 0
+push constant 125
+push constant 13824
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 22
+push static 0
+add
+push constant 1
+push constant 125
+push constant 12800
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 23
+push static 0
+add
+push constant 0
+push constant 125
+push constant 11776
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 24
+push static 0
+add
+push constant 0
+push constant 124
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 25
+push static 0
+add
+push constant 1
+push constant 124
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 26
+push static 0
+add
+push constant 0
+push constant 123
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 27
+push static 0
+add
+push constant 1
+push constant 124
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 28
+push static 0
+add
+push constant 0
+push constant 124
+push constant 11264
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 29
+push static 0
+add
+push constant 1
+push constant 123
+push constant 10240
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 30
+push static 0
+add
+push constant 0
+push constant 123
+push constant 14336
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 31
+push static 0
+add
+push constant 1
+push constant 124
+push constant 9216
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 32
+push static 0
+add
+push constant 1
+push constant 125
+push constant 15360
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 33
+push static 0
+add
+push constant 0
+push constant 125
+push constant 9216
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 34
+push static 0
+add
+push constant 1
+push constant 125
+push constant 9216
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 35
+push static 0
+add
+push constant 0
+push constant 125
+push constant 15360
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 36
+push static 0
+add
+push constant 1
+push constant 125
+push constant 15872
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 37
+push static 0
+add
+push constant 0
+push constant 125
+push constant 8704
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 38
+push static 0
+add
+push constant 1
+push constant 125
+push constant 9728
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 39
+push static 0
+add
+push constant 0
+push constant 125
+push constant 14848
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 40
+push static 0
+add
+push constant 0
+push constant 122
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 41
+push static 0
+add
+push constant 1
+push constant 124
+push constant 14336
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 42
+push static 0
+add
+push constant 0
+push constant 124
+push constant 14336
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 43
+push static 0
+add
+push constant 1
+push constant 122
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 44
+push static 0
+add
+push constant 0
+push constant 121
+push constant 8192
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 45
+push static 0
+add
+push constant 1
+push constant 124
+push constant 15360
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 46
+push static 0
+add
+push constant 0
+push constant 124
+push constant 13312
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 47
+push static 0
+add
+push constant 1
+push constant 122
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 48
+push static 0
+add
+push constant 1
+push constant 125
+push constant 11264
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 49
+push static 0
+add
+push constant 0
+push constant 125
+push constant 13312
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 50
+push static 0
+add
+push constant 1
+push constant 125
+push constant 13312
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 51
+push static 0
+add
+push constant 0
+push constant 125
+push constant 11264
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 52
+push static 0
+add
+push constant 1
+push constant 125
+push constant 11776
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 53
+push static 0
+add
+push constant 0
+push constant 125
+push constant 12800
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 54
+push static 0
+add
+push constant 1
+push constant 125
+push constant 13824
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 55
+push static 0
+add
+push constant 0
+push constant 125
+push constant 10752
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 56
+push static 0
+add
+push constant 0
+push constant 124
+push constant 10240
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 57
+push static 0
+add
+push constant 1
+push constant 123
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 58
+push static 0
+add
+push constant 0
+push constant 123
+push constant 12288
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 59
+push static 0
+add
+push constant 1
+push constant 124
+push constant 10240
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 60
+push static 0
+add
+push constant 0
+push constant 124
+push constant 9216
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 61
+push static 0
+add
+push constant 1
+push constant 123
+push constant 14336
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 62
+push static 0
+add
+push constant 0
+push constant 123
+push constant 10240
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 63
+push static 0
+add
+push constant 1
+push constant 124
+push constant 11264
+call Float316.new 3
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+push constant 0
+return
+function Dither.at 0
+push argument 0
+push static 0
+add
+pop pointer 1
+push that 0
+return

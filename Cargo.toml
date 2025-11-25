@@ -35,3 +35,7 @@ required-features = ["emulator"]
 wasm-bindgen-futures = "0.4"
 log = "0.4"
 wasm-bindgen = "0.2.90"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wasmtime = { version = "38.0.4", default-features = false, features = ['runtime', 'cranelift'] }
+

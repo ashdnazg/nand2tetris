@@ -1,0 +1,43 @@
+function Surface.newZero 0
+push constant 2
+call Memory.alloc 1
+pop pointer 0
+call Float316.newZero 0
+pop this 0
+call Float316.newZero 0
+pop this 1
+push pointer 0
+return
+function Surface.sd 0
+push argument 0
+pop pointer 0
+push this 0
+return
+function Surface.col 0
+push argument 0
+pop pointer 0
+push this 1
+return
+function Surface.set 0
+push argument 0
+pop pointer 0
+push this 0
+push argument 1
+call Float316.s 1
+push argument 1
+call Float316.e 1
+push argument 1
+call Float316.m 1
+call Float316.set 4
+pop temp 0
+push this 1
+push argument 2
+call Float316.s 1
+push argument 2
+call Float316.e 1
+push argument 2
+call Float316.m 1
+call Float316.set 4
+pop temp 0
+push constant 0
+return

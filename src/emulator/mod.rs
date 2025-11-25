@@ -164,6 +164,13 @@ impl eframe::App for EmulatorApp {
                             self.state = AppState::VM(VMState::from_file_contents(file_contents));
                             self.shared_state = Default::default();
                         }
+                        if ui.button("VM Test").clicked() {
+                            let file_contents = file_contents_from_dir(&include_dir::include_dir!(
+                                "$CARGO_MANIFEST_DIR/VmTest"
+                            ));
+                            self.state = AppState::VM(VMState::from_file_contents(file_contents));
+                            self.shared_state = Default::default();
+                        }
                         if ui.button("Hack Example 1: Ray Marcher").clicked() {
                             let file_contents = include_str!("../../r_soj.hack");
                             self.state = AppState::Hardware(

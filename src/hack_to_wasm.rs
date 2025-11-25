@@ -2,9 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use wast::{
     core::{
-        BlockType, Export, ExportKind, FuncKind,
-        FunctionType, Global, GlobalKind, GlobalType, InlineExport, Instruction, Local,
-        MemArg, ModuleField, TypeUse, ValType,
+        BlockType, Export, ExportKind, FuncKind, FunctionType, Global, GlobalKind, GlobalType,
+        InlineExport, Instruction, Local, MemArg, ModuleField, TypeUse, ValType,
     },
     token::{Id, Index, Span},
 };

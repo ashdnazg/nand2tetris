@@ -106,10 +106,10 @@ impl RAM {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Program {
     pub all_commands: Vec<VMCommand>,
-    function_name_to_index: HashMap<String, usize>,
+    pub function_name_to_index: HashMap<String, usize>,
     pub function_metadata: Vec<FunctionMetadata>,
     pub file_name_to_index: HashMap<String, usize>,
     pub files: Vec<File>,

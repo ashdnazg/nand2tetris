@@ -1,0 +1,281 @@
+function UtilsFloat.init 0
+push constant 1
+push constant 127
+push constant 8192
+call Float316.new 3
+pop static 0
+push constant 0
+push constant 127
+push constant 12288
+call Float316.new 3
+pop static 1
+call Float316.newZero 0
+pop static 2
+call Float316.newZero 0
+pop static 3
+call Float316.newZero 0
+pop static 4
+call Float316.newZero 0
+pop static 5
+call Float316.newZero 0
+pop static 6
+push constant 0
+return
+function UtilsFloat.floor 6
+push argument 1
+call Float316.s 1
+pop local 0
+push argument 1
+call Float316.e 1
+pop local 1
+push argument 1
+call Float316.m 1
+pop local 2
+push local 1
+push constant 127
+lt
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 0
+push constant 0
+eq
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push argument 0
+push constant 0
+push constant 0
+push constant 0
+call Float316.set 4
+pop temp 0
+push constant 0
+return
+label IF_FALSE1
+push argument 0
+push constant 1
+push constant 127
+push constant 8192
+call Float316.set 4
+pop temp 0
+push constant 0
+return
+label IF_FALSE0
+push local 1
+push constant 127
+sub
+pop local 3
+push constant 0
+not
+push constant 13
+push local 3
+sub
+call TwoToThePower.of 1
+push constant 1
+sub
+sub
+pop local 4
+push local 2
+push local 4
+and
+pop local 5
+push argument 0
+push local 0
+push local 1
+push local 5
+call Float316.set 4
+pop temp 0
+push local 0
+push constant 1
+eq
+push local 2
+push local 5
+eq
+not
+and
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push argument 0
+push argument 0
+push static 0
+call Float316.add 3
+pop temp 0
+label IF_FALSE2
+push constant 0
+return
+function UtilsFloat.sqrt 3
+push argument 1
+call Float316.s 1
+pop local 0
+push argument 1
+call Float316.e 1
+pop local 1
+push argument 1
+call Float316.m 1
+pop local 2
+push local 0
+push constant 0
+gt
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 2
+call Sys.error 1
+pop temp 0
+label IF_FALSE0
+push local 1
+push constant 1
+and
+push constant 0
+gt
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push static 2
+push constant 0
+push local 1
+push constant 2
+call Math.divide 2
+push constant 64
+add
+push local 2
+call Float316.set 4
+pop temp 0
+goto IF_END1
+label IF_FALSE1
+push static 2
+push constant 0
+push local 1
+push constant 2
+call Math.divide 2
+push constant 63
+add
+push local 2
+call Float316.set 4
+pop temp 0
+label IF_END1
+push static 3
+push argument 1
+push static 2
+call Float316.div 3
+pop temp 0
+push static 2
+push static 2
+push static 3
+call Float316.add 3
+pop temp 0
+push static 2
+call Float316.halve 1
+pop temp 0
+push static 3
+push argument 1
+push static 2
+call Float316.div 3
+pop temp 0
+push static 2
+push static 2
+push static 3
+call Float316.add 3
+pop temp 0
+push static 2
+call Float316.halve 1
+pop temp 0
+push argument 0
+push constant 0
+push static 2
+call Float316.e 1
+push static 2
+call Float316.m 1
+call Float316.set 4
+pop temp 0
+push constant 0
+return
+function UtilsFloat.invSqrt 3
+push argument 1
+call Float316.s 1
+pop local 0
+push argument 1
+call Float316.e 1
+pop local 1
+push argument 1
+call Float316.m 1
+pop local 2
+push local 0
+push constant 0
+gt
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 3
+call Sys.error 1
+pop temp 0
+label IF_FALSE0
+push static 4
+push constant 0
+push local 1
+push constant 1
+sub
+push local 2
+call Float316.set 4
+pop temp 0
+push static 5
+push constant 0
+push constant 190
+push local 1
+push constant 2
+call Math.divide 2
+sub
+push constant 8192
+call Float316.set 4
+pop temp 0
+push static 6
+push static 4
+push static 5
+call Float316.mul 3
+pop temp 0
+push static 6
+push static 6
+push static 5
+call Float316.mul 3
+pop temp 0
+push static 6
+push static 1
+push static 6
+call Float316.sub 3
+pop temp 0
+push static 5
+push static 5
+push static 6
+call Float316.mul 3
+pop temp 0
+push static 6
+push static 4
+push static 5
+call Float316.mul 3
+pop temp 0
+push static 6
+push static 6
+push static 5
+call Float316.mul 3
+pop temp 0
+push static 6
+push static 1
+push static 6
+call Float316.sub 3
+pop temp 0
+push static 5
+push static 5
+push static 6
+call Float316.mul 3
+pop temp 0
+push argument 0
+push constant 0
+push static 5
+call Float316.e 1
+push static 5
+call Float316.m 1
+call Float316.set 4
+pop temp 0
+push constant 0
+return

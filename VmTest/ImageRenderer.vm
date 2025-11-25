@@ -1,0 +1,201 @@
+function ImageRenderer.init 0
+push constant 0
+push constant 127
+push constant 8192
+call Float316.new 3
+pop static 0
+push constant 0
+push constant 126
+push constant 8192
+call Float316.new 3
+pop static 1
+push constant 0
+push constant 136
+push constant 8192
+call Float316.new 3
+pop static 2
+push constant 0
+push constant 135
+push constant 8192
+call Float316.new 3
+pop static 3
+push constant 0
+push constant 135
+push constant 8192
+call Float316.new 3
+pop static 4
+push constant 0
+push constant 134
+push constant 8192
+call Float316.new 3
+pop static 5
+push constant 0
+return
+function ImageRenderer.render 9
+call Float316.newZero 0
+pop local 0
+call Float316.newZero 0
+pop local 1
+call Float316.newZero 0
+pop local 2
+call Float316.newZero 0
+pop local 3
+call Float316.newZero 0
+pop local 4
+label WHILE_EXP0
+push static 4
+push local 4
+call Float316.gt 2
+not
+if-goto WHILE_END0
+push local 3
+push constant 0
+push constant 0
+push constant 0
+call Float316.set 4
+pop temp 0
+push constant 0
+pop local 5
+label WHILE_EXP1
+push static 2
+push local 3
+call Float316.gt 2
+not
+if-goto WHILE_END1
+push local 1
+push local 3
+push static 3
+call Float316.sub 3
+pop temp 0
+push local 1
+push local 1
+push static 4
+call Float316.div 3
+pop temp 0
+push local 2
+push local 4
+push static 5
+call Float316.sub 3
+pop temp 0
+push local 2
+push local 2
+push static 4
+call Float316.div 3
+pop temp 0
+push local 2
+call Float316.swapSign 1
+pop temp 0
+push local 0
+push local 1
+push local 2
+call CalcPixel.calcPixelValue 3
+pop temp 0
+push local 0
+push static 0
+call Float316.gt 2
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 0
+push constant 0
+push constant 127
+push constant 8192
+call Float316.set 4
+pop temp 0
+goto IF_END0
+label IF_FALSE0
+push local 0
+call Float316.s 1
+push constant 1
+eq
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 0
+push constant 0
+push constant 0
+push constant 0
+call Float316.set 4
+pop temp 0
+label IF_FALSE1
+label IF_END0
+push local 0
+push local 0
+push local 8
+push constant 8
+call Math.multiply 2
+push local 7
+add
+call Dither.at 1
+call Float316.add 3
+pop temp 0
+push local 0
+push static 1
+call Float316.gt 2
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push constant 0
+call Screen.setColor 1
+pop temp 0
+goto IF_END2
+label IF_FALSE2
+push constant 0
+not
+call Screen.setColor 1
+pop temp 0
+label IF_END2
+push local 5
+push local 6
+call Screen.drawPixel 2
+pop temp 0
+push local 3
+push local 3
+push static 0
+call Float316.add 3
+pop temp 0
+push local 5
+push constant 1
+add
+pop local 5
+push local 7
+push constant 1
+add
+pop local 7
+push local 7
+push constant 7
+gt
+if-goto IF_TRUE3
+goto IF_FALSE3
+label IF_TRUE3
+push constant 0
+pop local 7
+label IF_FALSE3
+goto WHILE_EXP1
+label WHILE_END1
+push local 4
+push local 4
+push static 0
+call Float316.add 3
+pop temp 0
+push local 6
+push constant 1
+add
+pop local 6
+push local 8
+push constant 1
+add
+pop local 8
+push local 8
+push constant 7
+gt
+if-goto IF_TRUE4
+goto IF_FALSE4
+label IF_TRUE4
+push constant 0
+pop local 8
+label IF_FALSE4
+goto WHILE_EXP0
+label WHILE_END0
+push constant 0
+return
