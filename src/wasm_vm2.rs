@@ -714,9 +714,25 @@ mod tests {
         )];
 
         let mut vm = WasmVm::from_all_file_commands(all_file_commands.clone());
+        vm.set_ram_value(1, 1);
+        vm.set_ram_value(2, 2);
+        vm.set_ram_value(3, 3);
+        vm.set_ram_value(4, 4);
         vm.set_current_file("Sys");
-        vm.run(10);
+        for _ in 0..15 {
+            vm.run(1);
+            let store = unsafe { &mut *vm.store.get() };
+            let pc = vm.pc.get(store).unwrap_i32();
+            let ram = vm.copy_ram();
+            println!("pc: {} ", pc);
+            println!("{:?} ", &ram.contents[0..6]);
+            println!("{:?} ", &ram.contents[255..265]);
+        }
 
         assert_eq!(vm.stack_top(), 2337);
+        assert_eq!(vm.get_ram_value(1), 1);
+        assert_eq!(vm.get_ram_value(2), 2);
+        assert_eq!(vm.get_ram_value(3), 3);
+        assert_eq!(vm.get_ram_value(4), 4);
     }
 }

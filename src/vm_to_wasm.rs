@@ -219,7 +219,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PushSegment::Argument => {
@@ -227,7 +227,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PushSegment::This => {
@@ -235,7 +235,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PushSegment::That => {
@@ -243,7 +243,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PushSegment::Temp => {
@@ -285,7 +285,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::Argument => {
@@ -293,7 +293,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::This => {
@@ -301,7 +301,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::That => {
@@ -309,7 +309,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset * 4))
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::Temp => {
@@ -382,7 +382,7 @@ fn command_to_wasm(
             ]));
         }
         VMCommand::Label { .. } => {
-            unreachable!("Labels should have been removed by now");
+            // unreachable!("Labels should have been removed by now");
         }
         VMCommand::Goto { label_name } => {
             if matches!(jump_index, Index::Id(_)) {
@@ -499,6 +499,8 @@ fn command_to_wasm(
                 Instruction::I32Const(5),
                 Instruction::I32Sub,
                 Instruction::LocalTee(index_frame()),
+                Instruction::I32Const(2),
+                Instruction::I32Shl,
                 Instruction::I32Load(mem_arg()),
                 Instruction::LocalSet(index_jump_target()),
             ]);
@@ -553,8 +555,8 @@ fn program_to_static_cases(
     let mut label_indices = HashMap::new();
     let mut function_indices = HashMap::new();
     let mut call_indices = HashMap::new();
-    let mut case_index = 0;
-    let mut case_starts = HashSet::new();
+    // let mut case_index = 0;
+    // let mut case_starts = HashSet::new();
     let mut start_case_index = None;
     for (i, command) in program
         .files
@@ -564,29 +566,29 @@ fn program_to_static_cases(
     {
         match command {
             VMCommand::Label { name } => {
-                label_indices.insert(name.clone(), case_index);
-                if !case_starts.contains(&i) {
-                    case_starts.insert(i);
-                    case_index += 1;
-                }
+                label_indices.insert(name.clone(), i as i32);
+                // if !case_starts.contains(&i) {
+                //     case_starts.insert(i);
+                //     // case_index += 1;
+                // }
             }
             VMCommand::Function { name, .. } => {
                 if name == "Sys.init" {
-                    start_case_index = Some(case_index);
+                    start_case_index = Some(i as i32);
                 }
-                function_indices.insert(name.clone(), case_index);
-                case_starts.insert(i);
-                case_index += 1;
+                function_indices.insert(name.clone(), i as i32);
+                // case_starts.insert(i);
+                // case_index += 1;
             }
             VMCommand::Call { .. } => {
-                call_indices.insert(i + 1, case_index);
-                case_starts.insert(i + 1);
-                case_index += 1;
+                call_indices.insert(i + 1, i as i32 + 1);
+                // case_starts.insert(i + 1);
+                // case_index += 1;
             }
             _ => {}
         }
     }
-    case_starts.insert(program.all_commands.len());
+    // case_starts.insert(program.all_commands.len());
 
     let mut cases = vec![];
     let mut current_case = vec![];
@@ -603,9 +605,9 @@ fn program_to_static_cases(
     {
         let jump_index = Index::Id(loop_id);
 
-        if matches!(command, VMCommand::Label { .. }) {
-            continue;
-        }
+        // if matches!(command, VMCommand::Label { .. }) {
+        //     continue;
+        // }
 
         let instructions = command_to_wasm(
             command,
@@ -619,13 +621,19 @@ fn program_to_static_cases(
 
         current_case.extend(instructions);
 
-        if case_starts.contains(&(index + 1)) {
+        current_case.extend([
+            Instruction::I32Const(index as i32 + 1),
+            Instruction::LocalSet(index_jump_target()),
+            Instruction::Br(jump_index),
+        ]);
+
+        // if case_starts.contains(&(index + 1)) {
             cases.push(current_case);
             current_case = vec![];
-        }
+        // }
     }
 
-    (cases, start_case_index.unwrap())
+    (cases, start_case_index.unwrap_or(0))
 }
 
 pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<Vec<u8>, String> {
@@ -702,7 +710,6 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<Vec<u8>, String
         ))
         .build();
     let unoptimized_data = m.encode().map_err(|e| e.to_string())?;
-    std::fs::write("out.wasm", &unoptimized_data).unwrap();
 
     Ok(unoptimized_data)
 }
