@@ -16,9 +16,9 @@ struct State {
     function: Function,
     memory: Int32Array,
     pc: Global,
+    start_pc: i32,
 }
 
-#[derive(Debug)]
 pub struct WasmVm {
     pub program: Program,
     state: Rc<OnceCell<State>>,
@@ -53,11 +53,15 @@ impl WasmVm {
                         .unwrap()
                         .dyn_into::<Global>()
                         .unwrap();
+                    let start_pc = pc.value().as_f64().unwrap() as i32;
+
+                    memory.set_index(0, 256);
 
                     let new_state = State {
                         function,
                         memory,
                         pc,
+                        start_pc
                     };
                     state_clone.set(new_state).unwrap();
                     console::log_1(&"Finished!".into());
@@ -111,8 +115,9 @@ impl WasmVm {
         let current_file_index = *self.program.file_name_to_index.get("Sys").unwrap_or(&0);
         let current_command_index = self.program.files[current_file_index].starting_command_index;
 
-        state.pc.set_value(&current_command_index.into());
+        state.pc.set_value(&state.start_pc.into());
         state.memory.fill(0, 0, crate::hardware::MEM_SIZE as u32);
+        state.memory.set_index(0, 256);
     }
 
     pub fn copy_ram(&self) -> crate::hardware::RAM {

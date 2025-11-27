@@ -12,6 +12,7 @@ pub struct WasmVm {
     store: UnsafeCell<Store<()>>,
     function: TypedFunc<i32, i32>,
     pc: Global,
+    start_pc: i32,
     memory: Memory,
 }
 
@@ -28,11 +29,11 @@ impl WasmVm {
             .unwrap();
 
         let pc = instance.get_global(&mut store, "pc").unwrap();
+        let start_pc = pc.get(&mut store).unwrap_i32();
 
         let memory = instance.get_memory(&mut store, "memory").unwrap();
 
-        let mut vm = WasmVm { program, store: UnsafeCell::new(store), function, pc, memory };
-
+        let mut vm = WasmVm { program, store: UnsafeCell::new(store), function, pc, start_pc, memory };
         vm.set_ram_value(0, 256);
 
         vm
@@ -69,7 +70,41 @@ impl WasmVm {
     pub fn run(&mut self, step_count: u64) -> bool {
         let store = unsafe { &mut *self.store.get() };
         let ticks = self.function.call(store, step_count as i32).unwrap();
-        println!("ticks: {}", ticks);
+        // println!("ticks: {}", ticks);
+
+
+        // for _ in 0..step_count {
+        //     println!("{:?}", self.program.all_commands[self.reference_vm.run_state.current_command_index]);
+        //     let ticks = self.function.call(&mut *store, 1).unwrap();
+        //     println!("ticks: {}", ticks);
+        //     self.reference_vm.run(ticks as u64);
+        //     let ram = self.copy_ram();
+        //     let mut fail: bool = false;
+        //     if ram.contents != self.reference_vm.run_state.ram.contents {
+        //         for i in 0..crate::hardware::MEM_SIZE {
+        //             if ram.contents[i] != self.reference_vm.run_state.ram.contents[i] {
+        //                 println!(
+        //                     "RAM mismatch at address {}: wasm = {}, reference = {}",
+        //                     i, ram.contents[i], self.reference_vm.run_state.ram.contents[i]
+        //                 );
+        //             }
+        //         }
+        //         fail = true;
+        //     }
+        //     let pc = self.pc.get(&mut *store).unwrap_i32() as usize;
+        //     if pc != self.reference_vm.run_state.current_command_index {
+        //         println!(
+        //             "PC mismatch: wasm pc = {}, reference pc = {}",
+        //             pc,
+        //             self.reference_vm.run_state.current_command_index
+        //         );
+        //         fail = true;
+        //     }
+
+        //     if fail {
+        //         panic!("VM state mismatch detected");
+        //     }
+        // }
 
         false
     }
@@ -93,10 +128,7 @@ impl WasmVm {
         ints.fill(0);
         ints[0] = 256;
 
-        let current_file_index = *self.program.file_name_to_index.get("Sys").unwrap_or(&0);
-        let current_command_index = self.program.files[current_file_index].starting_command_index;
-
-        self.pc.set(store, (current_command_index as i32).into()).unwrap();
+        self.pc.set(store, self.start_pc.into()).unwrap();
     }
 
     pub fn copy_ram(&self) -> crate::hardware::RAM {
@@ -395,7 +427,7 @@ mod tests {
         )];
 
         let mut vm = WasmVm::from_all_file_commands(all_file_commands);
-        vm.set_current_file("a");;
+        vm.set_current_file("a");
         vm.run(3);
 
         assert_eq!(vm.stack_top(), 0);
@@ -416,7 +448,7 @@ mod tests {
         )];
 
         let mut vm = WasmVm::from_all_file_commands(all_file_commands);
-        vm.set_current_file("a");;
+        vm.set_current_file("a");
         vm.run(3);
 
         assert_eq!(vm.stack_top(), -1);

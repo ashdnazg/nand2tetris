@@ -178,6 +178,7 @@ fn command_to_wasm(
     index: usize,
     jump_index: Index<'static>,
     static_segment_start: Word,
+    current_function_name: Option<&String>,
     label_indices: &HashMap<String, i32>,
     function_indices: &HashMap<String, i32>,
     call_indices: &HashMap<usize, i32>,
@@ -249,13 +250,13 @@ fn command_to_wasm(
                 PushSegment::Temp => {
                     wasm_instructions.extend([
                         Instruction::I32Const(Register::TEMP(*offset).address() as i32 * 4),
-                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PushSegment::Pointer => {
                     wasm_instructions.extend([
                         Instruction::I32Const((Register::THIS.address() + offset) as i32 * 4),
-                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
             }
@@ -276,8 +277,7 @@ fn command_to_wasm(
             match segment {
                 PopSegment::Static => {
                     wasm_instructions.extend([
-                        Instruction::I32Const((static_segment_start + offset) as i32 * 4),
-                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Const(static_segment_start as i32 * 4),
                     ]);
                 }
                 PopSegment::Local => {
@@ -285,7 +285,6 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::Argument => {
@@ -293,7 +292,6 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::This => {
@@ -301,7 +299,6 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::That => {
@@ -309,19 +306,16 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
-                        Instruction::I32Load(mem_offset_arg(*offset))
                     ]);
                 }
                 PopSegment::Temp => {
                     wasm_instructions.extend([
-                        Instruction::I32Const(Register::TEMP(*offset).address() as i32 * 4),
-                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Const(Register::TEMP(0).address() as i32 * 4),
                     ]);
                 }
                 PopSegment::Pointer => {
                     wasm_instructions.extend([
-                        Instruction::I32Const((Register::THIS.address() + offset) as i32 * 4),
-                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Const(Register::THIS.address() as i32 * 4),
                     ]);
                 }
             }
@@ -333,7 +327,8 @@ fn command_to_wasm(
                 Instruction::LocalTee(index_sp()),
                 Instruction::I32Const(2),
                 Instruction::I32Shl,
-                Instruction::I32Store(mem_arg()),
+                Instruction::I32Load(mem_arg()),
+                Instruction::I32Store(mem_offset_arg(*offset)),
                 Instruction::I32Const(Register::SP.address() as i32),
                 Instruction::LocalGet(index_sp()),
                 Instruction::I32Store(mem_arg()),
@@ -387,7 +382,7 @@ fn command_to_wasm(
         VMCommand::Goto { label_name } => {
             if matches!(jump_index, Index::Id(_)) {
                 wasm_instructions.extend([
-                    Instruction::I32Const(label_indices[label_name]),
+                    Instruction::I32Const(label_indices[&format!("{}.{}", current_function_name.unwrap(), label_name)]),
                     Instruction::LocalSet(index_jump_target()),
                 ]);
             }
@@ -396,7 +391,7 @@ fn command_to_wasm(
         VMCommand::IfGoto { label_name } => {
             if matches!(jump_index, Index::Id(_)) {
                 wasm_instructions.extend([
-                    Instruction::I32Const(label_indices[label_name]),
+                    Instruction::I32Const(label_indices[&format!("{}.{}", current_function_name.unwrap(), label_name)]),
                     Instruction::LocalSet(index_jump_target()),
                 ]);
             }
@@ -555,9 +550,10 @@ fn program_to_static_cases(
     let mut label_indices = HashMap::new();
     let mut function_indices = HashMap::new();
     let mut call_indices = HashMap::new();
-    // let mut case_index = 0;
-    // let mut case_starts = HashSet::new();
+    let mut case_index = 0;
+    let mut case_starts = HashSet::new();
     let mut start_case_index = None;
+    let mut current_function_name = None;
     for (i, command) in program
         .files
         .iter()
@@ -566,29 +562,30 @@ fn program_to_static_cases(
     {
         match command {
             VMCommand::Label { name } => {
-                label_indices.insert(name.clone(), i as i32);
-                // if !case_starts.contains(&i) {
-                //     case_starts.insert(i);
-                //     // case_index += 1;
-                // }
+                label_indices.insert(format!("{}.{}", current_function_name.unwrap(), name), case_index);
+                if !case_starts.contains(&i) {
+                    case_starts.insert(i);
+                    case_index += 1;
+                }
             }
             VMCommand::Function { name, .. } => {
+                current_function_name = Some(name);
                 if name == "Sys.init" {
-                    start_case_index = Some(i as i32);
+                    start_case_index = Some(case_index);
                 }
-                function_indices.insert(name.clone(), i as i32);
-                // case_starts.insert(i);
-                // case_index += 1;
+                function_indices.insert(name.clone(), case_index);
+                case_starts.insert(i);
+                case_index += 1;
             }
             VMCommand::Call { .. } => {
-                call_indices.insert(i + 1, i as i32 + 1);
-                // case_starts.insert(i + 1);
-                // case_index += 1;
+                call_indices.insert(i + 1, case_index);
+                case_starts.insert(i + 1);
+                case_index += 1;
             }
             _ => {}
         }
     }
-    // case_starts.insert(program.all_commands.len());
+    case_starts.insert(program.all_commands.len());
 
     let mut cases = vec![];
     let mut current_case = vec![];
@@ -603,17 +600,35 @@ fn program_to_static_cases(
         })
         .enumerate()
     {
-        let jump_index = Index::Id(loop_id);
+        if let VMCommand::Function { name, .. } = command {
+            current_function_name = Some(name);
+        }
+        let mut jump_index = Index::Id(loop_id);
 
-        // if matches!(command, VMCommand::Label { .. }) {
-        //     continue;
-        // }
+        match command {
+            VMCommand::Goto { label_name }
+            | VMCommand::IfGoto { label_name } => {
+                let target_index =
+                    label_indices[&format!("{}.{}", current_function_name.unwrap(), label_name)] as i32;
+                    if target_index > cases.len() as i32 {
+                        jump_index = Index::Num((target_index - cases.len() as i32) as u32 - 1, Span::from_offset(0));
+                    }
+            }
+            VMCommand::Call { function_name, .. } => {
+                let target_index = function_indices[function_name] as i32;
+                if target_index > cases.len() as i32 {
+                    jump_index = Index::Num((target_index - cases.len() as i32) as u32 - 1, Span::from_offset(0));
+                }
+            }
+            _ => {}
+        }
 
         let instructions = command_to_wasm(
             command,
             index,
             jump_index,
             static_segment_start,
+            current_function_name,
             &label_indices,
             &function_indices,
             &call_indices,
@@ -621,16 +636,16 @@ fn program_to_static_cases(
 
         current_case.extend(instructions);
 
-        current_case.extend([
-            Instruction::I32Const(index as i32 + 1),
-            Instruction::LocalSet(index_jump_target()),
-            Instruction::Br(jump_index),
-        ]);
+        // current_case.extend([
+        //     Instruction::I32Const(index as i32 + 1),
+        //     Instruction::LocalSet(index_jump_target()),
+        //     Instruction::Br(Index::Id(loop_id)),
+        // ]);
 
-        // if case_starts.contains(&(index + 1)) {
+        if case_starts.contains(&(index + 1)) {
             cases.push(current_case);
             current_case = vec![];
-        // }
+        }
     }
 
     (cases, start_case_index.unwrap_or(0))
