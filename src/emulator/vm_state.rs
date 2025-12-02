@@ -2,10 +2,6 @@ use crate::vm::{Breakpoint, VM};
 
 use super::common_state::CommonState;
 
-#[cfg(not(target_arch = "wasm32"))]
-type VMImpl = crate::wasm_vm2::WasmVm;
-
-#[cfg(target_arch = "wasm32")]
 type VMImpl = crate::wasm_vm::WasmVm;
 
 pub struct VMState {

@@ -280,6 +280,7 @@ pub fn draw_shared(
                         }
                     });
 
+                    #[cfg(not(target_arch = "wasm32"))]
                     if ui.button("Quit").clicked() {
                         *action = Some(Action::Quit);
                     }

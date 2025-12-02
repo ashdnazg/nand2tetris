@@ -1,12 +1,8 @@
 use crate::hardware::{AnyHardware, Breakpoint, BreakpointVar, Hardware, Instruction, UWord};
 
-#[cfg(target_arch = "wasm32")]
 use crate::wasm_hardware::WasmHardware;
 
-#[cfg(target_arch = "wasm32")]
 type HardwareImpl = WasmHardware;
-#[cfg(not(target_arch = "wasm32"))]
-type HardwareImpl = Hardware;
 
 use super::common_state::CommonState;
 
