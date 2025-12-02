@@ -9,6 +9,8 @@ pub(crate) mod parse_utils;
 pub mod vm;
 pub mod vm_parse;
 
+pub mod any_wasm;
+
 pub mod vm_to_wasm;
 #[cfg(target_arch = "wasm32")]
 pub mod wasm_hardware;

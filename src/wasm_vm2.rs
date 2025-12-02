@@ -1,6 +1,6 @@
 use std::cell::UnsafeCell;
 
-use wasmtime::{Engine, Global, Linker, Memory, Module, Store, TypedFunc};
+use wasmtime::{Engine, Func, Global, Linker, Memory, Module, Store, Val};
 
 use crate::{hardware::Word, vm::Program};
 
@@ -10,14 +10,14 @@ use crate::vm::{VM, VMCommand};
 pub struct WasmVm {
     pub program: Program,
     store: UnsafeCell<Store<()>>,
-    function: TypedFunc<i32, i32>,
+    function: Func,
     pc: Global,
     start_pc: i32,
     memory: Memory,
 }
 
 impl WasmVm {
-    pub fn from_program(program: crate::vm::Program) -> Self {
+    pub fn from_program(program: Program) -> Self {
         let unoptimized_wasm = crate::vm_to_wasm::vm_to_wasm(&program, true).unwrap();
         let engine = Engine::default();
         let module = Module::from_binary(&engine, &unoptimized_wasm).unwrap();
@@ -25,10 +25,11 @@ impl WasmVm {
         let linker = Linker::new(&engine);
         let instance = linker.instantiate(&mut store, &module).unwrap();
         let function = instance
-            .get_typed_func::<i32, i32>(&mut store, "run")
+            .get_func(&mut store, "run")
             .unwrap();
 
         let pc = instance.get_global(&mut store, "pc").unwrap();
+
         let start_pc = pc.get(&mut store).unwrap_i32();
 
         let memory = instance.get_memory(&mut store, "memory").unwrap();
@@ -69,7 +70,9 @@ impl WasmVm {
 
     pub fn run(&mut self, step_count: u64) -> bool {
         let store = unsafe { &mut *self.store.get() };
-        let ticks = self.function.call(store, step_count as i32).unwrap();
+        let mut ticks_val: Val = Val::I32(0);
+        self.function.call(store, &[(step_count as i32).into()], std::slice::from_mut(&mut ticks_val)).unwrap();
+        let ticks = ticks_val.i32().unwrap();
         // println!("ticks: {}", ticks);
 
 
