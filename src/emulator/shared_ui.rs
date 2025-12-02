@@ -1,6 +1,7 @@
 use super::instant::Instant;
 use crate::{
-    emulator::EmulatorApp, hardware::{Instruction, RAM, Word}, vm::{Program, RunState}
+    hardware::{Instruction, RAM, Word},
+    vm::{Program, RunState},
 };
 use core::slice;
 use eframe::{

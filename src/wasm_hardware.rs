@@ -38,7 +38,17 @@ impl<H: AnyWasmHandle> GenericWasmHardware<H> {
             let d = handle.get_global("d").unwrap();
             let memory = handle.get_memory("memory").unwrap();
 
-            state_clone.set(State { handle, function, memory, a, d, pc }).ok().unwrap();
+            state_clone
+                .set(State {
+                    handle,
+                    function,
+                    memory,
+                    a,
+                    d,
+                    pc,
+                })
+                .ok()
+                .unwrap();
         });
 
         let mut rom = Box::new([crate::hardware::Instruction::new(0); crate::hardware::MEM_SIZE]);
@@ -80,7 +90,12 @@ impl AnyHardware for WasmHardware {
         let data = state.handle.raw_memory(&state.memory);
 
         let mut ram = crate::hardware::RAM::default();
-        for (i, r) in ram.contents.iter_mut().enumerate().take(crate::hardware::MEM_SIZE) {
+        for (i, r) in ram
+            .contents
+            .iter_mut()
+            .enumerate()
+            .take(crate::hardware::MEM_SIZE)
+        {
             *r = data[i] as crate::hardware::Word;
         }
         ram
@@ -115,7 +130,9 @@ impl AnyHardware for WasmHardware {
     fn set_ram_value(&mut self, address: crate::hardware::Word, value: crate::hardware::Word) {
         let state = self.state.get().unwrap();
 
-        state.handle.set_memory_at(&state.memory, address as usize, value as i32);
+        state
+            .handle
+            .set_memory_at(&state.memory, address as usize, value as i32);
     }
 
     fn pc(&self) -> crate::hardware::Word {
@@ -140,7 +157,11 @@ impl AnyHardware for WasmHardware {
         let state = self.state.get().unwrap();
 
         let mut returns = [Val::I32(0)];
-        state.handle.call_function(&state.function, &[Val::I32(step_count as i32)], &mut returns);
+        state.handle.call_function(
+            &state.function,
+            &[Val::I32(step_count as i32)],
+            &mut returns,
+        );
         let [Val::I32(ticks)] = returns else {
             panic!("Return type changed");
         };

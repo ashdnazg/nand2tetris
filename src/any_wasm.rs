@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cell::UnsafeCell};
 
 #[cfg(not(target_arch = "wasm32"))]
-use wasmtime::{Engine, Global, Instance, Linker, Memory, Module, Store, Func};
+use wasmtime::{Engine, Func, Global, Instance, Linker, Memory, Module, Store};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, JsValue};
@@ -44,7 +44,12 @@ pub trait AnyWasmHandle: Sized + 'static {
 
     fn fill_memory(&self, memory: &Self::Memory, value: i32);
 
-    fn call_function<const A: usize, const R: usize>(&self, function: &Self::Function, args: &[Val; A], returns: &mut [Val; R]);
+    fn call_function<const A: usize, const R: usize>(
+        &self,
+        function: &Self::Function,
+        args: &[Val; A],
+        returns: &mut [Val; R],
+    );
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -116,7 +121,9 @@ impl AnyWasmHandle for WasmtimeHandle {
     fn set_memory_at(&self, memory: &Self::Memory, address: usize, value: i32) {
         let store = unsafe { &mut *self.store.get() };
 
-        memory.write(store, address * 4, &value.to_le_bytes()).unwrap();
+        memory
+            .write(store, address * 4, &value.to_le_bytes())
+            .unwrap();
     }
 
     fn fill_memory(&self, memory: &Self::Memory, value: i32) {
@@ -137,15 +144,23 @@ impl AnyWasmHandle for WasmtimeHandle {
         Cow::Borrowed(ints)
     }
 
-    fn call_function<const A: usize, const R: usize>(&self, function: &Self::Function, args: &[Val; A], returns: &mut [Val; R]) {
+    fn call_function<const A: usize, const R: usize>(
+        &self,
+        function: &Self::Function,
+        args: &[Val; A],
+        returns: &mut [Val; R],
+    ) {
         let store = unsafe { &mut *self.store.get() };
 
-        let params = args.iter().map(|arg| match arg {
-            &Val::I32(i) => i.into(),
-            &Val::I64(i) => i.into(),
-            &Val::F32(f) => f.into(),
-            &Val::F64(f) => f.into(),
-        }).collect::<Vec<_>>();
+        let params = args
+            .iter()
+            .map(|arg| match *arg {
+                Val::I32(i) => i.into(),
+                Val::I64(i) => i.into(),
+                Val::F32(f) => f.into(),
+                Val::F64(f) => f.into(),
+            })
+            .collect::<Vec<_>>();
 
         let mut results = [wasmtime::Val::I32(0); R];
 
@@ -172,7 +187,12 @@ impl JsWasmHandle {
     fn get_export<T: JsCast>(&self, name: &str) -> Option<T> {
         let exports = self.instance.exports();
 
-        Some(js_sys::Reflect::get(&exports, &name.into()).ok()?.dyn_into::<T>().unwrap())
+        Some(
+            js_sys::Reflect::get(&exports, &name.into())
+                .ok()?
+                .dyn_into::<T>()
+                .unwrap(),
+        )
     }
 }
 
@@ -215,7 +235,13 @@ impl AnyWasmHandle for JsWasmHandle {
     fn get_memory(&self, name: &str) -> Option<Self::Memory> {
         use wasm_bindgen_futures::js_sys::WebAssembly::Memory;
 
-        self.get_export::<Memory>(name).map(|mem| Int32Array::new_with_byte_offset_and_length(&mem.buffer(), 0, crate::hardware::MEM_SIZE as u32))
+        self.get_export::<Memory>(name).map(|mem| {
+            Int32Array::new_with_byte_offset_and_length(
+                &mem.buffer(),
+                0,
+                crate::hardware::MEM_SIZE as u32,
+            )
+        })
     }
 
     fn get_function(&self, name: &str) -> Option<Self::Function> {
@@ -249,28 +275,98 @@ impl AnyWasmHandle for JsWasmHandle {
         memory.fill(value, 0, crate::hardware::MEM_SIZE as u32);
     }
 
-    fn call_function<const A: usize, const R: usize>(&self, function: &Self::Function, args: &[Val; A], returns: &mut [Val; R]) {
+    fn call_function<const A: usize, const R: usize>(
+        &self,
+        function: &Self::Function,
+        args: &[Val; A],
+        returns: &mut [Val; R],
+    ) {
         let ret = match args.as_slice() {
             [] => function.call0(&Object::new()).unwrap(),
             [arg1] => function.call1(&Object::new(), &arg1.into()).unwrap(),
-            [arg1, arg2] => function.call2(&Object::new(), &arg1.into(), &arg2.into()).unwrap(),
-            [arg1, arg2, arg3] => function.call3(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into()).unwrap(),
-            [arg1, arg2, arg3, arg4] => function.call4(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into(), &arg4.into()).unwrap(),
-            [arg1, arg2, arg3, arg4, arg5] => function.call5(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into(), &arg4.into(), &arg5.into()).unwrap(),
-            [arg1, arg2, arg3, arg4, arg5, arg6] => function.call6(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into(), &arg4.into(), &arg5.into(), &arg6.into()).unwrap(),
-            [arg1, arg2, arg3, arg4, arg5, arg6, arg7] => function.call7(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into(), &arg4.into(), &arg5.into(), &arg6.into(), &arg7.into()).unwrap(),
-            [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] => function.call8(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into(), &arg4.into(), &arg5.into(), &arg6.into(), &arg7.into(), &arg8.into()).unwrap(),
-            [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9] => function.call9(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into(), &arg4.into(), &arg5.into(), &arg6.into(), &arg7.into(), &arg8.into(), &arg9.into()).unwrap(),
+            [arg1, arg2] => function
+                .call2(&Object::new(), &arg1.into(), &arg2.into())
+                .unwrap(),
+            [arg1, arg2, arg3] => function
+                .call3(&Object::new(), &arg1.into(), &arg2.into(), &arg3.into())
+                .unwrap(),
+            [arg1, arg2, arg3, arg4] => function
+                .call4(
+                    &Object::new(),
+                    &arg1.into(),
+                    &arg2.into(),
+                    &arg3.into(),
+                    &arg4.into(),
+                )
+                .unwrap(),
+            [arg1, arg2, arg3, arg4, arg5] => function
+                .call5(
+                    &Object::new(),
+                    &arg1.into(),
+                    &arg2.into(),
+                    &arg3.into(),
+                    &arg4.into(),
+                    &arg5.into(),
+                )
+                .unwrap(),
+            [arg1, arg2, arg3, arg4, arg5, arg6] => function
+                .call6(
+                    &Object::new(),
+                    &arg1.into(),
+                    &arg2.into(),
+                    &arg3.into(),
+                    &arg4.into(),
+                    &arg5.into(),
+                    &arg6.into(),
+                )
+                .unwrap(),
+            [arg1, arg2, arg3, arg4, arg5, arg6, arg7] => function
+                .call7(
+                    &Object::new(),
+                    &arg1.into(),
+                    &arg2.into(),
+                    &arg3.into(),
+                    &arg4.into(),
+                    &arg5.into(),
+                    &arg6.into(),
+                    &arg7.into(),
+                )
+                .unwrap(),
+            [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8] => function
+                .call8(
+                    &Object::new(),
+                    &arg1.into(),
+                    &arg2.into(),
+                    &arg3.into(),
+                    &arg4.into(),
+                    &arg5.into(),
+                    &arg6.into(),
+                    &arg7.into(),
+                    &arg8.into(),
+                )
+                .unwrap(),
+            [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9] => function
+                .call9(
+                    &Object::new(),
+                    &arg1.into(),
+                    &arg2.into(),
+                    &arg3.into(),
+                    &arg4.into(),
+                    &arg5.into(),
+                    &arg6.into(),
+                    &arg7.into(),
+                    &arg8.into(),
+                    &arg9.into(),
+                )
+                .unwrap(),
             _ => panic!("Too many arguments to call_function: {A}"),
         };
 
-        let set_ret = |ret: &mut Val, value: JsValue| {
-            match ret {
-                Val::I32(i) => *i = value.as_f64().unwrap() as i32,
-                Val::I64(i) => *i = value.dyn_into::<BigInt>().unwrap().try_into().unwrap(),
-                Val::F32(f) => *f = value.as_f64().unwrap() as f32,
-                Val::F64(f) => *f = value.as_f64().unwrap() as f64,
-            }
+        let set_ret = |ret: &mut Val, value: JsValue| match ret {
+            Val::I32(i) => *i = value.as_f64().unwrap() as i32,
+            Val::I64(i) => *i = value.dyn_into::<BigInt>().unwrap().try_into().unwrap(),
+            Val::F32(f) => *f = value.as_f64().unwrap() as f32,
+            Val::F64(f) => *f = value.as_f64().unwrap() as f64,
         };
 
         match R {

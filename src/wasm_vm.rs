@@ -42,7 +42,16 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
 
             handle.set_memory_at(&memory, 0, 256);
 
-            state_clone.set(State { handle, function, memory, pc, start_pc }).ok().unwrap();
+            state_clone
+                .set(State {
+                    handle,
+                    function,
+                    memory,
+                    pc,
+                    start_pc,
+                })
+                .ok()
+                .unwrap();
         });
 
         Self { program, state }
@@ -67,7 +76,13 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
     pub fn current_file_name(&self) -> &str {
         let state = self.state.get().unwrap();
         let pc = state.handle.get_global_value_i32(&state.pc) as usize;
-        let file = self.program.files.iter().take_while(|f| f.starting_command_index <= pc).last().unwrap();
+        let file = self
+            .program
+            .files
+            .iter()
+            .take_while(|f| f.starting_command_index <= pc)
+            .last()
+            .unwrap();
 
         &file.name
     }
@@ -80,12 +95,15 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         let state = self.state.get().unwrap();
 
         let mut returns = [Val::I32(0)];
-        state.handle.call_function(&state.function, &[Val::I32(step_count as i32)], &mut returns);
+        state.handle.call_function(
+            &state.function,
+            &[Val::I32(step_count as i32)],
+            &mut returns,
+        );
         let [Val::I32(ticks)] = returns else {
             panic!("Return type changed");
         };
         // println!("ticks: {}", ticks);
-
 
         // for _ in 0..step_count {
         //     println!("{:?}", self.program.all_commands[self.reference_vm.run_state.current_command_index]);
@@ -132,7 +150,9 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
     pub fn set_ram_value(&mut self, address: Word, value: Word) {
         let state = self.state.get().unwrap();
 
-        state.handle.set_memory_at(&state.memory, address as usize, value as i32);
+        state
+            .handle
+            .set_memory_at(&state.memory, address as usize, value as i32);
     }
 
     pub fn reset(&mut self) {
@@ -148,30 +168,44 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         let data = state.handle.raw_memory(&state.memory);
 
         let mut ram = crate::hardware::RAM::default();
-        for (i, r) in ram.contents.iter_mut().enumerate().take(crate::hardware::MEM_SIZE) {
+        for (i, r) in ram
+            .contents
+            .iter_mut()
+            .enumerate()
+            .take(crate::hardware::MEM_SIZE)
+        {
             *r = data[i] as crate::hardware::Word;
         }
         ram
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use crate::{vm::{PopSegment, PushSegment, Register}};
+    use crate::vm::{PopSegment, PushSegment, Register};
 
     use super::*;
 
     impl WasmVm {
         fn test_get(&self, segment: PushSegment, offset: Word) -> Word {
             let static_segment = *self.program.files[self.current_file_index()]
-                    .static_segment
-                    .start();
+                .static_segment
+                .start();
             match segment {
                 PushSegment::Constant => offset,
                 PushSegment::Static => self.get_ram_value(static_segment + offset),
-                PushSegment::Local => self.get_ram_value(self.get_ram_value(Register::LCL.address()) + offset),
-                PushSegment::Argument => self.get_ram_value(self.get_ram_value(Register::ARG.address()) + offset),
-                PushSegment::This => self.get_ram_value(self.get_ram_value(Register::THIS.address()) + offset),
-                PushSegment::That => self.get_ram_value(self.get_ram_value(Register::THAT.address()) + offset),
+                PushSegment::Local => {
+                    self.get_ram_value(self.get_ram_value(Register::LCL.address()) + offset)
+                }
+                PushSegment::Argument => {
+                    self.get_ram_value(self.get_ram_value(Register::ARG.address()) + offset)
+                }
+                PushSegment::This => {
+                    self.get_ram_value(self.get_ram_value(Register::THIS.address()) + offset)
+                }
+                PushSegment::That => {
+                    self.get_ram_value(self.get_ram_value(Register::THAT.address()) + offset)
+                }
                 PushSegment::Temp => self.get_ram_value(Register::TEMP(offset).address()),
                 PushSegment::Pointer => self.get_ram_value(Register::THIS.address() + offset),
             }
@@ -179,14 +213,22 @@ mod tests {
 
         fn test_set(&mut self, segment: PopSegment, offset: Word, value: Word) {
             let static_segment = *self.program.files[self.current_file_index()]
-                    .static_segment
-                    .start();
+                .static_segment
+                .start();
             match segment {
                 PopSegment::Static => self.set_ram_value(static_segment + offset, value),
-                PopSegment::Local => self.set_ram_value(self.get_ram_value(Register::LCL.address()) + offset, value),
-                PopSegment::Argument => self.set_ram_value(self.get_ram_value(Register::ARG.address()) + offset, value),
-                PopSegment::This => self.set_ram_value(self.get_ram_value(Register::THIS.address()) + offset, value),
-                PopSegment::That => self.set_ram_value(self.get_ram_value(Register::THAT.address()) + offset, value),
+                PopSegment::Local => {
+                    self.set_ram_value(self.get_ram_value(Register::LCL.address()) + offset, value)
+                }
+                PopSegment::Argument => {
+                    self.set_ram_value(self.get_ram_value(Register::ARG.address()) + offset, value)
+                }
+                PopSegment::This => {
+                    self.set_ram_value(self.get_ram_value(Register::THIS.address()) + offset, value)
+                }
+                PopSegment::That => {
+                    self.set_ram_value(self.get_ram_value(Register::THAT.address()) + offset, value)
+                }
                 PopSegment::Temp => self.set_ram_value(Register::TEMP(offset).address(), value),
                 PopSegment::Pointer => self.set_ram_value(Register::THIS.address() + offset, value),
             }
@@ -194,8 +236,11 @@ mod tests {
 
         fn set_current_file(&mut self, file_name: &str) {
             let state = self.state.get().unwrap();
-            let file_start = self.program.files[self.program.file_name_to_index[file_name]].starting_command_index;
-            state.handle.set_global_value_i32(&state.pc, file_start as i32);
+            let file_start = self.program.files[self.program.file_name_to_index[file_name]]
+                .starting_command_index;
+            state
+                .handle
+                .set_global_value_i32(&state.pc, file_start as i32);
         }
 
         fn stack_top(&self) -> Word {
@@ -433,7 +478,7 @@ mod tests {
                     segment: PushSegment::Constant,
                     offset: 1337,
                 },
-                VMCommand::Eq
+                VMCommand::Eq,
             ],
         )];
 
@@ -478,7 +523,7 @@ mod tests {
                     segment: PushSegment::Constant,
                     offset: 2337,
                 },
-                VMCommand::Gt
+                VMCommand::Gt,
             ],
         )];
 
@@ -523,7 +568,7 @@ mod tests {
                     segment: PushSegment::Constant,
                     offset: 1337,
                 },
-                VMCommand::Lt
+                VMCommand::Lt,
             ],
         )];
 
@@ -662,7 +707,7 @@ mod tests {
                 },
                 VMCommand::Push {
                     segment: PushSegment::Constant,
-                    offset: 5
+                    offset: 5,
                 },
                 VMCommand::Label {
                     name: "foo".to_owned(),
@@ -706,7 +751,7 @@ mod tests {
                 },
                 VMCommand::Push {
                     segment: PushSegment::Constant,
-                    offset: 5
+                    offset: 5,
                 },
                 VMCommand::Label {
                     name: "foo".to_owned(),

@@ -15,8 +15,8 @@ pub mod wasm_hardware;
 // #[cfg(target_arch = "wasm32")]
 // pub mod wasm_vm;
 // #[cfg(not(target_arch = "wasm32"))]
-pub mod wasm_vm;
 pub mod wasm_utils;
+pub mod wasm_vm;
 
 #[cfg(feature = "emulator")]
 pub mod emulator;
