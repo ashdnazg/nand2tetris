@@ -1,10 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use wast::{
     core::{
-        BlockType, BrTableIndices, BranchHint, Export, ExportKind, Expression, Func, FuncKind,
-        FunctionType, Global, GlobalKind, GlobalType, InlineExport, Instruction, Limits, Local,
-        MemArg, Memory, MemoryKind, MemoryType, Module, ModuleField, ModuleKind, TypeUse, ValType,
+        BlockType, BrTableIndices, BranchHint, Expression, Func, FuncKind, FunctionType,
+        InlineExport, Instruction, Limits, Memory, MemoryKind, MemoryType, Module, ModuleField,
+        ModuleKind, TypeUse,
     },
     token::{Id, Index, NameAnnotation, Span},
 };

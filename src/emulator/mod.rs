@@ -104,7 +104,7 @@ impl eframe::App for EmulatorApp {
         }
         self.shared_state.scroll_once |= steps_to_run > 0;
 
-        match &self.state {
+        match &mut self.state {
             AppState::Hardware(state) => {
                 state.draw(ctx, &mut action, &self.shared_state, &self.screen, frame);
             }

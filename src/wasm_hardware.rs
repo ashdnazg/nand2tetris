@@ -1,4 +1,4 @@
-use std::{cell::OnceCell, rc::Rc};
+use std::sync::{Arc, OnceLock};
 
 use crate::any_wasm::{AnyWasmHandle, Val};
 
@@ -22,16 +22,16 @@ struct State<H: AnyWasmHandle> {
 
 pub struct GenericWasmHardware<H: AnyWasmHandle> {
     rom: Box<[crate::hardware::Instruction; crate::hardware::MEM_SIZE]>,
-    state: Rc<OnceCell<State<H>>>,
+    state: Arc<OnceLock<State<H>>>,
 }
 
 impl<H: AnyWasmHandle> GenericWasmHardware<H> {
     pub fn from_instructions(instructions: &[crate::hardware::Instruction]) -> Self {
         let unoptimized_wasm = crate::hack_to_wasm::hack_to_wasm(instructions, true).unwrap();
-        let state = Rc::new(OnceCell::new());
-        let state_clone = Rc::clone(&state);
+        let state = Arc::new(OnceLock::new());
+        let state_clone = Arc::clone(&state);
 
-        H::from_binary(&unoptimized_wasm, move |handle| {
+        H::from_binary(&unoptimized_wasm, move |mut handle| {
             let function = handle.get_function("run").unwrap();
             let pc = handle.get_global("pc").unwrap();
             let a = handle.get_global("a").unwrap();
@@ -77,16 +77,16 @@ impl<H: AnyWasmHandle> GenericWasmHardware<H> {
 }
 
 impl AnyHardware for WasmHardware {
-    fn is_ready(&self) -> bool {
+    fn is_ready(&mut self) -> bool {
         self.state.get().is_some()
     }
 
-    fn rom(&self) -> &[crate::hardware::Instruction; crate::hardware::MEM_SIZE] {
+    fn rom(&mut self) -> &[crate::hardware::Instruction; crate::hardware::MEM_SIZE] {
         &self.rom
     }
 
-    fn copy_ram(&self) -> crate::hardware::RAM {
-        let state = self.state.get().unwrap();
+    fn copy_ram(&mut self) -> crate::hardware::RAM {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
         let data = state.handle.raw_memory(&state.memory);
 
         let mut ram = crate::hardware::RAM::default();
@@ -105,8 +105,8 @@ impl AnyHardware for WasmHardware {
         todo!()
     }
 
-    fn a(&self) -> crate::hardware::Word {
-        let state = self.state.get().unwrap();
+    fn a(&mut self) -> crate::hardware::Word {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state.handle.get_global_value_i32(&state.a) as Word
     }
@@ -115,28 +115,28 @@ impl AnyHardware for WasmHardware {
         todo!()
     }
 
-    fn d(&self) -> crate::hardware::Word {
-        let state = self.state.get().unwrap();
+    fn d(&mut self) -> crate::hardware::Word {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state.handle.get_global_value_i32(&state.d) as Word
     }
 
-    fn get_ram_value(&self, address: crate::hardware::Word) -> crate::hardware::Word {
-        let state = self.state.get().unwrap();
+    fn get_ram_value(&mut self, address: crate::hardware::Word) -> crate::hardware::Word {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state.handle.get_memory_at(&state.memory, address as usize) as Word
     }
 
     fn set_ram_value(&mut self, address: crate::hardware::Word, value: crate::hardware::Word) {
-        let state = self.state.get().unwrap();
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state
             .handle
             .set_memory_at(&state.memory, address as usize, value as i32);
     }
 
-    fn pc(&self) -> crate::hardware::Word {
-        let state = self.state.get().unwrap();
+    fn pc(&mut self) -> crate::hardware::Word {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state.handle.get_global_value_i32(&state.pc) as Word
     }
@@ -154,7 +154,7 @@ impl AnyHardware for WasmHardware {
     }
 
     fn run(&mut self, step_count: u64) -> bool {
-        let state = self.state.get().unwrap();
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         let mut returns = [Val::I32(0)];
         state.handle.call_function(
@@ -162,7 +162,7 @@ impl AnyHardware for WasmHardware {
             &[Val::I32(step_count as i32)],
             &mut returns,
         );
-        let [Val::I32(ticks)] = returns else {
+        let [Val::I32(_)] = returns else {
             panic!("Return type changed");
         };
 
@@ -170,7 +170,7 @@ impl AnyHardware for WasmHardware {
     }
 
     fn reset(&mut self) {
-        let state = self.state.get().unwrap();
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state.handle.set_global_value_i32(&state.a, 0);
         state.handle.set_global_value_i32(&state.d, 0);

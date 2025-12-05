@@ -12,19 +12,20 @@ use super::shared_ui::*;
 
 impl HardwareState {
     pub fn draw(
-        &self,
+        &mut self,
         ctx: &egui::Context,
         action: &mut Option<Action>,
         shared_state: &SharedState,
         screen: &Arc<Screen>,
         frame: &eframe::Frame,
     ) {
-        if !self.hardware.is_ready() {
-            ctx.request_repaint();
-            return;
-        }
-        let ram_copy = self.hardware.copy_ram();
         egui::CentralPanel::default().show(ctx, |ui| {
+            if !self.hardware.is_ready() {
+                ctx.request_repaint();
+                return;
+            }
+            let ram_copy = self.hardware.copy_ram();
+
             let available_width = ui.available_width();
             let thin_layout = available_width < 768.0;
             StripBuilder::new(ui)
@@ -46,11 +47,13 @@ impl HardwareState {
                                             .size(Size::exact(20.0))
                                             .vertical(|mut strip| {
                                                 strip.cell(|ui| {
+                                                    let pc = self.hardware.pc();
+                                                    let rom = self.hardware.rom();
                                                     ui.rom_grid(
                                                         "ROM",
-                                                        self.hardware.rom(),
+                                                        rom,
                                                         &(0..=((MEM_SIZE - 1) as Word)),
-                                                        self.hardware.pc(),
+                                                        pc,
                                                         shared_state.scroll_once,
                                                     );
                                                 });

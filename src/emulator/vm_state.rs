@@ -3,6 +3,7 @@ use crate::vm::{Breakpoint, VM};
 use super::common_state::CommonState;
 
 type VMImpl = crate::wasm_vm::WasmVm;
+// type VMImpl = VM;
 
 pub struct VMState {
     pub vm: VMImpl,

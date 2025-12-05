@@ -382,7 +382,8 @@ pub trait EmulatorWidgets {
     fn vm_grid(
         &mut self,
         program: &Program,
-        run_state: &RunState,
+        current_file_index: usize,
+        current_command_index: usize,
         selected_file: &mut String,
         scroll_to_row: bool,
     );
@@ -519,14 +520,15 @@ impl EmulatorWidgets for egui::Ui {
     fn vm_grid(
         &mut self,
         program: &Program,
-        run_state: &RunState,
+        current_file_index: usize,
+        current_command_index: usize,
         selected_file: &mut String,
         scroll_to_row: bool,
     ) {
         self.push_id("VM", |ui| {
             ui.vertical(|ui| {
                 if scroll_to_row {
-                    selected_file.clone_from(&program.files[run_state.current_file_index].name);
+                    selected_file.clone_from(&program.files[current_file_index].name);
                 }
                 egui::ComboBox::from_id_salt("VM combo")
                     .selected_text(&*selected_file)
@@ -549,7 +551,7 @@ impl EmulatorWidgets for egui::Ui {
 
                 if scroll_to_row {
                     builder = builder.scroll_to_row(
-                        run_state.current_command_index - file.starting_command_index,
+                        current_command_index - file.starting_command_index,
                         None,
                     );
                 }
@@ -571,9 +573,9 @@ impl EmulatorWidgets for egui::Ui {
                     .body(|body| {
                         body.rows(row_height, commands.len(), |mut row| {
                             let row_index = row.index();
-                            let is_highlighted = file_index == run_state.current_file_index
+                            let is_highlighted = file_index == current_file_index
                                 && row_index
-                                    == run_state.current_command_index
+                                    == current_command_index
                                         - file.starting_command_index;
                             row.set_selected(is_highlighted);
                             row.col(|ui| {

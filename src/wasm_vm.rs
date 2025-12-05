@@ -1,5 +1,4 @@
-use std::cell::OnceCell;
-use std::rc::Rc;
+use std::sync::{Arc, OnceLock};
 
 use crate::any_wasm::{AnyWasmHandle, Val};
 
@@ -24,16 +23,16 @@ struct State<H: AnyWasmHandle> {
 // #[derive(Debug)]
 pub struct GenericWasmVm<H: AnyWasmHandle> {
     pub program: Program,
-    state: Rc<OnceCell<State<H>>>,
+    state: Arc<OnceLock<State<H>>>,
 }
 
 impl<H: AnyWasmHandle> GenericWasmVm<H> {
     pub fn from_program(program: Program) -> Self {
         let unoptimized_wasm = crate::vm_to_wasm::vm_to_wasm(&program, true).unwrap();
-        let state = Rc::new(OnceCell::new());
-        let state_clone = Rc::clone(&state);
+        let state = Arc::new(OnceLock::new());
+        let state_clone = Arc::clone(&state);
 
-        H::from_binary(&unoptimized_wasm, move |handle| {
+        H::from_binary(&unoptimized_wasm, move |mut handle| {
             let function = handle.get_function("run").unwrap();
             let pc = handle.get_global("pc").unwrap();
             let start_pc = handle.get_global_value_i32(&pc);
@@ -73,8 +72,9 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         Self::from_program(vm.program)
     }
 
-    pub fn current_file_name(&self) -> &str {
-        let state = self.state.get().unwrap();
+    pub fn current_file_name(&mut self) -> &str {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
+
         let pc = state.handle.get_global_value_i32(&state.pc) as usize;
         let file = self
             .program
@@ -87,12 +87,30 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         &file.name
     }
 
-    pub fn current_file_index(&self) -> usize {
-        self.program.file_name_to_index[self.current_file_name()]
+    pub fn current_file_index(&mut self) -> usize {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
+
+        let pc = state.handle.get_global_value_i32(&state.pc) as usize;
+        let file = self
+            .program
+            .files
+            .iter()
+            .take_while(|f| f.starting_command_index <= pc)
+            .last()
+            .unwrap();
+
+        self.program.file_name_to_index[&file.name]
+    }
+
+    pub fn current_command_index(&mut self) -> usize {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
+
+        let pc = state.handle.get_global_value_i32(&state.pc) as usize;
+        pc
     }
 
     pub fn run(&mut self, step_count: u64) -> bool {
-        let state = self.state.get().unwrap();
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         let mut returns = [Val::I32(0)];
         state.handle.call_function(
@@ -100,7 +118,7 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
             &[Val::I32(step_count as i32)],
             &mut returns,
         );
-        let [Val::I32(ticks)] = returns else {
+        let [Val::I32(_)] = returns else {
             panic!("Return type changed");
         };
         // println!("ticks: {}", ticks);
@@ -141,14 +159,14 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         false
     }
 
-    pub fn get_ram_value(&self, address: Word) -> Word {
-        let state = self.state.get().unwrap();
+    pub fn get_ram_value(&mut self, address: Word) -> Word {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state.handle.get_memory_at(&state.memory, address as usize) as Word
     }
 
     pub fn set_ram_value(&mut self, address: Word, value: Word) {
-        let state = self.state.get().unwrap();
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state
             .handle
@@ -156,15 +174,15 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
     }
 
     pub fn reset(&mut self) {
-        let state = self.state.get().unwrap();
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
         state.handle.fill_memory(&state.memory, 0);
         state.handle.set_memory_at(&state.memory, 0, 256);
         state.handle.set_global_value_i32(&state.pc, state.start_pc);
     }
 
-    pub fn copy_ram(&self) -> crate::hardware::RAM {
-        let state = self.state.get().unwrap();
+    pub fn copy_ram(&mut self) -> crate::hardware::RAM {
+        let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
         let data = state.handle.raw_memory(&state.memory);
 
         let mut ram = crate::hardware::RAM::default();
@@ -187,24 +205,29 @@ mod tests {
     use super::*;
 
     impl WasmVm {
-        fn test_get(&self, segment: PushSegment, offset: Word) -> Word {
-            let static_segment = *self.program.files[self.current_file_index()]
+        fn test_get(&mut self, segment: PushSegment, offset: Word) -> Word {
+            let current_file_index = self.current_file_index();
+            let static_segment = *self.program.files[current_file_index]
                 .static_segment
                 .start();
             match segment {
-                PushSegment::Constant => offset,
-                PushSegment::Static => self.get_ram_value(static_segment + offset),
+                PushSegment::Constant => return offset,
+                PushSegment::Static => return self.get_ram_value(static_segment + offset),
                 PushSegment::Local => {
-                    self.get_ram_value(self.get_ram_value(Register::LCL.address()) + offset)
+                    let start = self.get_ram_value(Register::LCL.address());
+                    self.get_ram_value(start + offset)
                 }
                 PushSegment::Argument => {
-                    self.get_ram_value(self.get_ram_value(Register::ARG.address()) + offset)
+                    let start = self.get_ram_value(Register::ARG.address());
+                    self.get_ram_value(start + offset)
                 }
                 PushSegment::This => {
-                    self.get_ram_value(self.get_ram_value(Register::THIS.address()) + offset)
+                    let start = self.get_ram_value(Register::THIS.address());
+                    self.get_ram_value(start + offset)
                 }
                 PushSegment::That => {
-                    self.get_ram_value(self.get_ram_value(Register::THAT.address()) + offset)
+                    let start = self.get_ram_value(Register::THAT.address());
+                    self.get_ram_value(start + offset)
                 }
                 PushSegment::Temp => self.get_ram_value(Register::TEMP(offset).address()),
                 PushSegment::Pointer => self.get_ram_value(Register::THIS.address() + offset),
@@ -212,22 +235,27 @@ mod tests {
         }
 
         fn test_set(&mut self, segment: PopSegment, offset: Word, value: Word) {
-            let static_segment = *self.program.files[self.current_file_index()]
+            let current_file_index = self.current_file_index();
+            let static_segment = *self.program.files[current_file_index]
                 .static_segment
                 .start();
             match segment {
                 PopSegment::Static => self.set_ram_value(static_segment + offset, value),
                 PopSegment::Local => {
-                    self.set_ram_value(self.get_ram_value(Register::LCL.address()) + offset, value)
+                    let start = self.get_ram_value(Register::LCL.address());
+                    self.set_ram_value(start + offset, value)
                 }
                 PopSegment::Argument => {
-                    self.set_ram_value(self.get_ram_value(Register::ARG.address()) + offset, value)
+                    let start = self.get_ram_value(Register::ARG.address());
+                    self.set_ram_value(start + offset, value)
                 }
                 PopSegment::This => {
-                    self.set_ram_value(self.get_ram_value(Register::THIS.address()) + offset, value)
+                    let start = self.get_ram_value(Register::THIS.address());
+                    self.set_ram_value(start + offset, value)
                 }
                 PopSegment::That => {
-                    self.set_ram_value(self.get_ram_value(Register::THAT.address()) + offset, value)
+                    let start = self.get_ram_value(Register::THAT.address());
+                    self.set_ram_value(start + offset, value)
                 }
                 PopSegment::Temp => self.set_ram_value(Register::TEMP(offset).address(), value),
                 PopSegment::Pointer => self.set_ram_value(Register::THIS.address() + offset, value),
@@ -235,7 +263,7 @@ mod tests {
         }
 
         fn set_current_file(&mut self, file_name: &str) {
-            let state = self.state.get().unwrap();
+            let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
             let file_start = self.program.files[self.program.file_name_to_index[file_name]]
                 .starting_command_index;
             state
@@ -243,20 +271,20 @@ mod tests {
                 .set_global_value_i32(&state.pc, file_start as i32);
         }
 
-        fn stack_top(&self) -> Word {
+        fn stack_top(&mut self) -> Word {
             let sp = self.get_ram_value(Register::SP.address());
             self.get_ram_value(sp - 1)
         }
 
         fn test_instance() -> Self {
-            let vm = Self::from_all_file_commands(vec![(
+            let mut vm = Self::from_all_file_commands(vec![(
                 "foo".to_owned(),
                 vec![VMCommand::Push {
                     segment: PushSegment::Constant,
                     offset: 666,
                 }],
             )]);
-            let state = vm.state.get().unwrap();
+            let state = Arc::get_mut(&mut vm.state).unwrap().get_mut().unwrap();
             state.handle.set_global_value_i32(&state.pc, 0);
 
             vm
@@ -265,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_constant() {
-        let vm = WasmVm::test_instance();
+        let mut vm = WasmVm::test_instance();
 
         assert_eq!(vm.test_get(PushSegment::Constant, 1337), 1337);
     }
@@ -684,7 +712,7 @@ mod tests {
         )];
 
         let mut vm = WasmVm::from_all_file_commands(all_file_commands.clone());
-        let vm2 = WasmVm::from_all_file_commands(all_file_commands);
+        let mut vm2 = WasmVm::from_all_file_commands(all_file_commands);
         vm.run(2);
 
         assert_eq!(vm.copy_ram(), vm2.copy_ram());
@@ -717,7 +745,7 @@ mod tests {
 
         let mut vm = WasmVm::from_all_file_commands(all_file_commands.clone());
         vm.set_current_file("Sys");
-        let vm2 = WasmVm::from_all_file_commands(all_file_commands);
+        let mut vm2 = WasmVm::from_all_file_commands(all_file_commands);
         vm.run(5);
 
         assert_eq!(vm.copy_ram(), vm2.copy_ram());
@@ -809,7 +837,7 @@ mod tests {
         vm.set_current_file("Sys");
         for _ in 0..15 {
             vm.run(1);
-            let state = vm.state.get().unwrap();
+            let state = Arc::get_mut(&mut vm.state).unwrap().get_mut().unwrap();
             let pc = state.handle.get_global_value_i32(&state.pc);
             let ram = vm.copy_ram();
             println!("pc: {} ", pc);

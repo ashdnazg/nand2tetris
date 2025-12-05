@@ -333,28 +333,28 @@ impl VM {
                     let local_segment = run_state.ram[Register::SP];
                     run_state.ram[Register::LCL] = local_segment;
                     run_state.ram[Register::ARG] = argument_segment;
-                    // if run_state.call_os(function_name) {
-                    //     let frame = run_state.ram[Register::LCL];
-                    //     run_state.current_command_index = run_state.ram[frame - 5] as usize;
-                    //     let return_value = run_state.ram.pop();
-                    //     run_state
-                    //         .ram
-                    //         .set(static_segment, PopSegment::Argument, 0, return_value);
-                    //     run_state.ram[Register::SP] = run_state.ram[Register::ARG] + 1;
-                    //     for i in 1..=4 {
-                    //         run_state.ram[i] = run_state.ram[frame - 5 + i];
-                    //     }
-                    // } else {
-                    let function_index = self.program.function_name_to_index[function_name];
-                    let function_metadata = &self.program.function_metadata[function_index];
-                    let file_index = function_metadata.file_index;
+                    if run_state.call_os(function_name) {
+                        let frame = run_state.ram[Register::LCL];
+                        run_state.current_command_index = run_state.ram[frame - 5] as usize;
+                        let return_value = run_state.ram.pop();
+                        run_state
+                            .ram
+                            .set(static_segment, PopSegment::Argument, 0, return_value);
+                        run_state.ram[Register::SP] = run_state.ram[Register::ARG] + 1;
+                        for i in 1..=4 {
+                            run_state.ram[i] = run_state.ram[frame - 5 + i];
+                        }
+                    } else {
+                        let function_index = self.program.function_name_to_index[function_name];
+                        let function_metadata = &self.program.function_metadata[function_index];
+                        let file_index = function_metadata.file_index;
 
-                    run_state.current_command_index = function_metadata.command_index;
-                    run_state.current_file_index = file_index;
-                    static_segment = *files[file_index].static_segment.start();
+                        run_state.current_command_index = function_metadata.command_index;
+                        run_state.current_file_index = file_index;
+                        static_segment = *files[file_index].static_segment.start();
 
-                    run_state.call_stack.push(Frame { function_index });
-                    // }
+                        run_state.call_stack.push(Frame { function_index });
+                    }
                 }
                 VMCommand::Return => {
                     let frame = run_state.ram[Register::LCL];
@@ -398,6 +398,26 @@ impl VM {
     pub fn remove_breakpoint(&mut self, index: usize) {
         self.run_state.breakpoints.remove(index);
     }
+
+    pub fn is_ready(&self) -> bool {
+        true
+    }
+
+    pub fn copy_ram(&self) -> RAM {
+        self.run_state.ram.clone()
+    }
+
+    pub fn set_ram_value(&mut self, address: i16, value: i16) {
+        self.run_state.ram[address as Word] = value as Word;
+    }
+
+    pub fn current_file_index(&self) -> usize {
+        self.run_state.current_file_index
+    }
+
+    pub fn current_command_index(&self) -> usize {
+        self.run_state.current_command_index
+    }
 }
 
 #[derive(Clone)]
@@ -409,7 +429,7 @@ pub struct Frame {
 pub struct FunctionMetadata {
     pub argument_count: Word,
     pub local_var_count: Word,
-    command_index: usize,
+    pub command_index: usize,
     file_index: usize,
     label_name_to_command_index: HashMap<String, usize>,
 }

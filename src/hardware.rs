@@ -310,16 +310,16 @@ impl RAM {
 }
 
 pub trait AnyHardware {
-    fn is_ready(&self) -> bool;
-    fn rom(&self) -> &[Instruction; MEM_SIZE];
-    fn copy_ram(&self) -> RAM;
+    fn is_ready(&mut self) -> bool;
+    fn rom(&mut self) -> &[Instruction; MEM_SIZE];
+    fn copy_ram(&mut self) -> RAM;
     fn a_mut(&mut self) -> &mut Word;
-    fn a(&self) -> Word;
+    fn a(&mut self) -> Word;
     fn d_mut(&mut self) -> &mut Word;
-    fn d(&self) -> Word;
-    fn get_ram_value(&self, address: Word) -> Word;
+    fn d(&mut self) -> Word;
+    fn get_ram_value(&mut self, address: Word) -> Word;
     fn set_ram_value(&mut self, address: Word, value: Word);
-    fn pc(&self) -> Word;
+    fn pc(&mut self) -> Word;
     fn step(&mut self) -> bool;
     fn load_program(&mut self, program: &[Instruction]);
     fn run_program(&mut self);
@@ -328,15 +328,15 @@ pub trait AnyHardware {
 }
 
 impl AnyHardware for Hardware {
-    fn is_ready(&self) -> bool {
+    fn is_ready(&mut self) -> bool {
         true
     }
 
-    fn rom(&self) -> &[Instruction; MEM_SIZE] {
+    fn rom(&mut self) -> &[Instruction; MEM_SIZE] {
         &self.rom
     }
 
-    fn copy_ram(&self) -> RAM {
+    fn copy_ram(&mut self) -> RAM {
         self.ram.clone()
     }
 
@@ -344,7 +344,7 @@ impl AnyHardware for Hardware {
         &mut self.a
     }
 
-    fn a(&self) -> Word {
+    fn a(&mut self) -> Word {
         self.a
     }
 
@@ -352,15 +352,15 @@ impl AnyHardware for Hardware {
         &mut self.d
     }
 
-    fn d(&self) -> Word {
+    fn d(&mut self) -> Word {
         self.d
     }
 
-    fn pc(&self) -> Word {
+    fn pc(&mut self) -> Word {
         self.pc
     }
 
-    fn get_ram_value(&self, address: Word) -> Word {
+    fn get_ram_value(&mut self, address: Word) -> Word {
         self.ram[address]
     }
 

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::UnsafeCell};
+use std::borrow::Cow;
 
 #[cfg(not(target_arch = "wasm32"))]
 use wasmtime::{Engine, Func, Global, Instance, Linker, Memory, Module, Store};
@@ -19,33 +19,45 @@ pub enum Val {
     F64(f64),
 }
 
-pub trait AnyWasmHandle: Sized + 'static {
-    type Global: 'static;
-    type Memory: 'static;
-    type Function: 'static;
+#[cfg(not(target_arch = "wasm32"))]
+pub trait NonWasmSendSync: Send + Sync {}
 
-    fn from_binary(binary: &[u8], callback: impl FnOnce(Self) + 'static);
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + Sync> NonWasmSendSync for T {}
 
-    fn get_global(&self, name: &str) -> Option<Self::Global>;
+#[cfg(target_arch = "wasm32")]
+pub trait NonWasmSendSync {}
 
-    fn get_memory(&self, name: &str) -> Option<Self::Memory>;
+#[cfg(target_arch = "wasm32")]
+impl<T> NonWasmSendSync for T {}
 
-    fn get_function(&self, name: &str) -> Option<Self::Function>;
+pub trait AnyWasmHandle: Sized + NonWasmSendSync + 'static {
+    type Global: 'static + NonWasmSendSync;
+    type Memory: 'static + NonWasmSendSync;
+    type Function: 'static + NonWasmSendSync;
 
-    fn get_global_value_i32(&self, global: &Self::Global) -> i32;
+    fn from_binary(binary: &[u8], callback: impl FnOnce(Self) + NonWasmSendSync + 'static);
 
-    fn set_global_value_i32(&self, global: &Self::Global, value: i32);
+    fn get_global(&mut self, name: &str) -> Option<Self::Global>;
 
-    fn get_memory_at(&self, memory: &Self::Memory, address: usize) -> i32;
+    fn get_memory(&mut self, name: &str) -> Option<Self::Memory>;
 
-    fn set_memory_at(&self, memory: &Self::Memory, address: usize, value: i32);
+    fn get_function(&mut self, name: &str) -> Option<Self::Function>;
 
-    fn raw_memory(&self, memory: &Self::Memory) -> Cow<'_, [i32]>;
+    fn get_global_value_i32(&mut self, global: &Self::Global) -> i32;
 
-    fn fill_memory(&self, memory: &Self::Memory, value: i32);
+    fn set_global_value_i32(&mut self, global: &Self::Global, value: i32);
+
+    fn get_memory_at(&mut self, memory: &Self::Memory, address: usize) -> i32;
+
+    fn set_memory_at(&mut self, memory: &Self::Memory, address: usize, value: i32);
+
+    fn raw_memory(&mut self, memory: &Self::Memory) -> Cow<'_, [i32]>;
+
+    fn fill_memory(&mut self, memory: &Self::Memory, value: i32);
 
     fn call_function<const A: usize, const R: usize>(
-        &self,
+        &mut self,
         function: &Self::Function,
         args: &[Val; A],
         returns: &mut [Val; R],
@@ -54,7 +66,7 @@ pub trait AnyWasmHandle: Sized + 'static {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub struct WasmtimeHandle {
-    store: UnsafeCell<Store<()>>,
+    store: Store<()>,
     instance: Instance,
 }
 
@@ -64,94 +76,75 @@ impl AnyWasmHandle for WasmtimeHandle {
     type Memory = Memory;
     type Function = Func;
 
-    fn from_binary(binary: &[u8], callback: impl FnOnce(Self)) {
-        let engine = Engine::default();
-        let module = Module::from_binary(&engine, binary).unwrap();
-        let mut store = Store::new(&engine, ());
-        let linker = Linker::new(&engine);
-        let instance = linker.instantiate(&mut store, &module).unwrap();
+    fn from_binary(binary: &[u8], callback: impl FnOnce(Self) + Send + 'static) {
+        let binary = binary.to_vec();
+        std::thread::spawn(move || {
+            let engine = Engine::default();
+            let module = Module::from_binary(&engine, &binary).unwrap();
+            let mut store = Store::new(&engine, ());
+            let linker = Linker::new(&engine);
+            let instance = linker.instantiate(&mut store, &module).unwrap();
+            let handle = Self { store, instance };
 
-        let handle = Self {
-            store: UnsafeCell::new(store),
-            instance,
-        };
-
-        callback(handle);
+            callback(handle);
+        });
     }
 
-    fn get_global(&self, name: &str) -> Option<Self::Global> {
-        let store = unsafe { &mut *self.store.get() };
-
-        self.instance.get_global(store, name)
+    fn get_global(&mut self, name: &str) -> Option<Self::Global> {
+        self.instance.get_global(&mut self.store, name)
     }
 
-    fn get_memory(&self, name: &str) -> Option<Self::Memory> {
-        let store = unsafe { &mut *self.store.get() };
-
-        self.instance.get_memory(store, name)
+    fn get_memory(&mut self, name: &str) -> Option<Self::Memory> {
+        self.instance.get_memory(&mut self.store, name)
     }
 
-    fn get_function(&self, name: &str) -> Option<Self::Function> {
-        let store = unsafe { &mut *self.store.get() };
-
-        self.instance.get_func(store, name)
+    fn get_function(&mut self, name: &str) -> Option<Self::Function> {
+        self.instance.get_func(&mut self.store, name)
     }
 
-    fn get_global_value_i32(&self, global: &Self::Global) -> i32 {
-        let store = unsafe { &mut *self.store.get() };
-
-        global.get(store).i32().unwrap()
+    fn get_global_value_i32(&mut self, global: &Self::Global) -> i32 {
+        global.get(&mut self.store).i32().unwrap()
     }
 
-    fn set_global_value_i32(&self, global: &Self::Global, value: i32) {
-        let store = unsafe { &mut *self.store.get() };
-
-        global.set(store, value.into()).unwrap()
+    fn set_global_value_i32(&mut self, global: &Self::Global, value: i32) {
+        global.set(&mut self.store, value.into()).unwrap()
     }
 
-    fn get_memory_at(&self, memory: &Self::Memory, address: usize) -> i32 {
-        let store = unsafe { &mut *self.store.get() };
-
+    fn get_memory_at(&mut self, memory: &Self::Memory, address: usize) -> i32 {
         let mut bytes = [0; 4];
-        memory.read(store, address * 4, &mut bytes).unwrap();
+        memory
+            .read(&mut self.store, address * 4, &mut bytes)
+            .unwrap();
 
         i32::from_le_bytes(bytes)
     }
 
-    fn set_memory_at(&self, memory: &Self::Memory, address: usize, value: i32) {
-        let store = unsafe { &mut *self.store.get() };
-
+    fn set_memory_at(&mut self, memory: &Self::Memory, address: usize, value: i32) {
         memory
-            .write(store, address * 4, &value.to_le_bytes())
+            .write(&mut self.store, address * 4, &value.to_le_bytes())
             .unwrap();
     }
 
-    fn fill_memory(&self, memory: &Self::Memory, value: i32) {
-        let store = unsafe { &mut *self.store.get() };
-
-        let data = memory.data_mut(store);
+    fn fill_memory(&mut self, memory: &Self::Memory, value: i32) {
+        let data = memory.data_mut(&mut self.store);
         let (_, ints, _) = unsafe { data.align_to_mut::<i32>() };
 
         ints[..crate::hardware::MEM_SIZE].fill(value);
     }
 
-    fn raw_memory(&self, memory: &Self::Memory) -> Cow<'_, [i32]> {
-        let store = unsafe { &mut *self.store.get() };
-
-        let data = memory.data(&mut *store);
+    fn raw_memory(&mut self, memory: &Self::Memory) -> Cow<'_, [i32]> {
+        let data = memory.data(&mut self.store);
         let (_, ints, _) = unsafe { data.align_to::<i32>() };
 
         Cow::Borrowed(ints)
     }
 
     fn call_function<const A: usize, const R: usize>(
-        &self,
+        &mut self,
         function: &Self::Function,
         args: &[Val; A],
         returns: &mut [Val; R],
     ) {
-        let store = unsafe { &mut *self.store.get() };
-
         let params = args
             .iter()
             .map(|arg| match *arg {
@@ -164,7 +157,9 @@ impl AnyWasmHandle for WasmtimeHandle {
 
         let mut results = [wasmtime::Val::I32(0); R];
 
-        function.call(store, &params, &mut results).unwrap();
+        function
+            .call(&mut self.store, &params, &mut results)
+            .unwrap();
 
         for (index, result) in results.iter().enumerate() {
             match &mut returns[index] {
@@ -228,11 +223,11 @@ impl AnyWasmHandle for JsWasmHandle {
         });
     }
 
-    fn get_global(&self, name: &str) -> Option<Self::Global> {
+    fn get_global(&mut self, name: &str) -> Option<Self::Global> {
         self.get_export(name)
     }
 
-    fn get_memory(&self, name: &str) -> Option<Self::Memory> {
+    fn get_memory(&mut self, name: &str) -> Option<Self::Memory> {
         use wasm_bindgen_futures::js_sys::WebAssembly::Memory;
 
         self.get_export::<Memory>(name).map(|mem| {
@@ -244,39 +239,39 @@ impl AnyWasmHandle for JsWasmHandle {
         })
     }
 
-    fn get_function(&self, name: &str) -> Option<Self::Function> {
+    fn get_function(&mut self, name: &str) -> Option<Self::Function> {
         self.get_export(name)
     }
 
-    fn get_global_value_i32(&self, global: &Self::Global) -> i32 {
+    fn get_global_value_i32(&mut self, global: &Self::Global) -> i32 {
         global.value().as_f64().unwrap() as i32
     }
 
-    fn set_global_value_i32(&self, global: &Self::Global, value: i32) {
+    fn set_global_value_i32(&mut self, global: &Self::Global, value: i32) {
         global.set_value(&value.into());
     }
 
-    fn get_memory_at(&self, memory: &Self::Memory, address: usize) -> i32 {
+    fn get_memory_at(&mut self, memory: &Self::Memory, address: usize) -> i32 {
         memory.get_index(address as u32)
     }
 
-    fn set_memory_at(&self, memory: &Self::Memory, address: usize, value: i32) {
+    fn set_memory_at(&mut self, memory: &Self::Memory, address: usize, value: i32) {
         memory.set_index(address as u32, value);
     }
 
-    fn raw_memory(&self, memory: &Self::Memory) -> Cow<'_, [i32]> {
+    fn raw_memory(&mut self, memory: &Self::Memory) -> Cow<'_, [i32]> {
         let mut dest = vec![0i32; crate::hardware::MEM_SIZE];
         memory.copy_to(&mut dest);
 
         Cow::Owned(dest)
     }
 
-    fn fill_memory(&self, memory: &Self::Memory, value: i32) {
+    fn fill_memory(&mut self, memory: &Self::Memory, value: i32) {
         memory.fill(value, 0, crate::hardware::MEM_SIZE as u32);
     }
 
     fn call_function<const A: usize, const R: usize>(
-        &self,
+        &mut self,
         function: &Self::Function,
         args: &[Val; A],
         returns: &mut [Val; R],
