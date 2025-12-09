@@ -123,6 +123,7 @@ pub struct RunState {
     pub os: OS,
     pub call_stack: Vec<Frame>,
     pub breakpoints: Vec<Breakpoint>,
+    pub func_stats: HashMap<String, u64>,
 }
 
 #[derive(Clone)]
@@ -208,11 +209,15 @@ impl VM {
                 os: Default::default(),
                 call_stack: vec![Frame { function_index }],
                 breakpoints: vec![],
+                func_stats: HashMap::new(),
             },
         }
     }
 
     pub fn reset(&mut self) {
+        for (key, value) in self.run_state.func_stats.iter() {
+            println!("Function {} was called {} times", key, value);
+        }
         *self = VM::new(self.program.clone());
     }
 
@@ -321,6 +326,10 @@ impl VM {
                     function_name,
                     argument_count,
                 } => {
+                    run_state.func_stats
+                        .entry(function_name.clone())
+                        .and_modify(|c| *c += 1)
+                        .or_insert(1);
                     let argument_segment = run_state.ram[Register::SP] - argument_count;
                     run_state
                         .ram
@@ -411,12 +420,22 @@ impl VM {
         self.run_state.ram[address as Word] = value as Word;
     }
 
+    pub fn get_ram_value(&self, address: i16) -> i16 {
+        self.run_state.ram[address as Word] as i16
+    }
+
     pub fn current_file_index(&self) -> usize {
         self.run_state.current_file_index
     }
 
     pub fn current_command_index(&self) -> usize {
         self.run_state.current_command_index
+    }
+
+    pub fn current_file_name(&self) -> &str {
+        let index = self.current_file_index();
+
+        &self.program.files[index].name
     }
 }
 

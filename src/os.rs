@@ -685,6 +685,7 @@ mod tests {
                 os: Default::default(),
                 call_stack: vec![],
                 breakpoints: vec![],
+                func_stats: HashMap::new(),
             };
 
             instance.ram[Register::ARG] = 100;

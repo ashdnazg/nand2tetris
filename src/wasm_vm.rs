@@ -851,4 +851,69 @@ mod tests {
         assert_eq!(vm.get_ram_value(3), 3);
         assert_eq!(vm.get_ram_value(4), 4);
     }
+
+    #[test]
+    fn test_memory() {
+        let all_file_commands = vec![(
+            "Sys".to_owned(),
+            vec![
+                VMCommand::Function {
+                    name: "Sys.init".to_owned(),
+                    local_var_count: 0,
+                },
+                VMCommand::Call {
+                    function_name: "Memory.init".to_owned(),
+                    argument_count: 0,
+                },
+                VMCommand::Pop {
+                    segment: PopSegment::Temp,
+                    offset: 0,
+                },
+                VMCommand::Push {
+                    segment: PushSegment::Constant,
+                    offset: 14335,
+                },
+                VMCommand::Call {
+                    function_name: "Memory.alloc".to_owned(),
+                    argument_count: 1,
+                },
+                // VMCommand::Call {
+                //     function_name: "Memory.deAlloc".to_owned(),
+                //     argument_count: 1,
+                // },
+                // VMCommand::Pop {
+                //     segment: PopSegment::Temp,
+                //     offset: 0,
+                // },
+                // VMCommand::Push {
+                //     segment: PushSegment::Constant,
+                //     offset: 15,
+                // },
+                // VMCommand::Call {
+                //     function_name: "Memory.alloc".to_owned(),
+                //     argument_count: 1,
+                // },
+            ],
+        )];
+
+        let mut vm = WasmVm::from_all_file_commands(all_file_commands.clone());
+        while !vm.is_ready() {}
+        let ram_before = vm.copy_ram();
+        vm.set_current_file("Sys");
+        vm.run(1);
+        let ram_after = vm.copy_ram();
+        let mut fail = false;
+        for i in 0..crate::hardware::MEM_SIZE {
+            if ram_before.contents[i] != ram_after.contents[i] {
+                println!(
+                    "RAM changed at address {}: before = {}, after = {}",
+                    i, ram_before.contents[i], ram_after.contents[i]
+                );
+                fail = true;
+            }
+        }
+        if fail {
+            panic!("RAM changed after Memory.init");
+        }
+    }
 }

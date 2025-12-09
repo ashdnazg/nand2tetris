@@ -54,7 +54,7 @@ impl<'a> ModuleBuilder<'a> {
     }
 
     pub fn fields(mut self, fields: Vec<ModuleField<'a>>) -> Self {
-        self.fields = fields;
+        self.fields.extend(fields);
         self
     }
 
