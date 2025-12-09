@@ -78,19 +78,34 @@ impl AnyWasmHandle for WasmtimeHandle {
 
     fn from_binary(binary: &[u8], callback: impl FnOnce(Self) + Send + 'static) {
         let binary = binary.to_vec();
+        #[cfg(not(test))]
         std::thread::spawn(move || {
             let engine = Engine::default();
             let module = Module::from_binary(&engine, &binary).unwrap();
             let mut store = Store::new(&engine, ());
             let mut linker = Linker::new(&engine);
-            // linker.func_wrap("env", "print", |arg: i32| {
-            //     println!("WASM print: {}", arg);
-            // }).unwrap();
+            linker.func_wrap("env", "print", |arg: i32| {
+                println!("WASM print: {}", arg);
+            }).unwrap();
             let instance = linker.instantiate(&mut store, &module).unwrap();
             let handle = Self { store, instance };
 
             callback(handle);
         });
+        #[cfg(test)]
+        {
+            let engine = Engine::default();
+            let module = Module::from_binary(&engine, &binary).unwrap();
+            let mut store = Store::new(&engine, ());
+            let mut linker = Linker::new(&engine);
+            linker.func_wrap("env", "print", |arg: i32| {
+                println!("WASM print: {}", arg);
+            }).unwrap();
+            let instance = linker.instantiate(&mut store, &module).unwrap();
+            let handle = Self { store, instance };
+
+            callback(handle);
+        }
     }
 
     fn get_global(&mut self, name: &str) -> Option<Self::Global> {

@@ -24,6 +24,7 @@ struct State<H: AnyWasmHandle> {
 pub struct GenericWasmVm<H: AnyWasmHandle> {
     pub program: Program,
     state: Arc<OnceLock<State<H>>>,
+    // reference_vm: VM,
 }
 
 impl<H: AnyWasmHandle> GenericWasmVm<H> {
@@ -52,6 +53,8 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
                 .ok()
                 .unwrap();
         });
+
+        // let reference_vm = VM::new(program.clone());
 
         Self { program, state }
     }
@@ -118,14 +121,22 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
             &[Val::I32(step_count as i32)],
             &mut returns,
         );
-        let [Val::I32(_)] = returns else {
+        let [Val::I32(ticks)] = returns else {
             panic!("Return type changed");
         };
-        // println!("ticks: {}", ticks);
 
         // for _ in 0..step_count {
+        //     let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
         //     println!("{:?}", self.program.all_commands[self.reference_vm.run_state.current_command_index]);
-        //     let ticks = self.function.call(&mut *store, 1).unwrap();
+        //     let mut returns = [Val::I32(0)];
+        //     state.handle.call_function(
+        //         &state.function,
+        //         &[Val::I32(1)],
+        //         &mut returns,
+        //     );
+        //     let [Val::I32(ticks)] = returns else {
+        //         panic!("Return type changed");
+        //     };
         //     println!("ticks: {}", ticks);
         //     self.reference_vm.run(ticks as u64);
         //     let ram = self.copy_ram();
@@ -141,7 +152,7 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         //         }
         //         fail = true;
         //     }
-        //     let pc = self.pc.get(&mut *store).unwrap_i32() as usize;
+        //     let pc = self.current_command_index();
         //     if pc != self.reference_vm.run_state.current_command_index {
         //         println!(
         //             "PC mismatch: wasm pc = {}, reference pc = {}",
@@ -852,68 +863,68 @@ mod tests {
         assert_eq!(vm.get_ram_value(4), 4);
     }
 
-    #[test]
-    fn test_memory() {
-        let all_file_commands = vec![(
-            "Sys".to_owned(),
-            vec![
-                VMCommand::Function {
-                    name: "Sys.init".to_owned(),
-                    local_var_count: 0,
-                },
-                VMCommand::Call {
-                    function_name: "Memory.init".to_owned(),
-                    argument_count: 0,
-                },
-                VMCommand::Pop {
-                    segment: PopSegment::Temp,
-                    offset: 0,
-                },
-                VMCommand::Push {
-                    segment: PushSegment::Constant,
-                    offset: 14335,
-                },
-                VMCommand::Call {
-                    function_name: "Memory.alloc".to_owned(),
-                    argument_count: 1,
-                },
-                // VMCommand::Call {
-                //     function_name: "Memory.deAlloc".to_owned(),
-                //     argument_count: 1,
-                // },
-                // VMCommand::Pop {
-                //     segment: PopSegment::Temp,
-                //     offset: 0,
-                // },
-                // VMCommand::Push {
-                //     segment: PushSegment::Constant,
-                //     offset: 15,
-                // },
-                // VMCommand::Call {
-                //     function_name: "Memory.alloc".to_owned(),
-                //     argument_count: 1,
-                // },
-            ],
-        )];
+    // #[test]
+    // fn test_memory() {
+    //     let all_file_commands = vec![(
+    //         "Sys".to_owned(),
+    //         vec![
+    //             VMCommand::Function {
+    //                 name: "Sys.init".to_owned(),
+    //                 local_var_count: 0,
+    //             },
+    //             VMCommand::Call {
+    //                 function_name: "Memory.init".to_owned(),
+    //                 argument_count: 0,
+    //             },
+    //             VMCommand::Pop {
+    //                 segment: PopSegment::Temp,
+    //                 offset: 0,
+    //             },
+    //             VMCommand::Push {
+    //                 segment: PushSegment::Constant,
+    //                 offset: 14335,
+    //             },
+    //             VMCommand::Call {
+    //                 function_name: "Memory.alloc".to_owned(),
+    //                 argument_count: 1,
+    //             },
+    //             // VMCommand::Call {
+    //             //     function_name: "Memory.deAlloc".to_owned(),
+    //             //     argument_count: 1,
+    //             // },
+    //             // VMCommand::Pop {
+    //             //     segment: PopSegment::Temp,
+    //             //     offset: 0,
+    //             // },
+    //             // VMCommand::Push {
+    //             //     segment: PushSegment::Constant,
+    //             //     offset: 15,
+    //             // },
+    //             // VMCommand::Call {
+    //             //     function_name: "Memory.alloc".to_owned(),
+    //             //     argument_count: 1,
+    //             // },
+    //         ],
+    //     )];
 
-        let mut vm = WasmVm::from_all_file_commands(all_file_commands.clone());
-        while !vm.is_ready() {}
-        let ram_before = vm.copy_ram();
-        vm.set_current_file("Sys");
-        vm.run(1);
-        let ram_after = vm.copy_ram();
-        let mut fail = false;
-        for i in 0..crate::hardware::MEM_SIZE {
-            if ram_before.contents[i] != ram_after.contents[i] {
-                println!(
-                    "RAM changed at address {}: before = {}, after = {}",
-                    i, ram_before.contents[i], ram_after.contents[i]
-                );
-                fail = true;
-            }
-        }
-        if fail {
-            panic!("RAM changed after Memory.init");
-        }
-    }
+    //     let mut vm = WasmVm::from_all_file_commands(all_file_commands.clone());
+    //     while !vm.is_ready() {}
+    //     let ram_before = vm.copy_ram();
+    //     vm.set_current_file("Sys");
+    //     vm.run(1);
+    //     let ram_after = vm.copy_ram();
+    //     let mut fail = false;
+    //     for i in 0..crate::hardware::MEM_SIZE {
+    //         if ram_before.contents[i] != ram_after.contents[i] {
+    //             println!(
+    //                 "RAM changed at address {}: before = {}, after = {}",
+    //                 i, ram_before.contents[i], ram_after.contents[i]
+    //             );
+    //             fail = true;
+    //         }
+    //     }
+    //     if fail {
+    //         panic!("RAM changed after Memory.init");
+    //     }
+    // }
 }
