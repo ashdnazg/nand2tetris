@@ -161,7 +161,6 @@ fn unary_stack_op(
         Instruction::I32Sub,
         Instruction::I32Const(2),
         Instruction::I32Shl,
-
     ];
     ret.extend(prefix);
     ret.extend([
@@ -185,13 +184,10 @@ fn binary_stack_op(
     op: Vec<Instruction<'static>>,
 ) -> Vec<Instruction<'static>> {
     let mut ret = vec![
-        Instruction::I32Const(Register::SP.address() as i32),
         Instruction::LocalGet(index_sp()),
         Instruction::I32Const(1),
         Instruction::I32Sub,
         Instruction::LocalTee(index_sp()),
-        Instruction::I32Store(mem_arg()),
-        Instruction::LocalGet(index_sp()),
         Instruction::I32Const(1),
         Instruction::I32Sub,
         Instruction::I32Const(2),
@@ -306,12 +302,10 @@ fn command_to_wasm(
 
             wasm_instructions.extend([
                 Instruction::I32Store(mem_arg()),
-                Instruction::I32Const(Register::SP.address() as i32),
                 Instruction::LocalGet(index_sp()),
                 Instruction::I32Const(1),
                 Instruction::I32Add,
-                Instruction::LocalTee(index_sp()),
-                Instruction::I32Store(mem_arg()),
+                Instruction::LocalSet(index_sp()),
             ]);
         }
         VMCommand::Pop { segment, offset } => {
@@ -358,9 +352,6 @@ fn command_to_wasm(
                 Instruction::I32Shl,
                 Instruction::I32Load(mem_arg()),
                 Instruction::I32Store(mem_offset_arg(*offset)),
-                Instruction::I32Const(Register::SP.address() as i32),
-                Instruction::LocalGet(index_sp()),
-                Instruction::I32Store(mem_arg()),
             ]);
         }
         VMCommand::Sub => {
@@ -431,13 +422,10 @@ fn command_to_wasm(
                 ]);
             }
             wasm_instructions.extend([
-                Instruction::I32Const(Register::SP.address() as i32),
                 Instruction::LocalGet(index_sp()),
                 Instruction::I32Const(1),
                 Instruction::I32Sub,
                 Instruction::LocalTee(index_sp()),
-                Instruction::I32Store(mem_arg()),
-                Instruction::LocalGet(index_sp()),
                 Instruction::I32Const(2),
                 Instruction::I32Shl,
                 Instruction::I32Load(mem_arg()),
@@ -449,22 +437,39 @@ fn command_to_wasm(
         VMCommand::Function {
             local_var_count, ..
         } => {
-            wasm_instructions.extend([
-                Instruction::LocalGet(index_sp()),
-                Instruction::I32Const(2),
-                Instruction::I32Shl,
-                Instruction::I32Const(0),
-                Instruction::I32Const(*local_var_count as i32 * 4),
-                Instruction::MemoryFill(MemoryArg {
-                    mem: Index::Num(0, Span::from_offset(0)),
-                }),
-                Instruction::I32Const(Register::SP.address() as i32 * 4),
-                Instruction::LocalGet(index_sp()),
-                Instruction::I32Const(*local_var_count as i32),
-                Instruction::I32Add,
-                Instruction::LocalTee(index_sp()),
-                Instruction::I32Store(mem_arg()),
-            ]);
+            match local_var_count {
+                0 => {
+                }
+                1 => {
+                    wasm_instructions.extend([
+                        Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Const(0),
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(1),
+                        Instruction::I32Add,
+                        Instruction::LocalSet(index_sp()),
+                    ]);
+                }
+                _ => {
+                    wasm_instructions.extend([
+                        Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Const(0),
+                        Instruction::I32Const(*local_var_count as i32 * 4),
+                        Instruction::MemoryFill(MemoryArg {
+                            mem: Index::Num(0, Span::from_offset(0)),
+                        }),
+                        Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(*local_var_count as i32),
+                        Instruction::I32Add,
+                        Instruction::LocalSet(index_sp()),
+                    ]);
+                }
+            }
         }
         VMCommand::Call {
             function_name,
@@ -496,15 +501,12 @@ fn command_to_wasm(
                 }
                 "Screen.drawPixel" => {
                     wasm_instructions.extend([
-                        Instruction::I32Const(Register::SP.address() as i32 * 4),
+                        Instruction::I32Const(RAM::SCREEN as i32 * 4),
                         Instruction::LocalGet(index_sp()),
                         Instruction::I32Const(1),
                         Instruction::I32Sub,
                         Instruction::LocalTee(index_sp()),
-                        Instruction::I32Store(mem_arg()),
 
-                        Instruction::I32Const(RAM::SCREEN as i32 * 4),
-                        Instruction::LocalGet(index_sp()),
                         Instruction::I32Const(2),
                         Instruction::I32Shl,
                         Instruction::I32Load(mem_arg()),
@@ -556,12 +558,10 @@ fn command_to_wasm(
                         Instruction::I32Const(heap_end - heap_start),
                         Instruction::I32Store(mem_arg()),
 
-                        Instruction::I32Const(Register::SP.address() as i32 * 4),
                         Instruction::LocalGet(index_sp()),
                         Instruction::I32Const(1),
                         Instruction::I32Add,
-                        Instruction::LocalTee(index_sp()),
-                        Instruction::I32Store(mem_arg()),
+                        Instruction::LocalSet(index_sp()),
                     ]);
                 }
                 "Memory.alloc" | "Array.new" => {
@@ -718,23 +718,21 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(Register::ARG.address() as i32 * 4),
                         Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(*argument_count as i32),
-                        Instruction::I32Sub,
-                        Instruction::I32Store(mem_arg()),
                     ]);
-
-                    wasm_instructions.extend([
-                        Instruction::I32Const(Register::SP.address() as i32 * 4),
-                        Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(5),
-                        Instruction::I32Add,
-                        Instruction::LocalTee(index_sp()),
-                        Instruction::I32Store(mem_arg()),
-                    ]);
+                    if *argument_count > 0 {
+                        wasm_instructions.extend([
+                            Instruction::I32Const(*argument_count as i32),
+                            Instruction::I32Sub,
+                        ]);
+                    }
+                    wasm_instructions.push(Instruction::I32Store(mem_arg()));
 
                     wasm_instructions.extend([
                         Instruction::I32Const(Register::LCL.address() as i32 * 4),
                         Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(5),
+                        Instruction::I32Add,
+                        Instruction::LocalTee(index_sp()),
                         Instruction::I32Store(mem_arg()),
                     ]);
 
@@ -776,13 +774,11 @@ fn command_to_wasm(
             ]);
 
             // Set stack pointer to after return value
-            wasm_instructions.push(Instruction::I32Const(Register::SP.address() as i32 * 4));
             wasm_instructions.extend(load_register(Register::ARG));
             wasm_instructions.extend([
                 Instruction::I32Const(1),
                 Instruction::I32Add,
-                Instruction::LocalTee(index_sp()),
-                Instruction::I32Store(mem_arg()),
+                Instruction::LocalSet(index_sp()),
             ]);
 
             // Restore frame
@@ -929,7 +925,7 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<Vec<u8>, String
     let expression = ExpressionBuilder::default()
         .instr(Instruction::GlobalGet(index_jump_target()))
         .instr(Instruction::LocalSet(index_jump_target()))
-        .instr(Instruction::I32Const(Register::SP.address() as i32))
+        .instr(Instruction::I32Const(Register::SP.address() as i32 * 4))
         .instr(Instruction::I32Load(mem_arg()))
         .instr(Instruction::LocalSet(index_sp()))
         .with_loop(loop_id, |mut builder| {
@@ -949,6 +945,9 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<Vec<u8>, String
                     .instr(Instruction::LocalGet(index_jump_target()))
                     .instr(Instruction::GlobalSet(index_jump_target()))
                     .instr(Instruction::LocalGet(index_ticks()))
+                    .instr(Instruction::I32Const(Register::SP.address() as i32 * 4))
+                    .instr(Instruction::LocalGet(index_sp()))
+                    .instr(Instruction::I32Store(mem_arg()))
                     .instr(Instruction::Return)
                     .instr(Instruction::End(None));
             }
