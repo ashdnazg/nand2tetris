@@ -888,15 +888,12 @@ fn command_to_wasm2(
                 Instruction::LocalGet(index_temp()), // frame
                 Instruction::I32Load(mem_offset_arg(Register::LCL.address())),
                 Instruction::LocalSet(index_lcl()),
-
                 Instruction::LocalGet(index_temp()), // frame
                 Instruction::I32Load(mem_offset_arg(Register::ARG.address())),
                 Instruction::LocalSet(index_arg()),
-
                 Instruction::LocalGet(index_temp()), // frame
                 Instruction::I32Load(mem_offset_arg(Register::THIS.address())),
                 Instruction::LocalSet(index_this()),
-
                 Instruction::LocalGet(index_temp()), // frame
                 Instruction::I32Load(mem_offset_arg(Register::THAT.address())),
                 Instruction::LocalSet(index_that()),
