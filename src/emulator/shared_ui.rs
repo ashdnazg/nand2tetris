@@ -550,10 +550,8 @@ impl EmulatorWidgets for egui::Ui {
                     .max_scroll_height(available_height);
 
                 if scroll_to_row {
-                    builder = builder.scroll_to_row(
-                        current_command_index - file.starting_command_index,
-                        None,
-                    );
+                    builder = builder
+                        .scroll_to_row(current_command_index - file.starting_command_index, None);
                 }
 
                 builder
@@ -574,9 +572,7 @@ impl EmulatorWidgets for egui::Ui {
                         body.rows(row_height, commands.len(), |mut row| {
                             let row_index = row.index();
                             let is_highlighted = file_index == current_file_index
-                                && row_index
-                                    == current_command_index
-                                        - file.starting_command_index;
+                                && row_index == current_command_index - file.starting_command_index;
                             row.set_selected(is_highlighted);
                             row.col(|ui| {
                                 ui.monospace(row_index.to_string());

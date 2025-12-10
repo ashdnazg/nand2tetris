@@ -108,8 +108,7 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
     pub fn current_command_index(&mut self) -> usize {
         let state = Arc::get_mut(&mut self.state).unwrap().get_mut().unwrap();
 
-        let pc = state.handle.get_global_value_i32(&state.pc) as usize;
-        pc
+        state.handle.get_global_value_i32(&state.pc) as usize
     }
 
     pub fn run(&mut self, step_count: u64) -> bool {

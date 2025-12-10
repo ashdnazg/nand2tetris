@@ -61,9 +61,15 @@ pub fn draw_vm(
                 });
                 strip.cell(|ui| {
                     let current_file_name = state.vm.current_file_name().to_owned();
-                    let current_file_index = state.vm.program.file_name_to_index[&current_file_name];
+                    let current_file_index =
+                        state.vm.program.file_name_to_index[&current_file_name];
                     let current_command_index = state.vm.current_command_index();
-                    let function_index  = match state.vm.program.function_metadata.binary_search_by_key(&current_command_index, |f| f.command_index) {
+                    let function_index = match state
+                        .vm
+                        .program
+                        .function_metadata
+                        .binary_search_by_key(&current_command_index, |f| f.command_index)
+                    {
                         Ok(index) | Err(index) => index,
                     };
 
@@ -76,9 +82,8 @@ pub fn draw_vm(
                         .default_height(height)
                         .resizable(true)
                         .show_inside(ui, |ui| {
-                            let static_segment = &state.vm.program.files
-                                [current_file_index]
-                                .static_segment;
+                            let static_segment =
+                                &state.vm.program.files[current_file_index].static_segment;
                             ui.ram_grid(
                                 "Static",
                                 &ram_copy,
@@ -97,8 +102,7 @@ pub fn draw_vm(
                             ui.ram_grid(
                                 "Local",
                                 &ram_copy,
-                                &(local_address
-                                    ..=local_address + local_var_count - 1),
+                                &(local_address..=local_address + local_var_count - 1),
                                 UIStyle::VM,
                                 None,
                                 shared_state.scroll_once,
@@ -113,8 +117,7 @@ pub fn draw_vm(
                             ui.ram_grid(
                                 "Argument",
                                 &ram_copy,
-                                &(argument_address
-                                    ..=argument_address + argument_count - 1),
+                                &(argument_address..=argument_address + argument_count - 1),
                                 UIStyle::VM,
                                 None,
                                 shared_state.scroll_once,

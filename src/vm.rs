@@ -326,7 +326,8 @@ impl VM {
                     function_name,
                     argument_count,
                 } => {
-                    run_state.func_stats
+                    run_state
+                        .func_stats
                         .entry(function_name.clone())
                         .and_modify(|c| *c += 1)
                         .or_insert(1);

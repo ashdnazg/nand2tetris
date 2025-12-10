@@ -84,9 +84,11 @@ impl AnyWasmHandle for WasmtimeHandle {
             let module = Module::from_binary(&engine, &binary).unwrap();
             let mut store = Store::new(&engine, ());
             let mut linker = Linker::new(&engine);
-            linker.func_wrap("env", "print", |arg: i32| {
-                println!("WASM print: {}", arg);
-            }).unwrap();
+            linker
+                .func_wrap("env", "print", |arg: i32| {
+                    println!("WASM print: {}", arg);
+                })
+                .unwrap();
             let instance = linker.instantiate(&mut store, &module).unwrap();
             let handle = Self { store, instance };
 
@@ -98,9 +100,11 @@ impl AnyWasmHandle for WasmtimeHandle {
             let module = Module::from_binary(&engine, &binary).unwrap();
             let mut store = Store::new(&engine, ());
             let mut linker = Linker::new(&engine);
-            linker.func_wrap("env", "print", |arg: i32| {
-                println!("WASM print: {}", arg);
-            }).unwrap();
+            linker
+                .func_wrap("env", "print", |arg: i32| {
+                    println!("WASM print: {}", arg);
+                })
+                .unwrap();
             let instance = linker.instantiate(&mut store, &module).unwrap();
             let handle = Self { store, instance };
 

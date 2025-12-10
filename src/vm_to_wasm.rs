@@ -2,7 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use wast::{
     core::{
-        BlockType, Export, ExportKind, FuncKind, FunctionType, Global, GlobalKind, GlobalType, Import, InlineExport, Instruction, ItemSig, Local, MemArg, MemoryArg, ModuleField, SelectTypes, TypeUse, ValType
+        BlockType, Export, ExportKind, FuncKind, FunctionType, Global, GlobalKind, GlobalType,
+        Import, InlineExport, Instruction, ItemSig, Local, MemArg, MemoryArg, ModuleField,
+        SelectTypes, TypeUse, ValType,
     },
     token::{Id, Index, NameAnnotation, Span},
 };
@@ -200,6 +202,641 @@ fn binary_stack_op(
     ret.push(Instruction::I32Store(mem_arg()));
 
     ret
+}
+
+fn prepare_on_stack1(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruction<'static>>) {
+    if *stack_size > 0 {
+        *stack_size -= 1;
+    } else {
+        wasm_instructions.extend([
+            Instruction::LocalGet(index_sp()),
+            Instruction::I32Const(4),
+            Instruction::I32Sub,
+            Instruction::LocalTee(index_sp()),
+            Instruction::I32Load(mem_arg()),
+        ]);
+    }
+}
+
+fn prepare_on_stack2(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruction<'static>>) {
+    match stack_size {
+        0 => {
+            wasm_instructions.extend([
+                Instruction::LocalGet(index_sp()),
+                Instruction::I32Const(8),
+                Instruction::I32Sub,
+                Instruction::LocalTee(index_sp()),
+                Instruction::I32Load(mem_arg()),
+                Instruction::LocalGet(index_sp()),
+                Instruction::I32Load(mem_offset_arg(1)),
+            ]);
+        }
+        1 => {
+            wasm_instructions.extend([
+                Instruction::LocalSet(index_temp()), // value
+                Instruction::LocalGet(index_sp()),
+                Instruction::I32Const(4),
+                Instruction::I32Sub,
+                Instruction::LocalTee(index_sp()),
+                Instruction::I32Load(mem_arg()),
+                Instruction::LocalGet(index_temp()), // value
+            ]);
+
+            *stack_size -= 1;
+        }
+        _ => {
+            *stack_size -= 2;
+        }
+    }
+}
+
+fn drop_stack_to_ram(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruction<'static>>) {
+    for i in 0..*stack_size {
+        wasm_instructions.extend([
+            Instruction::LocalSet(index_temp()),
+            Instruction::LocalGet(index_sp()),
+            Instruction::LocalGet(index_temp()),
+            Instruction::I32Store(mem_offset_arg((*stack_size - i - 1) as i16)),
+        ]);
+    }
+    if *stack_size > 0 {
+        wasm_instructions.extend([
+            Instruction::LocalGet(index_sp()),
+            Instruction::I32Const(*stack_size as i32 * 4),
+            Instruction::I32Add,
+            Instruction::LocalSet(index_sp()),
+        ]);
+        *stack_size = 0;
+    }
+}
+
+fn command_to_wasm2(
+    command: &VMCommand,
+    index: usize,
+    jump_index: Index<'static>,
+    static_segment_start: Word,
+    current_function_name: Option<&String>,
+    label_indices: &HashMap<String, i32>,
+    function_indices: &HashMap<String, i32>,
+    call_indices: &HashMap<usize, i32>,
+    stack_size: &mut usize,
+) -> Vec<Instruction<'static>> {
+    let mut wasm_instructions: Vec<Instruction<'static>> = vec![
+        Instruction::I32Const(1),
+        Instruction::LocalGet(index_ticks()),
+        Instruction::I32Add,
+        Instruction::LocalSet(index_ticks()),
+    ];
+
+    match command {
+        VMCommand::Add => {
+            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([Instruction::I32Add, Instruction::I32Extend16S]);
+            *stack_size += 1;
+        }
+        VMCommand::Push { segment, offset } => {
+            *stack_size += 1;
+            use crate::vm::PushSegment;
+
+            match segment {
+                PushSegment::Constant => {
+                    wasm_instructions.push(Instruction::I32Const(*offset as i32));
+                }
+                PushSegment::Static => {
+                    wasm_instructions.extend([
+                        Instruction::I32Const((static_segment_start + offset) as i32 * 4),
+                        Instruction::I32Load(mem_arg()),
+                    ]);
+                }
+                PushSegment::Local => {
+                    wasm_instructions.extend(load_register(Register::LCL));
+                    wasm_instructions.extend([
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Load(mem_offset_arg(*offset)),
+                    ]);
+                }
+                PushSegment::Argument => {
+                    wasm_instructions.extend(load_register(Register::ARG));
+                    wasm_instructions.extend([
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Load(mem_offset_arg(*offset)),
+                    ]);
+                }
+                PushSegment::This => {
+                    wasm_instructions.extend(load_register(Register::THIS));
+                    wasm_instructions.extend([
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Load(mem_offset_arg(*offset)),
+                    ]);
+                }
+                PushSegment::That => {
+                    wasm_instructions.extend(load_register(Register::THAT));
+                    wasm_instructions.extend([
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Load(mem_offset_arg(*offset)),
+                    ]);
+                }
+                PushSegment::Temp => {
+                    wasm_instructions.extend([
+                        Instruction::I32Const(Register::TEMP(*offset).address() as i32 * 4),
+                        Instruction::I32Load(mem_offset_arg(*offset)),
+                    ]);
+                }
+                PushSegment::Pointer => {
+                    wasm_instructions.extend([
+                        Instruction::I32Const((Register::THIS.address() + offset) as i32 * 4),
+                        Instruction::I32Load(mem_offset_arg(*offset)),
+                    ]);
+                }
+            }
+        }
+        VMCommand::Pop { segment, offset } => {
+            prepare_on_stack1(stack_size, &mut wasm_instructions);
+            use crate::vm::PopSegment;
+
+            wasm_instructions.push(Instruction::LocalSet(index_temp())); // value
+
+            match segment {
+                PopSegment::Static => {
+                    wasm_instructions
+                        .extend([Instruction::I32Const(static_segment_start as i32 * 4)]);
+                }
+                PopSegment::Local => {
+                    wasm_instructions.extend(load_register(Register::LCL));
+                    wasm_instructions.extend([Instruction::I32Const(2), Instruction::I32Shl]);
+                }
+                PopSegment::Argument => {
+                    wasm_instructions.extend(load_register(Register::ARG));
+                    wasm_instructions.extend([Instruction::I32Const(2), Instruction::I32Shl]);
+                }
+                PopSegment::This => {
+                    wasm_instructions.extend(load_register(Register::THIS));
+                    wasm_instructions.extend([Instruction::I32Const(2), Instruction::I32Shl]);
+                }
+                PopSegment::That => {
+                    wasm_instructions.extend(load_register(Register::THAT));
+                    wasm_instructions.extend([Instruction::I32Const(2), Instruction::I32Shl]);
+                }
+                PopSegment::Temp => {
+                    wasm_instructions.extend([Instruction::I32Const(
+                        Register::TEMP(0).address() as i32 * 4,
+                    )]);
+                }
+                PopSegment::Pointer => {
+                    wasm_instructions
+                        .extend([Instruction::I32Const(Register::THIS.address() as i32 * 4)]);
+                }
+            }
+
+            wasm_instructions.extend([
+                Instruction::LocalGet(index_temp()), // value
+                Instruction::I32Store(mem_offset_arg(*offset)),
+            ]);
+        }
+        VMCommand::Sub => {
+            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([Instruction::I32Sub, Instruction::I32Extend16S]);
+            *stack_size += 1;
+        }
+        VMCommand::Neg => {
+            prepare_on_stack1(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([
+                Instruction::LocalSet(index_temp()), // value
+                Instruction::I32Const(0),
+                Instruction::LocalGet(index_temp()), // value
+                Instruction::I32Sub,
+                Instruction::I32Extend16S,
+            ]);
+            *stack_size += 1;
+        }
+        VMCommand::Eq => {
+            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([
+                Instruction::I32Eq,
+                Instruction::LocalSet(index_temp()), // value
+                Instruction::I32Const(0),
+                Instruction::LocalGet(index_temp()), // value
+                Instruction::I32Sub,
+            ]);
+            *stack_size += 1;
+        }
+        VMCommand::Gt => {
+            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([
+                Instruction::I32GtS,
+                Instruction::LocalSet(index_temp()), // value
+                Instruction::I32Const(0),
+                Instruction::LocalGet(index_temp()), // value
+                Instruction::I32Sub,
+            ]);
+            *stack_size += 1;
+        }
+        VMCommand::Lt => {
+            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([
+                Instruction::I32LtS,
+                Instruction::LocalSet(index_temp()), // value
+                Instruction::I32Const(0),
+                Instruction::LocalGet(index_temp()), // value
+                Instruction::I32Sub,
+            ]);
+            *stack_size += 1;
+        }
+        VMCommand::And => {
+            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([Instruction::I32And, Instruction::I32Extend16S]);
+            *stack_size += 1;
+        }
+        VMCommand::Or => {
+            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([Instruction::I32Or, Instruction::I32Extend16S]);
+            *stack_size += 1;
+        }
+        VMCommand::Not => {
+            prepare_on_stack1(stack_size, &mut wasm_instructions);
+            wasm_instructions.extend([Instruction::I32Const(-1), Instruction::I32Xor]);
+            *stack_size += 1;
+        }
+        VMCommand::Label { .. } => {
+            // unreachable!("Labels should have been removed by now");
+        }
+        VMCommand::Goto { label_name } => {
+            drop_stack_to_ram(stack_size, &mut wasm_instructions);
+            if matches!(jump_index, Index::Id(_)) {
+                wasm_instructions.extend([
+                    Instruction::I32Const(
+                        label_indices
+                            [&format!("{}.{}", current_function_name.unwrap(), label_name)],
+                    ),
+                    Instruction::LocalSet(index_jump_target()),
+                ]);
+            }
+            wasm_instructions.push(Instruction::Br(jump_index))
+        }
+        VMCommand::IfGoto { label_name } => {
+            if matches!(jump_index, Index::Id(_)) {
+                wasm_instructions.extend([
+                    Instruction::I32Const(
+                        label_indices
+                            [&format!("{}.{}", current_function_name.unwrap(), label_name)],
+                    ),
+                    Instruction::LocalSet(index_jump_target()),
+                ]);
+            }
+
+            drop_stack_to_ram(stack_size, &mut wasm_instructions);
+            prepare_on_stack1(stack_size, &mut wasm_instructions);
+
+            wasm_instructions.extend([
+                Instruction::I32Const(0),
+                Instruction::I32Ne,
+                Instruction::BrIf(jump_index),
+            ]);
+        }
+        VMCommand::Function {
+            local_var_count, ..
+        } => match local_var_count {
+            0 => {}
+            1 => {
+                wasm_instructions.extend([
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(0),
+                    Instruction::I32Store(mem_arg()),
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(4),
+                    Instruction::I32Add,
+                    Instruction::LocalSet(index_sp()),
+                ]);
+            }
+            _ => {
+                wasm_instructions.extend([
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(0),
+                    Instruction::I32Const(*local_var_count as i32 * 4),
+                    Instruction::MemoryFill(MemoryArg {
+                        mem: Index::Num(0, Span::from_offset(0)),
+                    }),
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(*local_var_count as i32 * 4),
+                    Instruction::I32Add,
+                    Instruction::LocalSet(index_sp()),
+                ]);
+            }
+        },
+        VMCommand::Call {
+            function_name,
+            argument_count,
+        } => {
+            match function_name.as_str() {
+                "Math.multiply" => {
+                    prepare_on_stack2(stack_size, &mut wasm_instructions);
+                    wasm_instructions.extend([Instruction::I32Mul, Instruction::I32Extend16S]);
+                    *stack_size += 1;
+                }
+                "Math.divide" => {
+                    prepare_on_stack2(stack_size, &mut wasm_instructions);
+                    wasm_instructions.extend([Instruction::I32DivS, Instruction::I32Extend16S]);
+                    *stack_size += 1;
+                }
+                "Screen.setColor" => {
+                    prepare_on_stack1(stack_size, &mut wasm_instructions);
+                    wasm_instructions.extend([
+                        Instruction::GlobalSet(index_screen_color()),
+                        Instruction::I32Const(0),
+                    ]);
+                    *stack_size += 1;
+                }
+                "Screen.drawPixel" => {
+                    prepare_on_stack2(stack_size, &mut wasm_instructions);
+                    wasm_instructions.extend([
+                        Instruction::I32Const(RAM::SCREEN_ROW_LENGTH as i32 * 4),
+                        Instruction::I32Mul,
+                        Instruction::I32Const(RAM::SCREEN as i32 * 4),
+                        Instruction::I32Add,
+                        Instruction::LocalSet(index_temp()), // address
+                        Instruction::LocalTee(index_temp2()), // x
+                        Instruction::I32Const((Word::BITS as i32).ilog2() as i32),
+                        Instruction::I32ShrU,
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::LocalGet(index_temp()), // address
+                        Instruction::I32Add,
+                        Instruction::LocalTee(index_temp()), // address
+                        Instruction::LocalGet(index_temp()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Const(1),
+                        Instruction::LocalGet(index_temp2()), // x
+                        Instruction::I32Const((1 << (Word::BITS as i32).ilog2() as i32) - 1),
+                        Instruction::I32And,
+                        Instruction::I32Shl,
+                        Instruction::LocalTee(index_temp2()), // bitmask
+                        Instruction::I32Const(-1),
+                        Instruction::I32Xor,
+                        Instruction::I32And,
+                        Instruction::GlobalGet(index_screen_color()),
+                        Instruction::LocalGet(index_temp2()), // bitmask
+                        Instruction::I32And,
+                        Instruction::I32Or,
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::I32Const(0),
+                    ]);
+                    *stack_size += 1;
+                }
+                "Memory.init" => {
+                    let heap_start = 0x800;
+                    let heap_end = RAM::SCREEN as i32;
+
+                    wasm_instructions.extend([
+                        Instruction::I32Const(heap_start * 4),
+                        Instruction::I32Const(heap_end - heap_start),
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::I32Const(0),
+                    ]);
+                    *stack_size += 1;
+                }
+                "Memory.alloc" | "Array.new" => {
+                    let heap_start = 0x800;
+                    let heap_end = RAM::SCREEN as i32;
+
+                    let continue_id = Id::new("alloc_continue", Span::from_offset(0));
+                    // let break_id = Id::new("alloc_break", Span::from_offset(0));
+
+                    prepare_on_stack1(stack_size, &mut wasm_instructions);
+
+                    wasm_instructions.extend([
+                        Instruction::I32Const(1),
+                        Instruction::I32Add,
+                        Instruction::LocalSet(index_temp()), // size + 1
+                        Instruction::I32Const(heap_start * 4),
+                        Instruction::LocalSet(index_temp2()), // address
+                        // Instruction::Block(Box::new(BlockType { label: Some(break_id.clone()), label_name: None, ty: TypeUse { index: None, inline: None } })),
+                        Instruction::Loop(Box::new(BlockType {
+                            label: Some(continue_id),
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
+                        // Instruction::LocalGet(index_temp2()), // address
+                        // Instruction::Call(Index::Id(Id::new("print", Span::from_offset(0)))), // DEBUG
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::LocalGet(index_temp()),
+                        Instruction::I32LtS,
+                        Instruction::If(Box::new(BlockType {
+                            label: None,
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Sub,
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32LtS,
+                        Instruction::Select(SelectTypes { tys: None }),
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Add,
+                        Instruction::LocalTee(index_temp2()), // address
+                        Instruction::I32Const(heap_end * 4),
+                        Instruction::I32GeS,
+                        Instruction::If(Box::new(BlockType {
+                            label: None,
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
+                        Instruction::Unreachable,
+                        Instruction::End(None),
+                        Instruction::Br(Index::Id(continue_id)),
+                        Instruction::End(None),
+                        Instruction::End(None),
+                        // Instruction::End(None)
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Eq,
+                        Instruction::If(Box::new(BlockType {
+                            label: None,
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Sub,
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::Else(None),
+                        Instruction::LocalGet(index_temp2()),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Add,
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Sub,
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Sub,
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::End(None),
+                        Instruction::LocalGet(index_temp2()),
+                        Instruction::I32Const(2),
+                        Instruction::I32ShrU,
+                        Instruction::I32Const(1),
+                        Instruction::I32Add,
+                    ]);
+
+                    *stack_size += 1;
+                }
+                "Memory.deAlloc" | "Array.dispose" => {
+                    prepare_on_stack1(stack_size, &mut wasm_instructions);
+                    // Fragmented AF
+                    wasm_instructions.extend([
+                        Instruction::I32Const(1),
+                        Instruction::I32Sub,
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::LocalTee(index_temp2()), // address
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Sub,
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::I32Const(0),
+                    ]);
+                    *stack_size += 1;
+                }
+                _ => {
+                    drop_stack_to_ram(stack_size, &mut wasm_instructions);
+
+                    wasm_instructions.extend([
+                        Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(call_indices[&(index + 1)]),
+                        Instruction::I32Store(mem_arg()),
+                    ]);
+
+                    for i in 1..=4 {
+                        wasm_instructions.extend([
+                            Instruction::LocalGet(index_sp()),
+                            Instruction::I32Const(i as i32 * 4),
+                            Instruction::I32Load(mem_arg()),
+                            Instruction::I32Store(mem_offset_arg(i)),
+                        ]);
+                    }
+
+                    wasm_instructions.extend([
+                        Instruction::I32Const(Register::ARG.address() as i32 * 4),
+                        Instruction::LocalGet(index_sp()),
+                    ]);
+
+                    if *argument_count > 0 {
+                        wasm_instructions.extend([
+                            Instruction::I32Const(*argument_count as i32 * 4),
+                            Instruction::I32Sub,
+                        ]);
+                    }
+
+                    wasm_instructions.extend([
+                        Instruction::I32Const(2),
+                        Instruction::I32ShrU,
+                        Instruction::I32Store(mem_arg()),
+                    ]);
+
+                    wasm_instructions.extend([
+                        Instruction::I32Const(Register::LCL.address() as i32 * 4),
+                        Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(20),
+                        Instruction::I32Add,
+                        Instruction::LocalTee(index_sp()),
+                        Instruction::I32Const(2),
+                        Instruction::I32ShrU,
+                        Instruction::I32Store(mem_arg()),
+                    ]);
+
+                    if matches!(jump_index, Index::Id(_)) {
+                        wasm_instructions.extend([
+                            Instruction::I32Const(function_indices[function_name]),
+                            Instruction::LocalSet(index_jump_target()),
+                        ]);
+                    }
+                    wasm_instructions.push(Instruction::Br(jump_index))
+                }
+            }
+        }
+        VMCommand::Return => {
+            drop_stack_to_ram(stack_size, &mut wasm_instructions);
+            // Store frame pointer and put return address in jump target
+            wasm_instructions.extend(load_register(Register::LCL));
+            wasm_instructions.extend([
+                Instruction::I32Const(5),
+                Instruction::I32Sub,
+                Instruction::I32Const(2),
+                Instruction::I32Shl,
+                Instruction::LocalTee(index_temp()), // frame
+                Instruction::I32Load(mem_arg()),
+                Instruction::LocalSet(index_jump_target()),
+            ]);
+
+            // Move return value to beginning of argument segment
+            wasm_instructions.extend(load_register(Register::ARG));
+            wasm_instructions.extend([
+                Instruction::I32Const(2),
+                Instruction::I32Shl,
+                Instruction::LocalGet(index_sp()),
+                Instruction::I32Const(4),
+                Instruction::I32Sub,
+                Instruction::I32Load(mem_arg()),
+                Instruction::I32Store(mem_arg()),
+            ]);
+
+            // Set stack pointer to after return value
+            wasm_instructions.extend(load_register(Register::ARG));
+            wasm_instructions.extend([
+                Instruction::I32Const(1),
+                Instruction::I32Add,
+                Instruction::I32Const(2),
+                Instruction::I32Shl,
+                Instruction::LocalSet(index_sp()),
+            ]);
+
+            // Restore frame
+            for i in 1..=4 {
+                wasm_instructions.extend([
+                    Instruction::I32Const(i as i32 * 4),
+                    Instruction::LocalGet(index_temp()), // frame
+                    Instruction::I32Load(mem_offset_arg(i)),
+                    Instruction::I32Store(mem_arg()),
+                ]);
+            }
+
+            wasm_instructions.push(Instruction::Br(jump_index))
+        }
+    }
+
+    wasm_instructions
 }
 
 fn command_to_wasm(
@@ -418,37 +1055,34 @@ fn command_to_wasm(
         }
         VMCommand::Function {
             local_var_count, ..
-        } => {
-            match local_var_count {
-                0 => {
-                }
-                1 => {
-                    wasm_instructions.extend([
-                        Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(0),
-                        Instruction::I32Store(mem_arg()),
-                        Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(4),
-                        Instruction::I32Add,
-                        Instruction::LocalSet(index_sp()),
-                    ]);
-                }
-                _ => {
-                    wasm_instructions.extend([
-                        Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(0),
-                        Instruction::I32Const(*local_var_count as i32 * 4),
-                        Instruction::MemoryFill(MemoryArg {
-                            mem: Index::Num(0, Span::from_offset(0)),
-                        }),
-                        Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(*local_var_count as i32 * 4),
-                        Instruction::I32Add,
-                        Instruction::LocalSet(index_sp()),
-                    ]);
-                }
+        } => match local_var_count {
+            0 => {}
+            1 => {
+                wasm_instructions.extend([
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(0),
+                    Instruction::I32Store(mem_arg()),
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(4),
+                    Instruction::I32Add,
+                    Instruction::LocalSet(index_sp()),
+                ]);
             }
-        }
+            _ => {
+                wasm_instructions.extend([
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(0),
+                    Instruction::I32Const(*local_var_count as i32 * 4),
+                    Instruction::MemoryFill(MemoryArg {
+                        mem: Index::Num(0, Span::from_offset(0)),
+                    }),
+                    Instruction::LocalGet(index_sp()),
+                    Instruction::I32Const(*local_var_count as i32 * 4),
+                    Instruction::I32Add,
+                    Instruction::LocalSet(index_sp()),
+                ]);
+            }
+        },
         VMCommand::Call {
             function_name,
             argument_count,
@@ -472,7 +1106,7 @@ fn command_to_wasm(
                         Instruction::I32Const(4),
                         Instruction::I32Sub,
                         Instruction::I32Load(mem_arg()),
-                        Instruction::GlobalSet(index_screen_color())
+                        Instruction::GlobalSet(index_screen_color()),
                     ]);
                 }
                 "Screen.drawPixel" => {
@@ -482,12 +1116,10 @@ fn command_to_wasm(
                         Instruction::I32Const(4),
                         Instruction::I32Sub,
                         Instruction::LocalTee(index_sp()),
-
                         Instruction::I32Load(mem_arg()),
                         Instruction::I32Const(RAM::SCREEN_ROW_LENGTH as i32 * 4),
                         Instruction::I32Mul,
                         Instruction::I32Add,
-
                         Instruction::LocalGet(index_sp()),
                         Instruction::I32Const(4),
                         Instruction::I32Sub,
@@ -501,7 +1133,6 @@ fn command_to_wasm(
                         Instruction::LocalTee(index_temp()), // address
                         Instruction::LocalGet(index_temp()), // address
                         Instruction::I32Load(mem_arg()),
-
                         Instruction::I32Const(1),
                         Instruction::LocalGet(index_temp2()), // x
                         Instruction::I32Const((1 << (Word::BITS as i32).ilog2() as i32) - 1),
@@ -511,13 +1142,10 @@ fn command_to_wasm(
                         Instruction::I32Const(-1),
                         Instruction::I32Xor,
                         Instruction::I32And,
-
-
                         Instruction::GlobalGet(index_screen_color()),
                         Instruction::LocalGet(index_temp2()), // bitmask
                         Instruction::I32And,
                         Instruction::I32Or,
-
                         Instruction::I32Store(mem_arg()),
                     ]);
                 }
@@ -529,7 +1157,6 @@ fn command_to_wasm(
                         Instruction::I32Const(heap_start * 4),
                         Instruction::I32Const(heap_end - heap_start),
                         Instruction::I32Store(mem_arg()),
-
                         Instruction::LocalGet(index_sp()),
                         Instruction::I32Const(4),
                         Instruction::I32Add,
@@ -551,93 +1178,104 @@ fn command_to_wasm(
                         Instruction::I32Const(1),
                         Instruction::I32Add,
                         Instruction::LocalSet(index_temp()), // size + 1
-
                         Instruction::I32Const(heap_start * 4),
                         Instruction::LocalSet(index_temp2()), // address
-
                         // Instruction::Block(Box::new(BlockType { label: Some(break_id.clone()), label_name: None, ty: TypeUse { index: None, inline: None } })),
-                        Instruction::Loop(Box::new(BlockType { label: Some(continue_id.clone()), label_name: None, ty: TypeUse { index: None, inline: None } })),
+                        Instruction::Loop(Box::new(BlockType {
+                            label: Some(continue_id),
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
                         // Instruction::LocalGet(index_temp2()), // address
                         // Instruction::Call(Index::Id(Id::new("print", Span::from_offset(0)))), // DEBUG
-
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Load(mem_arg()),
                         Instruction::LocalGet(index_temp()),
                         Instruction::I32LtS,
-
-                        Instruction::If(Box::new(BlockType { label: None, label_name: None, ty: TypeUse { index: None, inline: None } })),
-
-                            Instruction::LocalGet(index_temp2()), // address
-                            Instruction::LocalGet(index_temp2()), // address
-                            Instruction::I32Load(mem_arg()),
-
-                            Instruction::I32Const(0),
-                            Instruction::LocalGet(index_temp2()), // address
-                            Instruction::I32Load(mem_arg()),
-                            Instruction::I32Sub,
-
-                            Instruction::I32Const(0),
-                            Instruction::LocalGet(index_temp2()), // address
-                            Instruction::I32Load(mem_arg()),
-                            Instruction::I32LtS,
-                            Instruction::Select(SelectTypes { tys: None }),
-
-                            Instruction::I32Const(2),
-                            Instruction::I32Shl,
-                            Instruction::I32Add,
-                            Instruction::LocalTee(index_temp2()), // address
-                            Instruction::I32Const(heap_end * 4),
-                            Instruction::I32GeS,
-                            Instruction::If(Box::new(BlockType { label: None, label_name: None, ty: TypeUse { index: None, inline: None } })),
-                                Instruction::Unreachable,
-                            Instruction::End(None),
-                            Instruction::Br(Index::Id(continue_id)),
-
+                        Instruction::If(Box::new(BlockType {
+                            label: None,
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Sub,
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32LtS,
+                        Instruction::Select(SelectTypes { tys: None }),
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Add,
+                        Instruction::LocalTee(index_temp2()), // address
+                        Instruction::I32Const(heap_end * 4),
+                        Instruction::I32GeS,
+                        Instruction::If(Box::new(BlockType {
+                            label: None,
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
+                        Instruction::Unreachable,
                         Instruction::End(None),
-
+                        Instruction::Br(Index::Id(continue_id)),
+                        Instruction::End(None),
                         Instruction::LocalGet(index_temp()), // size + 1
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Load(mem_arg()),
                         Instruction::I32Eq,
-                        Instruction::If(Box::new(BlockType { label: None, label_name: None, ty: TypeUse { index: None, inline: None } })),
-                            Instruction::LocalGet(index_temp2()), // address
-                            Instruction::I32Const(0),
-                            Instruction::LocalGet(index_temp()), // size + 1
-                            Instruction::I32Sub,
-                            Instruction::I32Store(mem_arg()),
+                        Instruction::If(Box::new(BlockType {
+                            label: None,
+                            label_name: None,
+                            ty: TypeUse {
+                                index: None,
+                                inline: None,
+                            },
+                        })),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Sub,
+                        Instruction::I32Store(mem_arg()),
                         Instruction::Else(None),
-                            Instruction::LocalGet(index_temp2()),
-                            Instruction::LocalGet(index_temp()), // size + 1
-                            Instruction::I32Const(2),
-                            Instruction::I32Shl,
-                            Instruction::I32Add,
-
-                            Instruction::LocalGet(index_temp2()), // address
-                            Instruction::I32Load(mem_arg()),
-                            Instruction::LocalGet(index_temp()), // size + 1
-                            Instruction::I32Sub,
-
-                            Instruction::I32Store(mem_arg()),
-
-                            Instruction::LocalGet(index_temp2()), // address
-                            Instruction::I32Const(0),
-                            Instruction::LocalGet(index_temp()), // size + 1
-                            Instruction::I32Sub,
-                            Instruction::I32Store(mem_arg()),
+                        Instruction::LocalGet(index_temp2()),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::I32Add,
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Sub,
+                        Instruction::I32Store(mem_arg()),
+                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::I32Const(0),
+                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::I32Sub,
+                        Instruction::I32Store(mem_arg()),
                         Instruction::End(None),
-
                         Instruction::LocalGet(index_sp()),
                         Instruction::I32Const(4),
                         Instruction::I32Sub,
-
                         Instruction::LocalGet(index_temp2()),
                         Instruction::I32Const(2),
                         Instruction::I32ShrU,
                         Instruction::I32Const(1),
                         Instruction::I32Add,
-
                         Instruction::I32Store(mem_arg()),
-
                         Instruction::End(None),
                         // Instruction::End(None)
                     ]);
@@ -692,7 +1330,7 @@ fn command_to_wasm(
                     wasm_instructions.extend([
                         Instruction::I32Const(2),
                         Instruction::I32ShrU,
-                        Instruction::I32Store(mem_arg())
+                        Instruction::I32Store(mem_arg()),
                     ]);
 
                     wasm_instructions.extend([
@@ -817,6 +1455,7 @@ fn program_to_static_cases(
 
     let mut cases = vec![];
     let mut current_case = vec![];
+    let mut stack_size = 0;
 
     for (index, (static_segment_start, command)) in program
         .files
@@ -846,7 +1485,9 @@ fn program_to_static_cases(
                 }
             }
             VMCommand::Call { function_name, .. } => {
-                if let Some(target_index) = function_indices.get(function_name) && *target_index > cases.len() as i32 {
+                if let Some(target_index) = function_indices.get(function_name)
+                    && *target_index > cases.len() as i32
+                {
                     jump_index = Index::Num(
                         (target_index - cases.len() as i32) as u32 - 1,
                         Span::from_offset(0),
@@ -856,7 +1497,7 @@ fn program_to_static_cases(
             _ => {}
         }
 
-        let instructions = command_to_wasm(
+        let instructions = command_to_wasm2(
             command,
             index,
             jump_index,
@@ -865,6 +1506,7 @@ fn program_to_static_cases(
             &label_indices,
             &function_indices,
             &call_indices,
+            &mut stack_size,
         );
 
         current_case.extend(instructions);
@@ -876,6 +1518,7 @@ fn program_to_static_cases(
         // ]);
 
         if case_starts.contains(&(index + 1)) {
+            drop_stack_to_ram(&mut stack_size, &mut current_case);
             cases.push(current_case);
             current_case = vec![];
         }
@@ -944,7 +1587,7 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<Vec<u8>, String
     };
 
     let mut m = ModuleBuilder::default()
-        .field(ModuleField::Import(Import { span: Span::from_offset(0), module: "env", field: "print", item: ItemSig { span: Span::from_offset(0), id: Some(Id::new("print", Span::from_offset(0))), name: None, kind: wast::core::ItemKind::Func(TypeUse { index: None, inline: Some(FunctionType { params: Box::new([(None, None, ValType::I32)]), results: Box::new([]) }) }) } }))
+        // .field(ModuleField::Import(Import { span: Span::from_offset(0), module: "env", field: "print", item: ItemSig { span: Span::from_offset(0), id: Some(Id::new("print", Span::from_offset(0))), name: None, kind: wast::core::ItemKind::Func(TypeUse { index: None, inline: Some(FunctionType { params: Box::new([(None, None, ValType::I32)]), results: Box::new([]) }) }) } }))
         .fields(
             globals(start_case_index)
                 .into_iter()
@@ -976,6 +1619,8 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<Vec<u8>, String
         ))
         .build();
     let unoptimized_data = m.encode().map_err(|e| e.to_string())?;
+
+    println!("{}", unoptimized_data.len());
 
     // std::fs::write("wasm.out", &unoptimized_data).unwrap();
 
