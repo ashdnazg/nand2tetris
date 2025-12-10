@@ -666,7 +666,7 @@ fn command_to_wasm2(
 
                     wasm_instructions.extend([
                         Instruction::I32Const(heap_start * 4),
-                        Instruction::I32Const(heap_end - heap_start),
+                        Instruction::I32Const(heap_end * 4 - heap_start * 4),
                         Instruction::I32Store(mem_arg()),
                         Instruction::I32Const(0),
                     ]);
@@ -684,7 +684,9 @@ fn command_to_wasm2(
                     wasm_instructions.extend([
                         Instruction::I32Const(1),
                         Instruction::I32Add,
-                        Instruction::LocalSet(index_temp()), // size + 1
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::LocalSet(index_temp()), // size * 4 + 4
                         Instruction::I32Const(heap_start * 4),
                         Instruction::LocalSet(index_temp2()), // address
                         // Instruction::Block(Box::new(BlockType { label: Some(break_id.clone()), label_name: None, ty: TypeUse { index: None, inline: None } })),
@@ -700,7 +702,7 @@ fn command_to_wasm2(
                         // Instruction::Call(Index::Id(Id::new("print", Span::from_offset(0)))), // DEBUG
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Load(mem_arg()),
-                        Instruction::LocalGet(index_temp()),
+                        Instruction::LocalGet(index_temp()), // size * 4 + 4
                         Instruction::I32LtS,
                         Instruction::If(Box::new(BlockType {
                             label: None,
@@ -722,8 +724,6 @@ fn command_to_wasm2(
                         Instruction::I32Load(mem_arg()),
                         Instruction::I32LtS,
                         Instruction::Select(SelectTypes { tys: None }),
-                        Instruction::I32Const(2),
-                        Instruction::I32Shl,
                         Instruction::I32Add,
                         Instruction::LocalTee(index_temp2()), // address
                         Instruction::I32Const(heap_end * 4),
@@ -742,7 +742,7 @@ fn command_to_wasm2(
                         Instruction::End(None),
                         Instruction::End(None),
                         // Instruction::End(None)
-                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::LocalGet(index_temp()), // size * 4 + 4
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Load(mem_arg()),
                         Instruction::I32Eq,
@@ -756,23 +756,21 @@ fn command_to_wasm2(
                         })),
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Const(0),
-                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::LocalGet(index_temp()), // size * 4 + 4
                         Instruction::I32Sub,
                         Instruction::I32Store(mem_arg()),
                         Instruction::Else(None),
                         Instruction::LocalGet(index_temp2()),
-                        Instruction::LocalGet(index_temp()), // size + 1
-                        Instruction::I32Const(2),
-                        Instruction::I32Shl,
+                        Instruction::LocalGet(index_temp()), // size * 4 + 4
                         Instruction::I32Add,
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Load(mem_arg()),
-                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::LocalGet(index_temp()), // size * 4 + 4
                         Instruction::I32Sub,
                         Instruction::I32Store(mem_arg()),
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Const(0),
-                        Instruction::LocalGet(index_temp()), // size + 1
+                        Instruction::LocalGet(index_temp()), // size * 4 + 4
                         Instruction::I32Sub,
                         Instruction::I32Store(mem_arg()),
                         Instruction::End(None),
