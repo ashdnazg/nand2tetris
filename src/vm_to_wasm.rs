@@ -548,7 +548,9 @@ fn command_to_wasm2(
                 ]);
             }
 
-            drop_stack_to_ram(stack_size, &mut wasm_instructions);
+            if *stack_size > 1 {
+                drop_stack_to_ram(stack_size, &mut wasm_instructions);
+            }
             prepare_on_stack1(stack_size, &mut wasm_instructions);
 
             wasm_instructions.extend([
@@ -855,7 +857,9 @@ fn command_to_wasm2(
             }
         }
         VMCommand::Return => {
-            drop_stack_to_ram(stack_size, &mut wasm_instructions);
+            prepare_on_stack1(stack_size, &mut wasm_instructions);
+            wasm_instructions.push(Instruction::LocalSet(index_temp2())); // return value
+
             // Store frame pointer and put return address in jump target
             wasm_instructions.extend([
                 Instruction::LocalGet(index_lcl()),
@@ -869,10 +873,7 @@ fn command_to_wasm2(
             // Move return value to beginning of argument segment
             wasm_instructions.extend([
                 Instruction::LocalGet(index_arg()),
-                Instruction::LocalGet(index_sp()),
-                Instruction::I32Const(4),
-                Instruction::I32Sub,
-                Instruction::I32Load(mem_arg()),
+                Instruction::LocalGet(index_temp2()), // return value
                 Instruction::I32Store(mem_arg()),
             ]);
 
