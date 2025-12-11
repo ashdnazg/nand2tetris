@@ -418,10 +418,8 @@ fn command_to_wasm2(
         VMCommand::Neg => {
             prepare_on_stack1(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([
-                Instruction::LocalSet(index_temp()), // value
-                Instruction::I32Const(0),
-                Instruction::LocalGet(index_temp()), // value
-                Instruction::I32Sub,
+                Instruction::I32Const(-1),
+                Instruction::I32Mul,
                 Instruction::I32Extend16S,
             ]);
             *stack_size += 1;
@@ -430,10 +428,8 @@ fn command_to_wasm2(
             prepare_on_stack2(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([
                 Instruction::I32Eq,
-                Instruction::LocalSet(index_temp()), // value
-                Instruction::I32Const(0),
-                Instruction::LocalGet(index_temp()), // value
-                Instruction::I32Sub,
+                Instruction::I32Const(-1),
+                Instruction::I32Mul,
             ]);
             *stack_size += 1;
         }
@@ -441,10 +437,8 @@ fn command_to_wasm2(
             prepare_on_stack2(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([
                 Instruction::I32GtS,
-                Instruction::LocalSet(index_temp()), // value
-                Instruction::I32Const(0),
-                Instruction::LocalGet(index_temp()), // value
-                Instruction::I32Sub,
+                Instruction::I32Const(-1),
+                Instruction::I32Mul,
             ]);
             *stack_size += 1;
         }
@@ -452,10 +446,8 @@ fn command_to_wasm2(
             prepare_on_stack2(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([
                 Instruction::I32LtS,
-                Instruction::LocalSet(index_temp()), // value
-                Instruction::I32Const(0),
-                Instruction::LocalGet(index_temp()), // value
-                Instruction::I32Sub,
+                Instruction::I32Const(-1),
+                Instruction::I32Mul,
             ]);
             *stack_size += 1;
         }
@@ -1187,6 +1179,7 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<(Vec<u8>, Vec<i
 
     let (static_cases, static_start_case_index, case_starts) = program_to_static_cases(program, loop_id);
     // let (dynamic_cases, dynamic_start_case_index) = program_to_dynamic_cases(program, loop_id);
+    // let case_starts = (0..dynamic_cases.len() as i32).collect();
     // assert_eq!(case_starts[static_start_case_index as usize], dynamic_start_case_index);
 
     let static_expression = expression_from_cases(loop_id, static_cases, with_limit);
