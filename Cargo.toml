@@ -38,5 +38,6 @@ wasm-bindgen = "0.2.90"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wasmtime = { version = "38.0.4", default-features = false, features = ['runtime', 'cranelift'] }
+wasmprinter = "0.243.0"
 # binaryen-sys = "0.13.0"
 

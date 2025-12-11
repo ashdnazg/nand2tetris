@@ -106,7 +106,7 @@ fn locals() -> Box<[Local<'static>]> {
         Local {
             id: Some(id_ticks()),
             name: None,
-            ty: ValType::I32,
+            ty: ValType::I64,
         },
         Local {
             id: Some(id_jump_target()),
@@ -287,9 +287,9 @@ fn command_to_wasm2(
     stack_size: &mut usize,
 ) -> Vec<Instruction<'static>> {
     let mut wasm_instructions: Vec<Instruction<'static>> = vec![
-        Instruction::I32Const(1),
+        Instruction::I64Const(1),
         Instruction::LocalGet(index_ticks()),
-        Instruction::I32Add,
+        Instruction::I64Add,
         Instruction::LocalSet(index_ticks()),
     ];
 
@@ -453,12 +453,12 @@ fn command_to_wasm2(
         }
         VMCommand::And => {
             prepare_on_stack2(stack_size, &mut wasm_instructions);
-            wasm_instructions.extend([Instruction::I32And, Instruction::I32Extend16S]);
+            wasm_instructions.push(Instruction::I32And);
             *stack_size += 1;
         }
         VMCommand::Or => {
             prepare_on_stack2(stack_size, &mut wasm_instructions);
-            wasm_instructions.extend([Instruction::I32Or, Instruction::I32Extend16S]);
+            wasm_instructions.push(Instruction::I32Or);
             *stack_size += 1;
         }
         VMCommand::Not => {
@@ -479,6 +479,8 @@ fn command_to_wasm2(
                     Instruction::LocalSet(index_jump_target()),
                 ]);
             }
+
+            assert_eq!(*stack_size, 0);
             wasm_instructions.push(Instruction::Br(jump_index))
         }
         VMCommand::IfGoto { label_name } => {
@@ -493,15 +495,15 @@ fn command_to_wasm2(
             }
 
             if *stack_size > 1 {
+                wasm_instructions.push(Instruction::LocalSet(index_temp2())); // condition
+                *stack_size -= 1;
                 drop_stack_to_ram(stack_size, &mut wasm_instructions);
+                wasm_instructions.push(Instruction::LocalGet(index_temp2())); // condition
+            } else {
+                prepare_on_stack1(stack_size, &mut wasm_instructions);
             }
-            prepare_on_stack1(stack_size, &mut wasm_instructions);
-
-            wasm_instructions.extend([
-                Instruction::I32Const(0),
-                Instruction::I32Ne,
-                Instruction::BrIf(jump_index),
-            ]);
+            assert_eq!(*stack_size, 0);
+            wasm_instructions.push(Instruction::BrIf(jump_index));
         }
         VMCommand::Function {
             local_var_count, ..
@@ -671,7 +673,6 @@ fn command_to_wasm2(
                         Instruction::Else(None),
                             Instruction::LocalGet(index_temp2()), // address
                             Instruction::I32Load(mem_offset_arg(1)),
-                            Instruction::I32Eqz,
                             // Are we at the last node and therefore we have to split it?
                             Instruction::If(Box::new(BlockType {
                                 label: None,
@@ -681,6 +682,14 @@ fn command_to_wasm2(
                                     inline: None,
                                 },
                             })),
+
+                                Instruction::LocalGet(index_temp2()), // address
+                                Instruction::LocalTee(index_temp3()), // prev
+                                Instruction::I32Load(mem_offset_arg(1)),
+                                Instruction::LocalSet(index_temp2()), // address
+                                Instruction::Br(Index::Id(continue_id)),
+
+                            Instruction::Else(None),
 
                                 Instruction::LocalGet(index_temp3()), // prev
 
@@ -717,12 +726,6 @@ fn command_to_wasm2(
                                 Instruction::LocalGet(index_temp()), // size
                                 Instruction::I32Store(mem_arg()),
 
-                            Instruction::Else(None),
-                                Instruction::LocalGet(index_temp2()), // address
-                                Instruction::LocalTee(index_temp3()), // prev
-                                Instruction::I32Load(mem_offset_arg(1)),
-                                Instruction::LocalSet(index_temp2()), // address
-                                Instruction::Br(Index::Id(continue_id)),
                             Instruction::End(None),
                         Instruction::End(None),
                         Instruction::End(None),
@@ -759,47 +762,55 @@ fn command_to_wasm2(
                     *stack_size += 1;
                 }
                 _ => {
-                    drop_stack_to_ram(stack_size, &mut wasm_instructions);
+                    for i in 0..*stack_size {
+                        wasm_instructions.extend([
+                            Instruction::LocalSet(index_temp()), // stack value
+                            Instruction::LocalGet(index_sp()),
+                            Instruction::LocalGet(index_temp()), // stack value
+                            Instruction::I32Store(mem_offset_arg((*stack_size - i - 1) as i16)),
+                        ]);
+                    }
 
                     wasm_instructions.extend([
                         Instruction::LocalGet(index_sp()),
                         Instruction::I32Const(call_indices[&(index + 1)]),
-                        Instruction::I32Store(mem_arg()),
+                        Instruction::I32Store(mem_offset_arg(*stack_size as i16)),
                     ]);
 
                     wasm_instructions.extend([
                         Instruction::LocalGet(index_sp()),
                         Instruction::LocalGet(index_lcl()),
-                        Instruction::I32Store(mem_offset_arg(Register::LCL.address())),
+                        Instruction::I32Store(mem_offset_arg(*stack_size as i16 + Register::LCL.address())),
                         Instruction::LocalGet(index_sp()),
                         Instruction::LocalGet(index_arg()),
-                        Instruction::I32Store(mem_offset_arg(Register::ARG.address())),
+                        Instruction::I32Store(mem_offset_arg(*stack_size as i16 + Register::ARG.address())),
                         Instruction::LocalGet(index_sp()),
                         Instruction::LocalGet(index_this()),
-                        Instruction::I32Store(mem_offset_arg(Register::THIS.address())),
+                        Instruction::I32Store(mem_offset_arg(*stack_size as i16 + Register::THIS.address())),
                         Instruction::LocalGet(index_sp()),
                         Instruction::LocalGet(index_that()),
-                        Instruction::I32Store(mem_offset_arg(Register::THAT.address())),
+                        Instruction::I32Store(mem_offset_arg(*stack_size as i16 + Register::THAT.address())),
                     ]);
 
                     wasm_instructions.push(Instruction::LocalGet(index_sp()));
 
-                    if *argument_count > 0 {
+                    if *argument_count as usize - *stack_size > 0 {
                         wasm_instructions.extend([
-                            Instruction::I32Const(*argument_count as i32 * 4),
+                            Instruction::I32Const((*argument_count as usize - *stack_size) as i32 * 4),
                             Instruction::I32Sub,
                         ]);
                     }
 
-                    wasm_instructions.push(Instruction::LocalSet(index_arg()));
+                    wasm_instructions.push(Instruction::LocalTee(index_arg()));
 
                     wasm_instructions.extend([
-                        Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(20),
+                        Instruction::I32Const(*argument_count as i32 * 4 + 20),
                         Instruction::I32Add,
                         Instruction::LocalTee(index_sp()),
                         Instruction::LocalSet(index_lcl()),
                     ]);
+
+                    *stack_size = 0;
 
                     if matches!(jump_index, Index::Id(_)) {
                         wasm_instructions.extend([
@@ -807,14 +818,13 @@ fn command_to_wasm2(
                             Instruction::LocalSet(index_jump_target()),
                         ]);
                     }
+
+                    assert_eq!(*stack_size, 0);
                     wasm_instructions.push(Instruction::Br(jump_index))
                 }
             }
         }
         VMCommand::Return => {
-            prepare_on_stack1(stack_size, &mut wasm_instructions);
-            wasm_instructions.push(Instruction::LocalSet(index_temp2())); // return value
-
             // Store frame pointer and put return address in jump target
             wasm_instructions.extend([
                 Instruction::LocalGet(index_lcl()),
@@ -826,11 +836,30 @@ fn command_to_wasm2(
             ]);
 
             // Move return value to beginning of argument segment
-            wasm_instructions.extend([
-                Instruction::LocalGet(index_arg()),
-                Instruction::LocalGet(index_temp2()), // return value
-                Instruction::I32Store(mem_arg()),
-            ]);
+            match stack_size {
+                0 => {
+                    wasm_instructions.extend([
+                        Instruction::LocalGet(index_arg()),
+                        Instruction::LocalGet(index_sp()),
+                        Instruction::I32Const(4),
+                        Instruction::I32Sub,
+                        Instruction::I32Load(mem_arg()),
+                        Instruction::I32Store(mem_arg()),
+                    ]);
+                }
+                1 => {
+                    wasm_instructions.extend([
+                        Instruction::LocalSet(index_temp2()), // return value
+                        Instruction::LocalGet(index_arg()),
+                        Instruction::LocalGet(index_temp2()), // return value
+                        Instruction::I32Store(mem_arg()),
+                    ]);
+                    *stack_size -= 1;
+                }
+                _ => {
+                    panic!("Stack size too big at return: {}", stack_size);
+                }
+            }
 
             // Set stack pointer to after return value
             wasm_instructions.extend([
@@ -856,12 +885,26 @@ fn command_to_wasm2(
                 Instruction::LocalSet(index_that()),
             ]);
 
+            assert_eq!(*stack_size, 0);
             wasm_instructions.push(Instruction::Br(jump_index))
         }
     }
 
     wasm_instructions
 }
+
+const OS_FUNCTIONS: &[&str] = &[
+    "Math.multiply",
+    "Math.divide",
+    "Screen.clearScreen",
+    "Screen.setColor",
+    "Screen.drawPixel",
+    "Memory.init",
+    "Memory.alloc",
+    "Memory.deAlloc",
+    "Array.new",
+    "Array.dispose",
+];
 
 fn program_to_dynamic_cases(
     program: &Program,
@@ -892,7 +935,7 @@ fn program_to_dynamic_cases(
                 }
                 function_indices.insert(name.clone(), i as i32);
             }
-            VMCommand::Call { .. } => {
+            VMCommand::Call { function_name, .. } if !OS_FUNCTIONS.contains(&function_name.as_str()) => {
                 call_indices.insert(i + 1, i as i32 + 1);
             }
             _ => {}
@@ -982,7 +1025,7 @@ fn program_to_static_cases(
                 case_starts.insert(i);
                 case_index += 1;
             }
-            VMCommand::Call { .. } => {
+            VMCommand::Call { function_name, .. } if !OS_FUNCTIONS.contains(&function_name.as_str()) => {
                 call_indices.insert(i + 1, case_index);
                 case_starts.insert(i + 1);
                 case_index += 1;
@@ -1099,7 +1142,7 @@ pub fn expression_from_cases(loop_id: Id<'static>, cases: Vec<Vec<Instruction<'s
                 builder = builder
                     .instr(Instruction::LocalGet(index_ticks()))
                     .instr(Instruction::LocalGet(Index::Num(0, Span::from_offset(0))))
-                    .instr(Instruction::I32GeU)
+                    .instr(Instruction::I64GeU)
                     .instr(Instruction::If(Box::new(BlockType {
                         label: None,
                         label_name: None,
@@ -1188,7 +1231,7 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<(Vec<u8>, Vec<i
     let memory_id = Id::new("memory", Span::from_offset(0));
 
     let params = if with_limit {
-        vec![(None, None, ValType::I32)]
+        vec![(None, None, ValType::I64)]
     } else {
         vec![]
     };
@@ -1219,7 +1262,7 @@ pub fn vm_to_wasm(program: &Program, with_limit: bool) -> Result<(Vec<u8>, Vec<i
                     index: None,
                     inline: Some(FunctionType {
                         params: params.clone().into(),
-                        results: [ValType::I32].into(),
+                        results: [ValType::I64].into(),
                     }),
                 })
                 .build(),

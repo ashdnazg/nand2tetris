@@ -136,16 +136,16 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         //                 panic!("Spooky address: {:?}", &ram_copy[0..6]);
         //             }
         //         }
-        //         let mut returns = [Val::I32(0)];
+        //         let mut returns = [Val::I64(0)];
         //         let ret = state.handle.call_function(
         //             &state.run_slow,
-        //             &[Val::I32(1)],
+        //             &[Val::I64(1)],
         //             &mut returns,
         //         );
         //         if let Err(s) = ret {
         //             panic!("WASM function call failed after {}: {}", self.total_steps, s);
         //         }
-        //         let [Val::I32(ticks)] = returns else {
+        //         let [Val::I64(ticks)] = returns else {
         //             panic!("Return type changed");
         //         };
 
@@ -161,14 +161,14 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         //         }
         //     }
         // } else {
-            let mut returns = [Val::I32(0)];
+            let mut returns = [Val::I64(0)];
             state.handle.call_function(
                 &state.run,
-                &[Val::I32(step_count as i32)],
+                &[Val::I64(step_count as i64)],
                 &mut returns,
             );
 
-            let [Val::I32(ticks)] = returns else {
+            let [Val::I64(ticks)] = returns else {
                 panic!("Return type changed");
             };
             self.total_steps += ticks as u64;

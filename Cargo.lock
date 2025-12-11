@@ -2159,6 +2159,7 @@ dependencies = [
  "rfd",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasmprinter 0.243.0",
  "wasmtime",
  "wast",
 ]
@@ -3711,6 +3712,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmparser"
+version = "0.243.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6d8db401b0528ec316dfbe579e6ab4152d61739cfe076706d2009127970159d"
+dependencies = [
+ "bitflags 2.10.0",
+ "indexmap",
+ "semver",
+]
+
+[[package]]
 name = "wasmprinter"
 version = "0.239.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3719,6 +3731,17 @@ dependencies = [
  "anyhow",
  "termcolor",
  "wasmparser 0.239.0",
+]
+
+[[package]]
+name = "wasmprinter"
+version = "0.243.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb2b6035559e146114c29a909a3232928ee488d6507a1504d8934e8607b36d7b"
+dependencies = [
+ "anyhow",
+ "termcolor",
+ "wasmparser 0.243.0",
 ]
 
 [[package]]
@@ -3782,7 +3805,7 @@ dependencies = [
  "target-lexicon",
  "wasm-encoder 0.239.0",
  "wasmparser 0.239.0",
- "wasmprinter",
+ "wasmprinter 0.239.0",
 ]
 
 [[package]]

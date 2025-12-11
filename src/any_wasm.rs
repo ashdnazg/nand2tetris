@@ -78,6 +78,9 @@ impl AnyWasmHandle for WasmtimeHandle {
 
     fn from_binary(binary: &[u8], callback: impl FnOnce(Self) + Send + 'static) {
         let binary = binary.to_vec();
+        // std::fs::write("unopt.wasm", &binary).unwrap();
+        // let text = wasmprinter::print_bytes(&binary).unwrap();
+        // std::fs::write("unopt.wat", &text).unwrap();
         #[cfg(not(test))]
         std::thread::spawn(move || {
             // let binary = unsafe {
@@ -104,6 +107,12 @@ impl AnyWasmHandle for WasmtimeHandle {
 
             //     // This will free buffers in the write_result.
             //     binaryen_sys::BinaryenShimDisposeBinaryenModuleAllocateAndWriteResult(write_result);
+
+            //     println!("{}", binary_buf.len());
+
+            //     // std::fs::write("opt.wasm", &binary_buf).unwrap();
+            //     // let text = wasmprinter::print_bytes(&binary_buf).unwrap();
+            //     // std::fs::write("opt.wat", &text).unwrap();
 
             //     binary_buf
             // };
@@ -253,56 +262,56 @@ impl From<&Val> for JsValue {
 }
 
 
-// #[cfg(target_arch = "wasm32")]
-// #[wasm_bindgen(raw_module = "https://cdn.jsdelivr.net/gh/AssemblyScript/binaryen.js@v124.0.0/index.js")]
-// extern "C" {
-//     type Binaryen;
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(raw_module = "https://cdn.jsdelivr.net/gh/AssemblyScript/binaryen.js@v124.0.0/index.js")]
+extern "C" {
+    type Binaryen;
 
-//     #[wasm_bindgen(thread_local_v2, js_name = default)]
-//     static BINARYEN: Binaryen;
+    #[wasm_bindgen(thread_local_v2, js_name = default)]
+    static BINARYEN: Binaryen;
 
-//     type FeaturesNs;
+    type FeaturesNs;
 
-//     type Features;
+    type Features;
 
-//     type Module;
+    type Module;
 
-//     #[wasm_bindgen(method, js_name = readBinary)]
-//     fn read_binary(this: &Binaryen, buffer_source: &[u8]) -> Module;
+    #[wasm_bindgen(method, js_name = readBinary)]
+    fn read_binary(this: &Binaryen, buffer_source: &[u8]) -> Module;
 
-//     #[wasm_bindgen(method, getter, js_name = Features)]
-//     fn features(this: &Binaryen) -> FeaturesNs;
+    #[wasm_bindgen(method, getter, js_name = Features)]
+    fn features(this: &Binaryen) -> FeaturesNs;
 
-//     #[wasm_bindgen(method, getter, js_name = SignExt)]
-//     fn sign_ext(this: &FeaturesNs) -> Features;
+    #[wasm_bindgen(method, getter, js_name = SignExt)]
+    fn sign_ext(this: &FeaturesNs) -> Features;
 
-//     #[wasm_bindgen(method, getter, js_name = BulkMemory)]
-//     fn bulk_memory(this: &FeaturesNs) -> Features;
+    #[wasm_bindgen(method, getter, js_name = BulkMemory)]
+    fn bulk_memory(this: &FeaturesNs) -> Features;
 
-//     #[wasm_bindgen(method, getter, js_name = All)]
-//     fn all(this: &FeaturesNs) -> Features;
+    #[wasm_bindgen(method, getter, js_name = All)]
+    fn all(this: &FeaturesNs) -> Features;
 
-//     #[wasm_bindgen(method, js_name = setFeatures)]
-//     fn set_features(this: &Module, features: Features);
+    #[wasm_bindgen(method, js_name = setFeatures)]
+    fn set_features(this: &Module, features: Features);
 
-//     #[wasm_bindgen(method, js_name = setOptimizeLevel)]
-//     fn set_optimize_level(this: &Binaryen, level: f64);
+    #[wasm_bindgen(method, js_name = setOptimizeLevel)]
+    fn set_optimize_level(this: &Binaryen, level: f64);
 
-//     #[wasm_bindgen(method, js_name = setShrinkLevel)]
-//     fn set_shrink_level(this: &Binaryen, level: f64);
+    #[wasm_bindgen(method, js_name = setShrinkLevel)]
+    fn set_shrink_level(this: &Binaryen, level: f64);
 
-//     #[wasm_bindgen(method, js_name = setClosedWorld)]
-//     fn set_closed_world(this: &Binaryen, flag: bool);
+    #[wasm_bindgen(method, js_name = setClosedWorld)]
+    fn set_closed_world(this: &Binaryen, flag: bool);
 
-//     #[wasm_bindgen(method, js_name = setTrapsNeverHappen)]
-//     fn set_traps_never_happen(this: &Binaryen, flag: bool);
+    #[wasm_bindgen(method, js_name = setTrapsNeverHappen)]
+    fn set_traps_never_happen(this: &Binaryen, flag: bool);
 
-//     #[wasm_bindgen(method)]
-//     fn optimize(this: &Module);
+    #[wasm_bindgen(method)]
+    fn optimize(this: &Module);
 
-//     #[wasm_bindgen(method, js_name = emitBinary)]
-//     fn emit_binary(this: &Module) -> Vec<u8>;
-// }
+    #[wasm_bindgen(method, js_name = emitBinary)]
+    fn emit_binary(this: &Module) -> Vec<u8>;
+}
 
 #[cfg(target_arch = "wasm32")]
 impl AnyWasmHandle for JsWasmHandle {
