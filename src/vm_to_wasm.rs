@@ -533,7 +533,6 @@ fn command_to_wasm2(
             *stack_size += 1;
         }
         VMCommand::Label { .. } => {
-            // unreachable!("Labels should have been removed by now");
         }
         VMCommand::Goto { label_name } => {
             drop_stack_to_ram(stack_size, &mut wasm_instructions);
@@ -722,6 +721,7 @@ fn command_to_wasm2(
                         Instruction::I32Load(mem_arg()),
                         Instruction::LocalGet(index_temp()), // size
                         Instruction::I32Eq,
+                        // Did we find a node with the right size?
                         Instruction::If(Box::new(BlockType {
                             label: None,
                             label_name: None,
@@ -738,6 +738,7 @@ fn command_to_wasm2(
                             Instruction::LocalGet(index_temp2()), // address
                             Instruction::I32Load(mem_offset_arg(1)),
                             Instruction::I32Eqz,
+                            // Are we at the last node and therefore we have to split it?
                             Instruction::If(Box::new(BlockType {
                                 label: None,
                                 label_name: None,
@@ -747,11 +748,20 @@ fn command_to_wasm2(
                                 },
                             })),
 
+                                Instruction::LocalGet(index_temp3()), // prev
+
                                 Instruction::LocalGet(index_temp2()), // address
                                 Instruction::LocalGet(index_temp()), // size
                                 Instruction::I32Const(2),
                                 Instruction::I32Shl,
                                 Instruction::I32Add,
+                                Instruction::LocalTee(index_temp3()), // address + size * 4
+                                Instruction::I32Const(4),
+                                Instruction::I32Add,
+
+                                Instruction::I32Store(mem_offset_arg(1)),
+
+                                Instruction::LocalGet(index_temp3()), // address + size * 4
 
                                 Instruction::LocalGet(index_temp2()), // address
                                 Instruction::I32Load(mem_arg()),
@@ -762,11 +772,7 @@ fn command_to_wasm2(
 
                                 Instruction::I32Store(mem_offset_arg(1)),
 
-                                Instruction::LocalGet(index_temp2()), // address
-                                Instruction::LocalGet(index_temp()), // size
-                                Instruction::I32Const(2),
-                                Instruction::I32Shl,
-                                Instruction::I32Add,
+                                Instruction::LocalGet(index_temp3()), // address + size * 4
 
                                 // If we split, we know it's the last node
                                 Instruction::I32Const(0),
@@ -777,16 +783,6 @@ fn command_to_wasm2(
                                 Instruction::LocalGet(index_temp()), // size
                                 Instruction::I32Store(mem_arg()),
 
-                                Instruction::LocalGet(index_temp3()), // prev
-                                Instruction::LocalGet(index_temp2()), // address
-                                Instruction::LocalGet(index_temp()), // size
-                                Instruction::I32Const(2),
-                                Instruction::I32Shl,
-                                Instruction::I32Add,
-                                Instruction::I32Const(4),
-                                Instruction::I32Add,
-                                Instruction::I32Store(mem_offset_arg(1)),
-
                             Instruction::Else(None),
                                 Instruction::LocalGet(index_temp2()), // address
                                 Instruction::LocalTee(index_temp3()), // prev
@@ -796,17 +792,6 @@ fn command_to_wasm2(
                             Instruction::End(None),
                         Instruction::End(None),
                         Instruction::End(None),
-
-                        Instruction::LocalGet(index_temp2()), // address
-                        Instruction::I32Const(4),
-                        Instruction::I32Add,
-                        Instruction::I32Const(0),
-                        Instruction::LocalGet(index_temp()), // size
-                        Instruction::I32Const(2),
-                        Instruction::I32Shl,
-                        Instruction::MemoryFill(MemoryArg {
-                            mem: Index::Num(0, Span::from_offset(0)),
-                        }),
 
                         Instruction::LocalGet(index_temp2()), // address
                         Instruction::I32Const(2),
