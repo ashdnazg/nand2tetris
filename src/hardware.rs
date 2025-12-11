@@ -285,6 +285,7 @@ impl IndexMut<Word> for RAM {
 
 impl RAM {
     pub const SCREEN: Word = (MEM_SIZE / 2) as Word;
+    pub const HEAP: Word = 0x0800;
     pub const KBD: Word = Self::SCREEN + Self::SCREEN_ROW_LENGTH * 256;
     pub const SCREEN_ROW_LENGTH: Word = 512 / Word::BITS as Word;
 

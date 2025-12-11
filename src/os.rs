@@ -16,7 +16,7 @@ pub struct OS {
 impl Default for OS {
     fn default() -> Self {
         Self {
-            memory: Memory::new(0x0800, RAM::SCREEN - 0x0800),
+            memory: Memory::new(RAM::HEAP, RAM::SCREEN - RAM::HEAP),
             screen: Screen { color: true },
             output: Output { row: 0, col: 0 },
         }
