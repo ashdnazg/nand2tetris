@@ -1,12 +1,10 @@
-use hashbrown::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::any_wasm::{AnyWasmHandle, Val};
 
-use crate::hardware::RAM;
 use crate::{hardware::Word, vm::Program};
 
-use crate::vm::{Register, VM, VMCommand};
+use crate::vm::{VM, VMCommand};
 
 #[cfg(not(target_arch = "wasm32"))]
 pub type WasmVm = GenericWasmVm<crate::any_wasm::WasmtimeHandle>;
@@ -164,7 +162,7 @@ impl<H: AnyWasmHandle> GenericWasmVm<H> {
         //     }
         // } else {
             let mut returns = [Val::I32(0)];
-            let ret = state.handle.call_function(
+            state.handle.call_function(
                 &state.run,
                 &[Val::I32(step_count as i32)],
                 &mut returns,

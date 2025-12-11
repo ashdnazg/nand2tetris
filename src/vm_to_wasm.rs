@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use wast::{
     core::{
-        BlockType, Export, ExportKind, Expression, FuncKind, FunctionType, Global, GlobalKind, GlobalType, Import, InlineExport, Instruction, ItemSig, Local, MemArg, MemoryArg, ModuleField, SelectTypes, TypeUse, ValType
+        BlockType, Export, ExportKind, Expression, FuncKind, FunctionType, Global, GlobalKind, GlobalType, InlineExport, Instruction, Local, MemArg, MemoryArg, ModuleField, TypeUse, ValType
     },
-    token::{Id, Index, NameAnnotation, Span},
+    token::{Id, Index, Span},
 };
 
 use crate::{
@@ -207,64 +207,6 @@ fn mem_offset_arg(offset: Word) -> MemArg<'static> {
         offset: offset as u64 * 4,
         memory: Index::Num(0, Span::from_offset(0)),
     }
-}
-
-fn load_register(register: Register) -> [Instruction<'static>; 2] {
-    [
-        Instruction::I32Const(register.address() as i32 * 4),
-        Instruction::I32Load(mem_arg()),
-    ]
-}
-
-fn unary_stack_op(
-    prefix: Vec<Instruction<'static>>,
-    op: Vec<Instruction<'static>>,
-) -> Vec<Instruction<'static>> {
-    let mut ret = vec![
-        Instruction::LocalGet(index_sp()),
-        Instruction::I32Const(4),
-        Instruction::I32Sub,
-    ];
-    ret.extend(prefix);
-    ret.extend([
-        Instruction::LocalGet(index_sp()),
-        Instruction::I32Const(4),
-        Instruction::I32Sub,
-        Instruction::I32Load(mem_arg()),
-    ]);
-
-    ret.extend(op);
-
-    ret.push(Instruction::I32Store(mem_arg()));
-
-    ret
-}
-
-fn binary_stack_op(
-    prefix: Vec<Instruction<'static>>,
-    op: Vec<Instruction<'static>>,
-) -> Vec<Instruction<'static>> {
-    let mut ret = vec![
-        Instruction::LocalGet(index_sp()),
-        Instruction::I32Const(4),
-        Instruction::I32Sub,
-        Instruction::LocalTee(index_sp()),
-        Instruction::I32Const(4),
-        Instruction::I32Sub,
-    ];
-    ret.extend(prefix);
-    ret.extend([
-        Instruction::LocalGet(index_sp()),
-        Instruction::I32Const(4),
-        Instruction::I32Sub,
-        Instruction::I32Load(mem_arg()),
-        Instruction::LocalGet(index_sp()),
-        Instruction::I32Load(mem_arg()),
-    ]);
-    ret.extend(op);
-    ret.push(Instruction::I32Store(mem_arg()));
-
-    ret
 }
 
 fn prepare_on_stack1(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruction<'static>>) {
