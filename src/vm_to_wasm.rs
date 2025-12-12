@@ -277,13 +277,13 @@ fn drop_stack_to_ram(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruc
 
 fn command_to_wasm2(
     command: &VMCommand,
-    index: usize,
+    case_index: usize,
     jump_index: Index<'static>,
     static_segment_start: Word,
     current_function_name: Option<&String>,
     label_indices: &HashMap<String, i32>,
     function_indices: &HashMap<String, i32>,
-    call_indices: &HashMap<usize, i32>,
+    call_sites: &HashMap<String, Vec<i32>>,
     stack_size: &mut usize,
 ) -> Vec<Instruction<'static>> {
     let mut wasm_instructions: Vec<Instruction<'static>> = vec![
@@ -771,11 +771,14 @@ fn command_to_wasm2(
                         ]);
                     }
 
-                    wasm_instructions.extend([
-                        Instruction::LocalGet(index_sp()),
-                        Instruction::I32Const(call_indices[&(index + 1)]),
-                        Instruction::I32Store(mem_offset_arg(*stack_size as i16)),
-                    ]);
+                    // we can skip storing the return address if there is only one call site
+                    if call_sites[function_name].len() != 1 {
+                        wasm_instructions.extend([
+                            Instruction::LocalGet(index_sp()),
+                            Instruction::I32Const(case_index as i32 + 1),
+                            Instruction::I32Store(mem_offset_arg(*stack_size as i16)),
+                        ]);
+                    }
 
                     wasm_instructions.extend([
                         Instruction::LocalGet(index_sp()),
@@ -825,15 +828,18 @@ fn command_to_wasm2(
             }
         }
         VMCommand::Return => {
-            // Store frame pointer and put return address in jump target
-            wasm_instructions.extend([
-                Instruction::LocalGet(index_lcl()),
-                Instruction::I32Const(20),
-                Instruction::I32Sub,
-                Instruction::LocalTee(index_temp()), // frame
-                Instruction::I32Load(mem_arg()),
-                Instruction::LocalSet(index_jump_target()),
-            ]);
+            let my_call_sites = call_sites.get(current_function_name.unwrap().as_str()).map(|v| v.as_slice()).unwrap_or(&[]);
+
+            if my_call_sites.len() != 1 {
+                wasm_instructions.extend([
+                    Instruction::LocalGet(index_lcl()),
+                    Instruction::I32Const(20),
+                    Instruction::I32Sub,
+                    Instruction::LocalTee(index_temp()), // frame
+                    Instruction::I32Load(mem_arg()),
+                    Instruction::LocalSet(index_jump_target()),
+                ]);
+            }
 
             // Move return value to beginning of argument segment
             match stack_size {
@@ -869,9 +875,19 @@ fn command_to_wasm2(
                 Instruction::LocalSet(index_sp()),
             ]);
 
+            if my_call_sites.len() == 1 {
+                wasm_instructions.extend([
+                    Instruction::LocalGet(index_lcl()),
+                    Instruction::I32Const(20),
+                    Instruction::I32Sub,
+                    Instruction::LocalTee(index_temp()), // frame
+                ]);
+            } else {
+                wasm_instructions.push(Instruction::LocalGet(index_temp())); // frame
+            }
+
             // Restore frame
             wasm_instructions.extend([
-                Instruction::LocalGet(index_temp()), // frame
                 Instruction::I32Load(mem_offset_arg(Register::LCL.address())),
                 Instruction::LocalSet(index_lcl()),
                 Instruction::LocalGet(index_temp()), // frame
@@ -886,7 +902,24 @@ fn command_to_wasm2(
             ]);
 
             assert_eq!(*stack_size, 0);
-            wasm_instructions.push(Instruction::Br(jump_index))
+
+            match my_call_sites {
+                [site] => {
+                    if *site > case_index as i32 {
+                        let target_index = Index::Num((*site - case_index as i32) as u32 - 1, Span::from_offset(0));
+                        wasm_instructions.push(Instruction::Br(target_index));
+                    } else {
+                        wasm_instructions.extend([
+                            Instruction::I32Const(*site),
+                            Instruction::LocalSet(index_jump_target()),
+                            Instruction::Br(jump_index)
+                        ]);
+                    }
+                }
+                _ => {
+                    wasm_instructions.push(Instruction::Br(jump_index))
+                }
+            }
         }
     }
 
@@ -912,9 +945,9 @@ fn program_to_dynamic_cases(
 ) -> (Vec<Vec<Instruction<'static>>>, i32) {
     let mut label_indices = HashMap::new();
     let mut function_indices = HashMap::new();
-    let mut call_indices = HashMap::new();
     let mut start_case_index = None;
     let mut current_function_name = None;
+    let mut call_sites: HashMap<String, Vec<i32>> = HashMap::new();
     for (i, command) in program
         .files
         .iter()
@@ -936,7 +969,10 @@ fn program_to_dynamic_cases(
                 function_indices.insert(name.clone(), i as i32);
             }
             VMCommand::Call { function_name, .. } if !OS_FUNCTIONS.contains(&function_name.as_str()) => {
-                call_indices.insert(i + 1, i as i32 + 1);
+                call_sites
+                    .entry(function_name.clone())
+                    .or_default()
+                    .push(i as i32 + 1);
             }
             _ => {}
         }
@@ -963,13 +999,13 @@ fn program_to_dynamic_cases(
 
         let instructions = command_to_wasm2(
             command,
-            index,
+            cases.len(),
             jump_index,
             static_segment_start,
             current_function_name,
             &label_indices,
             &function_indices,
-            &call_indices,
+            &call_sites,
             &mut stack_size,
         );
 
@@ -994,11 +1030,11 @@ fn program_to_static_cases(
 ) -> (Vec<Vec<Instruction<'static>>>, i32, Vec<i32>) {
     let mut label_indices = HashMap::new();
     let mut function_indices = HashMap::new();
-    let mut call_indices = HashMap::new();
     let mut case_index = 0;
     let mut case_starts = HashSet::new();
     let mut start_case_index = None;
     let mut current_function_name = None;
+    let mut call_sites: HashMap<String, Vec<i32>> = HashMap::new();
     for (i, command) in program
         .files
         .iter()
@@ -1026,7 +1062,10 @@ fn program_to_static_cases(
                 case_index += 1;
             }
             VMCommand::Call { function_name, .. } if !OS_FUNCTIONS.contains(&function_name.as_str()) => {
-                call_indices.insert(i + 1, case_index);
+                call_sites
+                    .entry(function_name.clone())
+                    .or_default()
+                    .push(case_index);
                 case_starts.insert(i + 1);
                 case_index += 1;
             }
@@ -1081,13 +1120,13 @@ fn program_to_static_cases(
 
         let instructions = command_to_wasm2(
             command,
-            index,
+            cases.len(),
             jump_index,
             static_segment_start,
             current_function_name,
             &label_indices,
             &function_indices,
-            &call_indices,
+            &call_sites,
             &mut stack_size,
         );
 
