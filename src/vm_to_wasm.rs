@@ -53,6 +53,10 @@ fn id_temp3() -> Id<'static> {
     Id::new("temp3", Span::from_offset(0))
 }
 
+fn id_temp4() -> Id<'static> {
+    Id::new("temp4", Span::from_offset(0))
+}
+
 fn id_screen_color() -> Id<'static> {
     Id::new("screen_color", Span::from_offset(0))
 }
@@ -95,6 +99,10 @@ fn index_temp2() -> Index<'static> {
 
 fn index_temp3() -> Index<'static> {
     Index::Id(id_temp3())
+}
+
+fn index_temp4() -> Index<'static> {
+    Index::Id(id_temp4())
 }
 
 fn index_screen_color() -> Index<'static> {
@@ -150,6 +158,11 @@ fn locals() -> Box<[Local<'static>]> {
         },
         Local {
             id: Some(id_temp3()),
+            name: None,
+            ty: ValType::I32,
+        },
+        Local {
+            id: Some(id_temp4()),
             name: None,
             ty: ValType::I32,
         },
@@ -509,17 +522,6 @@ fn command_to_wasm2(
             local_var_count, ..
         } => match local_var_count {
             0 => {}
-            1 => {
-                wasm_instructions.extend([
-                    Instruction::LocalGet(index_sp()),
-                    Instruction::I32Const(0),
-                    Instruction::I32Store(mem_arg()),
-                    Instruction::LocalGet(index_sp()),
-                    Instruction::I32Const(4),
-                    Instruction::I32Add,
-                    Instruction::LocalSet(index_sp()),
-                ]);
-            }
             _ => {
                 wasm_instructions.extend([
                     Instruction::LocalGet(index_sp()),
@@ -601,8 +603,7 @@ fn command_to_wasm2(
                         Instruction::LocalGet(index_temp2()), // bitmask
                         Instruction::I32And,
                         Instruction::I32Or,
-                        Instruction::I32Extend16S,
-                        Instruction::I32Store(mem_arg()),
+                        Instruction::I32Store16(MemArg { align: 2, offset: 0, memory: Index::Num(0, Span::from_offset(0)) }),
                         Instruction::I32Const(0),
                     ]);
                     *stack_size += 1;
@@ -643,7 +644,7 @@ fn command_to_wasm2(
                         Instruction::I32Const(heap_start * 4 - 4),
                         Instruction::LocalTee(index_temp3()), // prev
                         Instruction::I32Load(mem_offset_arg(1)),
-                        Instruction::LocalSet(index_temp2()), // address
+                        Instruction::LocalSet(index_temp4()), // next
                         Instruction::Loop(Box::new(BlockType {
                             label: Some(continue_id),
                             label_name: None,
@@ -653,7 +654,8 @@ fn command_to_wasm2(
                             },
                         })),
 
-                        Instruction::LocalGet(index_temp2()), // address
+                        Instruction::LocalGet(index_temp4()), //next
+                        Instruction::LocalTee(index_temp2()), // address
                         Instruction::I32Load(mem_arg()),
                         Instruction::LocalGet(index_temp()), // size
                         Instruction::I32Eq,
@@ -673,6 +675,7 @@ fn command_to_wasm2(
                         Instruction::Else(None),
                             Instruction::LocalGet(index_temp2()), // address
                             Instruction::I32Load(mem_offset_arg(1)),
+                            Instruction::LocalTee(index_temp4()), // next
                             // Are we at the last node and therefore we have to split it?
                             Instruction::If(Box::new(BlockType {
                                 label: None,
@@ -684,9 +687,7 @@ fn command_to_wasm2(
                             })),
 
                                 Instruction::LocalGet(index_temp2()), // address
-                                Instruction::LocalTee(index_temp3()), // prev
-                                Instruction::I32Load(mem_offset_arg(1)),
-                                Instruction::LocalSet(index_temp2()), // address
+                                Instruction::LocalSet(index_temp3()), // prev
                                 Instruction::Br(Index::Id(continue_id)),
 
                             Instruction::Else(None),
@@ -695,32 +696,31 @@ fn command_to_wasm2(
 
                                 Instruction::LocalGet(index_temp2()), // address
                                 Instruction::LocalGet(index_temp()), // size
+                                Instruction::I32Const(1),
+                                Instruction::I32Add,
+                                Instruction::LocalTee(index_temp4()), // size + 1
                                 Instruction::I32Const(2),
                                 Instruction::I32Shl,
                                 Instruction::I32Add,
-                                Instruction::LocalTee(index_temp3()), // address + size * 4
-                                Instruction::I32Const(4),
-                                Instruction::I32Add,
+                                Instruction::LocalTee(index_temp4()), // address + size * 4 + 4
 
                                 Instruction::I32Store(mem_offset_arg(1)),
 
-                                Instruction::LocalGet(index_temp3()), // address + size * 4
+                                Instruction::LocalGet(index_temp4()), // address + size * 4 + 4
 
                                 Instruction::LocalGet(index_temp2()), // address
                                 Instruction::I32Load(mem_arg()),
-                                Instruction::LocalGet(index_temp()), // size
-                                Instruction::I32Sub,
-                                Instruction::I32Const(1),
+                                Instruction::LocalGet(index_temp4()), // size + 1
                                 Instruction::I32Sub,
 
-                                Instruction::I32Store(mem_offset_arg(1)),
+                                Instruction::I32Store(mem_arg()),
 
-                                Instruction::LocalGet(index_temp3()), // address + size * 4
+                                Instruction::LocalGet(index_temp4()), // address + size * 4 + 4
 
                                 // If we split, we know it's the last node
                                 Instruction::I32Const(0),
 
-                                Instruction::I32Store(mem_offset_arg(2)),
+                                Instruction::I32Store(mem_offset_arg(1)),
 
                                 Instruction::LocalGet(index_temp2()), // address
                                 Instruction::LocalGet(index_temp()), // size
