@@ -37,6 +37,10 @@ fn id_that() -> Id<'static> {
     Id::new("that", Span::from_offset(0))
 }
 
+fn id_temp0() -> Id<'static> {
+    Id::new("temp0", Span::from_offset(0))
+}
+
 fn id_jump_target() -> Id<'static> {
     Id::new("jump_target", Span::from_offset(0))
 }
@@ -83,6 +87,10 @@ fn index_this() -> Index<'static> {
 
 fn index_that() -> Index<'static> {
     Index::Id(id_that())
+}
+
+fn index_temp0() -> Index<'static> {
+    Index::Id(id_temp0())
 }
 
 fn index_jump_target() -> Index<'static> {
@@ -143,6 +151,11 @@ fn locals() -> Box<[Local<'static>]> {
         },
         Local {
             id: Some(id_that()),
+            name: None,
+            ty: ValType::I32,
+        },
+        Local {
+            id: Some(id_temp0()),
             name: None,
             ty: ValType::I32,
         },
@@ -351,10 +364,14 @@ fn command_to_wasm2(
                     ]);
                 }
                 PushSegment::Temp => {
-                    wasm_instructions.extend([
-                        Instruction::I32Const(Register::TEMP(*offset).address() as i32 * 4),
-                        Instruction::I32Load(mem_offset_arg(*offset)),
-                    ]);
+                    if *offset == 0 {
+                        wasm_instructions.push(Instruction::LocalGet(index_temp0()));
+                    } else {
+                        wasm_instructions.extend([
+                            Instruction::I32Const(Register::TEMP(*offset).address() as i32 * 4),
+                            Instruction::I32Load(mem_offset_arg(*offset)),
+                        ]);
+                    }
                 }
                 PushSegment::Pointer => {
                     let local_index = match offset {
@@ -375,18 +392,25 @@ fn command_to_wasm2(
 
             prepare_on_stack1(stack_size, &mut wasm_instructions);
 
-            if matches!(segment, PopSegment::Pointer) {
-                let local_index = match offset {
-                    0 => index_this(),
-                    1 => index_that(),
-                    _ => panic!("Invalid offset for pointer pop"),
-                };
-                wasm_instructions.extend([
-                    Instruction::I32Const(2),
-                    Instruction::I32Shl,
-                    Instruction::LocalSet(local_index),
-                ]);
-                return wasm_instructions;
+            match segment {
+                PopSegment::Temp if *offset == 0 => {
+                    wasm_instructions.push(Instruction::LocalSet(index_temp0()));
+                    return wasm_instructions;
+                }
+                PopSegment::Pointer => {
+                    let local_index = match offset {
+                        0 => index_this(),
+                        1 => index_that(),
+                        _ => panic!("Invalid offset for pointer pop"),
+                    };
+                    wasm_instructions.extend([
+                        Instruction::I32Const(2),
+                        Instruction::I32Shl,
+                        Instruction::LocalSet(local_index),
+                    ]);
+                    return wasm_instructions;
+                }
+                _ => {}
             }
 
             wasm_instructions.push(Instruction::LocalSet(index_temp())); // value
@@ -1176,6 +1200,9 @@ pub fn expression_from_cases(loop_id: Id<'static>, cases: Vec<Vec<Instruction<'s
         .instr(Instruction::I32Const(2))
         .instr(Instruction::I32Shl)
         .instr(Instruction::LocalSet(index_that()))
+        .instr(Instruction::I32Const(Register::TEMP(0).address() as i32 * 4))
+        .instr(Instruction::I32Load(mem_arg()))
+        .instr(Instruction::LocalSet(index_temp0()))
         .with_loop(loop_id, |mut builder| {
             if with_limit {
                 builder = builder
@@ -1218,6 +1245,9 @@ pub fn expression_from_cases(loop_id: Id<'static>, cases: Vec<Vec<Instruction<'s
                     .instr(Instruction::I32Const(2))
                     .instr(Instruction::I32ShrU)
                     .instr(Instruction::I32Store(mem_arg()))
+                    .instr(Instruction::I32Const(Register::TEMP(0).address() as i32 * 4))
+                    .instr(Instruction::LocalGet(index_temp0()))
+                    .instr(Instruction::I32Store(mem_arg()))
                     .instr(Instruction::Return)
                     .instr(Instruction::End(None));
             }
@@ -1251,6 +1281,9 @@ pub fn expression_from_cases(loop_id: Id<'static>, cases: Vec<Vec<Instruction<'s
         .instr(Instruction::LocalGet(index_that()))
         .instr(Instruction::I32Const(2))
         .instr(Instruction::I32ShrU)
+        .instr(Instruction::I32Store(mem_arg()))
+        .instr(Instruction::I32Const(Register::TEMP(0).address() as i32 * 4))
+        .instr(Instruction::LocalGet(index_temp0()))
         .instr(Instruction::I32Store(mem_arg()))
         .instr(Instruction::LocalGet(index_ticks()))
         .build()
