@@ -318,7 +318,7 @@ pub fn draw_shared(
                             ui.spacing_mut().interact_size.x = 100.0;
                             ui.add_sized(
                                 [200.0, height],
-                                Slider::new(&mut new_steps_per_second, 0..=10_000_000_000)
+                                Slider::new(&mut new_steps_per_second, 0..=12_000_000_000)
                                     .logarithmic(true),
                             );
                         })

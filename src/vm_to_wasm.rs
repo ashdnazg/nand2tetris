@@ -281,6 +281,22 @@ fn prepare_on_stack2(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruc
     }
 }
 
+fn prepare_on_stack2_commutative(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruction<'static>>) {
+    if *stack_size == 1 {
+        wasm_instructions.extend([
+            Instruction::LocalGet(index_sp()),
+            Instruction::I32Const(4),
+            Instruction::I32Sub,
+            Instruction::LocalTee(index_sp()),
+            Instruction::I32Load(mem_arg()),
+        ]);
+
+        *stack_size -= 1;
+    } else {
+        prepare_on_stack2(stack_size, wasm_instructions);
+    }
+}
+
 fn drop_stack_to_ram(stack_size: &mut usize, wasm_instructions: &mut Vec<Instruction<'static>>) {
     for i in 0..*stack_size {
         wasm_instructions.extend([
@@ -321,7 +337,7 @@ fn command_to_wasm2(
 
     match command {
         VMCommand::Add => {
-            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([Instruction::I32Add, Instruction::I32Extend16S]);
             *stack_size += 1;
         }
@@ -448,8 +464,16 @@ fn command_to_wasm2(
             ]);
         }
         VMCommand::Sub => {
-            prepare_on_stack2(stack_size, &mut wasm_instructions);
-            wasm_instructions.extend([Instruction::I32Sub, Instruction::I32Extend16S]);
+            let neg = *stack_size == 1;
+            prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
+            wasm_instructions.push(Instruction::I32Sub);
+            if neg {
+                wasm_instructions.extend([
+                    Instruction::I32Const(-1),
+                    Instruction::I32Mul,
+                ]);
+            }
+            wasm_instructions.push(Instruction::I32Extend16S);
             *stack_size += 1;
         }
         VMCommand::Neg => {
@@ -462,7 +486,7 @@ fn command_to_wasm2(
             *stack_size += 1;
         }
         VMCommand::Eq => {
-            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([
                 Instruction::I32Eq,
                 Instruction::I32Const(-1),
@@ -471,30 +495,32 @@ fn command_to_wasm2(
             *stack_size += 1;
         }
         VMCommand::Gt => {
-            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            let flip = *stack_size == 1;
+            prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([
-                Instruction::I32GtS,
+                if flip {Instruction::I32LtS } else {Instruction::I32GtS},
                 Instruction::I32Const(-1),
                 Instruction::I32Mul,
             ]);
             *stack_size += 1;
         }
         VMCommand::Lt => {
-            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            let flip = *stack_size == 1;
+            prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
             wasm_instructions.extend([
-                Instruction::I32LtS,
+                if flip {Instruction::I32GtS } else {Instruction::I32LtS},
                 Instruction::I32Const(-1),
                 Instruction::I32Mul,
             ]);
             *stack_size += 1;
         }
         VMCommand::And => {
-            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
             wasm_instructions.push(Instruction::I32And);
             *stack_size += 1;
         }
         VMCommand::Or => {
-            prepare_on_stack2(stack_size, &mut wasm_instructions);
+            prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
             wasm_instructions.push(Instruction::I32Or);
             *stack_size += 1;
         }
@@ -567,7 +593,7 @@ fn command_to_wasm2(
         } => {
             match function_name.as_str() {
                 "Math.multiply" => {
-                    prepare_on_stack2(stack_size, &mut wasm_instructions);
+                    prepare_on_stack2_commutative(stack_size, &mut wasm_instructions);
                     wasm_instructions.extend([Instruction::I32Mul, Instruction::I32Extend16S]);
                     *stack_size += 1;
                 }
